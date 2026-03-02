@@ -21,7 +21,12 @@ if config.config_file_name is not None:
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from models import Base
+from config import settings
+
 target_metadata = Base.metadata
+
+# Use app config for DB URL (supports Render INTERNAL_DATABASE_URL)
+config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
