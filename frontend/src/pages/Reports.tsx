@@ -161,7 +161,7 @@ export default function Reports() {
             {dailyData.length === 0
               ? <p style={{ color: "#94a3b8", textAlign: "center", padding: 40 }}>No data for this month</p>
               : <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {dailyData.map(([date, amount], i) => (
+                  {dailyData.map(([date, amount]) => (
                     <div key={date} style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <div style={{ width: 32, fontSize: 12, fontWeight: 700, color: "#94a3b8", textAlign: "right", flexShrink: 0 }}>
                         {new Date(date + "T00:00:00").getDate()}
