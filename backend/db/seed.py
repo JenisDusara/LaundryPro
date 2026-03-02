@@ -3,7 +3,7 @@ import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from passlib.hash import bcrypt
-from database import SessionLocal
+from db.database import SessionLocal
 from models import Admin, Service
 
 db = SessionLocal()
