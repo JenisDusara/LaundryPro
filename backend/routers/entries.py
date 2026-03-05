@@ -8,13 +8,13 @@ from db.database import get_db
 from models import LaundryEntry, EntryItem, Service, Customer
 from routers.auth import get_current_admin
 from schemas import EntryCreate, EntryOut
+from utils.email import send_email, pickup_email_html, delivery_email_html
 
 router = APIRouter(dependencies=[Depends(get_current_admin)])
 
 
 @router.post("", response_model=EntryOut)
 def create_entry(data: EntryCreate, db: Session = Depends(get_db)):
-    # Verify customer exists
     if not db.query(Customer).filter(Customer.id == data.customer_id).first():
         raise HTTPException(404, "Customer not found")
 
@@ -44,6 +44,27 @@ def create_entry(data: EntryCreate, db: Session = Depends(get_db)):
     db.add(entry)
     db.commit()
     db.refresh(entry)
+
+    # Reload with relationships
+    entry = db.query(LaundryEntry).options(
+        joinedload(LaundryEntry.items),
+        joinedload(LaundryEntry.customer),
+    ).filter(LaundryEntry.id == entry.id).first()
+
+    # Send pickup email
+    if entry and entry.customer and entry.customer.email:
+        items_data = [
+            {"service_name": i.service_name, "quantity": i.quantity, "subtotal": float(i.subtotal)}
+            for i in entry.items
+        ]
+        html = pickup_email_html(
+            entry.customer.name,
+            str(entry.entry_date),
+            items_data,
+            float(entry.total_amount),
+        )
+        send_email(entry.customer.email, "LaundryPro - Pickup Confirmation 👔", html)
+
     return entry
 
 
@@ -103,11 +124,32 @@ def update_status(entry_id: UUID, status: str = Query(...), db: Session = Depend
         raise HTTPException(404, "Entry not found")
     e.delivery_status = status
     db.commit()
+
+    # Send delivery email
+    if status == "delivered":
+        e = db.query(LaundryEntry).options(
+            joinedload(LaundryEntry.items),
+            joinedload(LaundryEntry.customer),
+        ).filter(LaundryEntry.id == entry_id).first()
+        if e and e.customer and e.customer.email:
+            items_data = [
+                {"service_name": i.service_name, "quantity": i.quantity, "subtotal": float(i.subtotal)}
+                for i in e.items
+            ]
+            html = delivery_email_html(
+                e.customer.name,
+                str(e.entry_date),
+                str(date.today()),
+                items_data,
+                float(e.total_amount),
+            )
+            send_email(e.customer.email, "LaundryPro - Delivery Complete ✅", html)
+
     return {"detail": f"Status updated to {status}"}
+
 
 @router.patch("/{entry_id}/items/{item_id}/status")
 def update_item_status(entry_id: UUID, item_id: UUID, status: str = Query(...), db: Session = Depends(get_db)):
-    from models import EntryItem
     if status not in ("pending", "in_delivery", "delivered"):
         raise HTTPException(400, "Invalid status")
     item = db.query(EntryItem).filter(EntryItem.id == item_id).first()
