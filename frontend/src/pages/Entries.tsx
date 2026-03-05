@@ -152,7 +152,6 @@ export default function Entries() {
                     const dateBadge = dateAllDelivered ? STATUS_COLORS.delivered : STATUS_COLORS.pending;
                     const formattedDate = new Date(dateStr + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
                     // Use first entry id for single-entry invoice; for multiple use month invoice
-                    const firstEntry = dateEntries[0];
 
                     return (
                       <div key={dateStr} style={s.dateGroup}>
