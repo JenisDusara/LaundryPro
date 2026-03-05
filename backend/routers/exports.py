@@ -28,7 +28,7 @@ def export_customers(
     token: str | None = None,
     db: Session = Depends(get_db),
 ):
-    customers = db.query(Customer).filter(Customer.is_active == True).all()
+    customers = db.query(Customer).all()
 
     wb = Workbook()
     ws = wb.active
@@ -71,21 +71,25 @@ def export_entries(
     ws = wb.active
     ws.title = "Entries"
 
-    headers = ["Date", "Customer", "Phone", "Society", "Services", "Total (Rs.)", "Status"]
+    headers = ["Date", "Customer", "Phone", "Flat", "Society", "Service", "Qty", "Rate (Rs.)", "Amount (Rs.)", "Item Status", "Entry Status"]
     ws.append(headers)
     style_header(ws, 1, len(headers))
 
     for entry in entries:
-        services = ", ".join([f"{item.service_name}x{item.quantity}" for item in entry.items])
-        ws.append([
-            str(entry.entry_date),
-            entry.customer.name,
-            entry.customer.phone,
-            entry.customer.society_name or "",
-            services,
-            float(entry.total_amount),
-            entry.delivery_status,
-        ])
+        for item in entry.items:
+            ws.append([
+                str(entry.entry_date),
+                entry.customer.name,
+                entry.customer.phone,
+                entry.customer.flat_number or "",
+                entry.customer.society_name or "",
+                item.service_name,
+                item.quantity,
+                float(item.price_per_unit),
+                float(item.subtotal),
+                item.item_status,
+                entry.delivery_status,
+            ])
 
     for col in range(1, len(headers) + 1):
         ws.column_dimensions[get_column_letter(col)].width = 18

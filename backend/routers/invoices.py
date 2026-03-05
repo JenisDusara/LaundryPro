@@ -44,7 +44,9 @@ def generate_invoice_pdf(customer: Customer, entries: list, month: int, year: in
     elements.append(Spacer(1, 8*mm))
 
     # Invoice title
-    elements.append(Paragraph(f"INVOICE — {month_name} {year}", header_style))
+    last_day = calendar.monthrange(year, month)[1]
+    bill_date = date(year, month, last_day)
+    elements.append(Paragraph(f"INVOICE — {month_name} {year}  |  Bill Date: {bill_date.strftime('%d-%m-%Y')}", header_style))
     elements.append(Spacer(1, 4*mm))
 
     # Customer info table
@@ -119,6 +121,8 @@ def get_invoice(
     customer_id: str,
     month: int,
     year: int,
+    entry_id: str | None = None,
+    entry_date: str | None = None,
     token: str | None = None,
     db: Session = Depends(get_db),
 ):
@@ -126,15 +130,32 @@ def get_invoice(
     if not customer:
         raise HTTPException(404, "Customer not found")
 
-    entries = (
-        db.query(LaundryEntry)
-        .filter(
-            LaundryEntry.customer_id == customer_id,
-            extract("month", LaundryEntry.entry_date) == month,
-            extract("year", LaundryEntry.entry_date) == year,
+    if entry_id:
+        entries = (
+            db.query(LaundryEntry)
+            .filter(LaundryEntry.id == entry_id)
+            .all()
         )
-        .all()
-    )
+    elif entry_date:
+        from datetime import date as date_type
+        entries = (
+            db.query(LaundryEntry)
+            .filter(
+                LaundryEntry.customer_id == customer_id,
+                LaundryEntry.entry_date == entry_date,
+            )
+            .all()
+        )
+    else:
+        entries = (
+            db.query(LaundryEntry)
+            .filter(
+                LaundryEntry.customer_id == customer_id,
+                extract("month", LaundryEntry.entry_date) == month,
+                extract("year", LaundryEntry.entry_date) == year,
+            )
+            .all()
+        )
 
     if not entries:
         raise HTTPException(404, "No entries found for this period")

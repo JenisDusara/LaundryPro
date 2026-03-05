@@ -30,6 +30,7 @@ export interface EntryItem {
   price_per_unit: number;
   quantity: number;
   subtotal: number;
+  item_status: string;
 }
 
 export interface LaundryEntry {

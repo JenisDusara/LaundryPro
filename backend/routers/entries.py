@@ -104,3 +104,15 @@ def update_status(entry_id: UUID, status: str = Query(...), db: Session = Depend
     e.delivery_status = status
     db.commit()
     return {"detail": f"Status updated to {status}"}
+
+@router.patch("/{entry_id}/items/{item_id}/status")
+def update_item_status(entry_id: UUID, item_id: UUID, status: str = Query(...), db: Session = Depends(get_db)):
+    from models import EntryItem
+    if status not in ("pending", "in_delivery", "delivered"):
+        raise HTTPException(400, "Invalid status")
+    item = db.query(EntryItem).filter(EntryItem.id == item_id).first()
+    if not item:
+        raise HTTPException(404, "Item not found")
+    item.item_status = status
+    db.commit()
+    return {"detail": f"Status updated to {status}"}

@@ -11,7 +11,7 @@ export default function Reports() {
   });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"daily" | "services" | "society" | "customers">("daily");
-
+  const [expandedSociety, setExpandedSociety] = useState<string | null>(null);
   const load = async () => {
     setLoading(true);
     const [y, m] = monthVal.split("-");
@@ -55,19 +55,24 @@ export default function Reports() {
   const totalServiceRev = serviceData.reduce((s, [, d]) => s + d.revenue, 0);
 
   // Society
-  const societyMap = new Map<string, number>();
+  const societyMap = new Map<string, { revenue: number; customers: Map<string, { name: string; revenue: number }> }>();
   entries.forEach(e => {
     const soc = e.customer?.society_name || "Unknown";
-    societyMap.set(soc, (societyMap.get(soc) || 0) + Number(e.total_amount));
+    if (!societyMap.has(soc)) societyMap.set(soc, { revenue: 0, customers: new Map() });
+    const sd = societyMap.get(soc)!;
+    sd.revenue += Number(e.total_amount);
+    const cx = sd.customers.get(e.customer_id) || { name: e.customer?.name || "Unknown", revenue: 0 };
+    cx.revenue += Number(e.total_amount);
+    sd.customers.set(e.customer_id, cx);
   });
-  const societyData = [...societyMap.entries()].sort((a, b) => b[1] - a[1]);
-  const maxSocietyRev = Math.max(...societyData.map(d => d[1]), 1);
-
+  const societyData = [...societyMap.entries()].sort((a, b) => b[1].revenue - a[1].revenue);
+  const maxSocietyRev = Math.max(...societyData.map(d => d[1].revenue), 1);
   // Customers
-  const customerMap = new Map<string, { name: string; revenue: number; count: number }>();
+  const customerMap = new Map<string, { name: string; flat: string; revenue: number; count: number }>();
   entries.forEach(e => {
     const name = e.customer?.name || "Unknown";
-    const ex = customerMap.get(e.customer_id) || { name, revenue: 0, count: 0 };
+    const flat = e.customer?.flat_number || "";
+    const ex = customerMap.get(e.customer_id) || { name, flat, revenue: 0, count: 0 };
     ex.revenue += Number(e.total_amount); ex.count += 1;
     customerMap.set(e.customer_id, ex);
   });
@@ -155,13 +160,13 @@ export default function Reports() {
       <div style={{ background: "#fff", borderRadius: 14, padding: 24, boxShadow: "0 2px 8px rgba(0,0,0,0.06)", animation: "fadeIn 0.4s ease" }}>
 
         {/* Daily Earnings */}
-        {activeTab === "daily" && (
+        {activeTab === "daily" && ( 
           <div>
             <h3 style={{ margin: "0 0 20px", color: "#0f172a", fontSize: 16, fontWeight: 700 }}>Daily Earnings — {monthName}</h3>
             {dailyData.length === 0
               ? <p style={{ color: "#94a3b8", textAlign: "center", padding: 40 }}>No data for this month</p>
               : <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {dailyData.map(([date, amount], i) => (
+                  {dailyData.map(([date, amount]) => (
                     <div key={date} style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <div style={{ width: 32, fontSize: 12, fontWeight: 700, color: "#94a3b8", textAlign: "right", flexShrink: 0 }}>
                         {new Date(date + "T00:00:00").getDate()}
@@ -224,22 +229,40 @@ export default function Reports() {
             {societyData.length === 0
               ? <p style={{ color: "#94a3b8", textAlign: "center", padding: 40 }}>No data</p>
               : <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  {societyData.map(([name, amount], i) => (
-                    <div key={name} style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                      <div style={{ width: 32, height: 32, borderRadius: 8, background: `${PALETTE[i % PALETTE.length]}20`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: PALETTE[i % PALETTE.length], flexShrink: 0 }}>
-                        {i + 1}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>{name}</span>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: PALETTE[i % PALETTE.length] }}>₹{amount.toLocaleString()}</span>
+{societyData.map(([name, data], i) => {
+                    const color = PALETTE[i % PALETTE.length];
+                    const expanded = expandedSociety === name;
+                    const custList = [...data.customers.values()].sort((a, b) => b.revenue - a.revenue);
+                    return (
+                      <div key={name}>
+                        <div onClick={() => setExpandedSociety(expanded ? null : name)}
+                          style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer", padding: "8px 10px", borderRadius: 10, background: expanded ? `${color}10` : "transparent", border: expanded ? `1px solid ${color}30` : "1px solid transparent", transition: "all 0.2s" }}>
+                          <div style={{ width: 32, height: 32, borderRadius: 8, background: `${color}20`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color, flexShrink: 0 }}>
+                            {i + 1}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>{name}</span>
+                              <span style={{ fontSize: 13, fontWeight: 700, color }}> ₹{data.revenue.toLocaleString()} &nbsp; <span style={{ fontSize: 11, color: "#94a3b8" }}>{custList.length} customers</span> {expanded ? "▲" : "▼"}</span>
+                            </div>
+                            <div style={{ height: 8, background: "#f1f5f9", borderRadius: 4, overflow: "hidden", maxWidth: 400 }}>
+                              <div className="bar-fill" style={{ height: "100%", width: `${(data.revenue / maxSocietyRev) * 100}%`, background: `linear-gradient(90deg, ${color}, ${color}aa)`, borderRadius: 4, minWidth: 2 }} />
+                            </div>
+                          </div>
                         </div>
-                        <div style={{ height: 8, background: "#f1f5f9", borderRadius: 4, overflow: "hidden", maxWidth: 400 }}>
-                          <div className="bar-fill" style={{ height: "100%", width: `${(amount / maxSocietyRev) * 100}%`, background: `linear-gradient(90deg, ${PALETTE[i % PALETTE.length]}, ${PALETTE[i % PALETTE.length]}aa)`, borderRadius: 4, minWidth: 2 }} />
-                        </div>
+                        {expanded && (
+                          <div style={{ marginLeft: 46, marginTop: 6, marginBottom: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                            {custList.map((c, j) => (
+                              <div key={j} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>👤 {c.name}</span>
+                                <span style={{ fontSize: 13, fontWeight: 700, color }}> ₹{c.revenue.toLocaleString()}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
             }
           </div>
@@ -259,7 +282,7 @@ export default function Reports() {
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a" }}>{cust.name}</div>
-                        <div style={{ fontSize: 12, color: "#64748b" }}>{cust.count} {cust.count === 1 ? "entry" : "entries"}</div>
+                        <div style={{ fontSize: 12, color: "#64748b" }}>{cust.flat && `🏠 ${cust.flat} • `}{cust.count} {cust.count === 1 ? "entry" : "entries"}</div>
                       </div>
                       <div style={{ fontWeight: 800, fontSize: 16, color: i === 0 ? "#d97706" : "#1e40af" }}>₹{cust.revenue.toLocaleString()}</div>
                     </div>

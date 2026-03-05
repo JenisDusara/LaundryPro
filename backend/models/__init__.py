@@ -90,7 +90,7 @@ class EntryItem(Base):
     price_per_unit: Mapped[Decimal] = mapped_column(Numeric(10, 2))  # snapshot
     quantity: Mapped[int] = mapped_column(Integer)
     subtotal: Mapped[Decimal] = mapped_column(Numeric(10, 2))
-
+    item_status: Mapped[str] = mapped_column(String(20), default="pending")  # pending / completed
     entry: Mapped["LaundryEntry"] = relationship(back_populates="items")
 
 

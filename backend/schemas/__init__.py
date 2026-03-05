@@ -96,6 +96,7 @@ class EntryItemOut(BaseModel):
     price_per_unit: Decimal
     quantity: int
     subtotal: Decimal
+    item_status: str = "pending"
     model_config = {"from_attributes": True}
 
 

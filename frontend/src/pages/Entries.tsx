@@ -1,15 +1,11 @@
 import { useState, useEffect } from "react";
-import { Calendar, Filter, Trash2, ChevronDown, ChevronUp, Truck } from "lucide-react";
+import { Calendar, Filter, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import api from "../api/client";
 import type { LaundryEntry } from "../types";
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   pending: { bg: "#fef3c7", color: "#d97706" },
-  in_delivery: { bg: "#dbeafe", color: "#2563eb" },
   delivered: { bg: "#dcfce7", color: "#16a34a" },
-};
-const STATUS_LABELS: Record<string, string> = {
-  pending: "Pending", in_delivery: "In Delivery", delivered: "Delivered",
 };
 
 export default function Entries() {
@@ -21,7 +17,7 @@ export default function Entries() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
   const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
-  const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
+  const [expandedDate, setExpandedDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = async () => {
@@ -50,12 +46,6 @@ export default function Entries() {
     load();
   };
 
-  const updateStatus = async (id: string, status: string) => {
-    await api.patch(`/entries/${id}/status`, null, { params: { status } });
-    load();
-  };
-
-  // Group entries by customer
   const customerMap = new Map<string, { name: string; phone: string; flat: string; society: string; entries: LaundryEntry[] }>();
   entries.forEach(e => {
     const cid = e.customer_id;
@@ -77,7 +67,6 @@ export default function Entries() {
     <div>
       <h2 style={s.title}>Entries</h2>
 
-      {/* Filters */}
       <div style={s.filterRow}>
         <div style={s.toggleGroup}>
           <div style={{ ...s.toggleBtn, ...(filterType === "date" ? s.toggleActive : {}) }} onClick={() => setFilterType("date")}>
@@ -94,7 +83,6 @@ export default function Entries() {
         )}
       </div>
 
-      {/* Summary */}
       <div style={s.summary}>
         <span>{customers.length} customers • {entries.length} entries</span>
         <span style={s.summaryTotal}>Total: ₹{totalAmount}</span>
@@ -102,7 +90,6 @@ export default function Entries() {
 
       {loading && <p style={{ textAlign: "center", color: "#94a3b8" }}>Loading...</p>}
 
-      {/* Customer Cards */}
       <div style={s.list}>
         {customers.length === 0 && !loading && (
           <p style={{ textAlign: "center", color: "#94a3b8", padding: 32 }}>No entries found</p>
@@ -110,102 +97,142 @@ export default function Entries() {
         {customers.map(([cid, cust]) => {
           const custOpen = expandedCustomer === cid;
           const custTotal = cust.entries.reduce((s, e) => s + Number(e.total_amount), 0);
-          const allDelivered = cust.entries.every(e => e.delivery_status === "delivered");
-          const anyPending = cust.entries.some(e => e.delivery_status === "pending");
-          const badgeColor = allDelivered ? STATUS_COLORS.delivered : anyPending ? STATUS_COLORS.pending : STATUS_COLORS.in_delivery;
-          const badgeLabel = allDelivered ? "All Delivered" : anyPending ? "Pending" : "In Delivery";
+          const allItems = cust.entries.flatMap(e => e.items);
+          const custAllDelivered = allItems.length > 0 && allItems.every(i => i.item_status === "delivered");
+          const custBadge = custAllDelivered ? STATUS_COLORS.delivered : STATUS_COLORS.pending;
+
+          const dateMap = new Map<string, LaundryEntry[]>();
+          cust.entries.forEach(e => {
+            if (!dateMap.has(e.entry_date)) dateMap.set(e.entry_date, []);
+            dateMap.get(e.entry_date)!.push(e);
+          });
+          const dates = [...dateMap.entries()].sort((a, b) => b[0].localeCompare(a[0]));
 
           return (
             <div key={cid} style={s.customerCard}>
               {/* Customer Header */}
               <div style={s.customerHeader} onClick={() => {
                 setExpandedCustomer(custOpen ? null : cid);
-                setExpandedEntry(null);
+                setExpandedDate(null);
               }}>
-                <div style={s.avatarBox}>
-                  <div style={s.avatar}>{cust.name[0].toUpperCase()}</div>
-                </div>
+                <div style={s.avatar}>{cust.name[0].toUpperCase()}</div>
                 <div style={s.custInfo}>
                   <div style={s.custName}>{cust.name}</div>
-                  <div style={s.custMeta}>
-                    {cust.flat && `🏠 ${cust.flat}`}{cust.society && ` • ${cust.society}`}
-                  </div>
+                  {(cust.flat || cust.society) && (
+                    <div style={s.custMeta}>🏠 {cust.flat}{cust.society && ` • ${cust.society}`}</div>
+                  )}
                   <div style={s.custMeta}>📞 {cust.phone}</div>
                 </div>
                 <div style={s.custRight}>
                   <div style={s.custTotal}>₹{custTotal}</div>
-                  <div style={{ ...s.badge, background: badgeColor.bg, color: badgeColor.color }}>{badgeLabel}</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={s.custCount}>{cust.entries.length} {cust.entries.length === 1 ? "entry" : "entries"}</div>
-                    <button style={s.invoiceBtn} onClick={e => {
+                  <div style={{ ...s.badge, background: custBadge.bg, color: custBadge.color }}>
+                    {custAllDelivered ? "All Delivered" : "Pending"}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, flexWrap: "nowrap" }}>
+                    <span style={s.custCount}>{dates.length} {dates.length === 1 ? "date" : "dates"}</span>
+                    <button style={s.invoiceBtn} onClick={e => {  
                       e.stopPropagation();
                       const now = new Date();
-                      const y = now.getFullYear();
-                      const m = now.getMonth() + 1;
-                      window.open(`${api.defaults.baseURL}/invoices/${cid}?month=${m}&year=${y}&token=${localStorage.getItem("token")}`, "_blank");
+                      window.open(`${api.defaults.baseURL}/invoices/${cid}?month=${now.getMonth() + 1}&year=${now.getFullYear()}&token=${localStorage.getItem("token")}`, "_blank");
                     }}>📄 Invoice</button>
                   </div>
-                  {custOpen ? <ChevronUp size={18} color="#94a3b8" /> : <ChevronDown size={18} color="#94a3b8" />}
+                  {custOpen ? <ChevronUp size={16} color="#94a3b8" /> : <ChevronDown size={16} color="#94a3b8" />}
                 </div>
               </div>
 
-              {/* Entries for this customer */}
+              {/* Date Groups */}
               {custOpen && (
-                <div style={s.entriesList}>
-                  {cust.entries.map(entry => {
-                    const entOpen = expandedEntry === entry.id;
-                    const st = STATUS_COLORS[entry.delivery_status] || STATUS_COLORS.pending;
+                <div>
+                  {dates.map(([dateStr, dateEntries]) => {
+                    const dateKey = `${cid}-${dateStr}`;
+                    const dateOpen = expandedDate === dateKey;
+                    const dateTotal = dateEntries.reduce((s, e) => s + Number(e.total_amount), 0);
+                    const allDateItems = dateEntries.flatMap(e => e.items);
+                    const dateAllDelivered = allDateItems.length > 0 && allDateItems.every(i => i.item_status === "delivered");
+                    const dateBadge = dateAllDelivered ? STATUS_COLORS.delivered : STATUS_COLORS.pending;
+                    const formattedDate = new Date(dateStr + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+                    // Use first entry id for single-entry invoice; for multiple use month invoice
+                    const firstEntry = dateEntries[0];
+
                     return (
-                      <div key={entry.id} style={s.entryItem}>
-                        <div style={s.entryHeader} onClick={() => setExpandedEntry(entOpen ? null : entry.id)}>
-                          <div>
-                            <div style={s.entryDate}>
-                              📅 {new Date(entry.entry_date + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                            </div>
-                            <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
-                              {entry.items.map(i => i.service_name).join(", ")}
-                            </div>
+                      <div key={dateStr} style={s.dateGroup}>
+                        {/* Date Header */}
+                        <div style={s.dateHeader} onClick={() => setExpandedDate(dateOpen ? null : dateKey)}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={s.dateLabel}>📅 {formattedDate}</div>
+                            <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>{allDateItems.length} items</div>
                           </div>
-                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                            <div style={s.entryAmount}>₹{entry.total_amount}</div>
-                            <div style={{ ...s.badge, background: st.bg, color: st.color, fontSize: 10 }}>
-                              {STATUS_LABELS[entry.delivery_status]}
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                            <span style={{ fontWeight: 700, fontSize: 14, color: "#1e40af" }}>₹{dateTotal}</span>
+                            <div style={{ ...s.badge, background: dateBadge.bg, color: dateBadge.color, fontSize: 10 }}>
+                              {dateAllDelivered ? "Delivered" : "Pending"}
                             </div>
-                            {entOpen ? <ChevronUp size={14} color="#94a3b8" /> : <ChevronDown size={14} color="#94a3b8" />}
+                            <button style={s.invoiceBtn} onClick={e => {
+                              e.stopPropagation();
+                              const [y, m] = dateStr.split("-");
+                              window.open(`${api.defaults.baseURL}/invoices/${cid}?month=${m}&year=${y}&entry_date=${dateStr}&token=${localStorage.getItem("token")}`, "_blank");
+                            }}>📄</button>
+                            <Trash2 size={15} color="#ef4444" style={{ cursor: "pointer", flexShrink: 0 }}
+                              onClick={e => { e.stopPropagation(); dateEntries.forEach(en => del(en.id)); }} />
+                            {dateOpen ? <ChevronUp size={14} color="#94a3b8" /> : <ChevronDown size={14} color="#94a3b8" />}
                           </div>
                         </div>
 
-                        {entOpen && (
-                          <div style={s.entryDetails}>
-                            <div style={s.itemsTable}>
-                              {entry.items.map(item => (
-                                <div key={item.id} style={s.itemRow}>
-                                  <span style={{ fontWeight: 500 }}>{item.service_name}</span>
-                                  <span style={{ color: "#64748b", fontSize: 12 }}>
-                                    ₹{item.price_per_unit} × {item.quantity} = <strong>₹{item.subtotal}</strong>
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                            {entry.notes && <div style={s.notes}>📝 {entry.notes}</div>}
-                            <div style={s.detailActions}>
-                              <div style={s.statusGroup}>
-                                <Truck size={14} color="#64748b" />
-                                <select style={s.statusSelect} value={entry.delivery_status}
-                                  onChange={e => updateStatus(entry.id, e.target.value)}>
-                                  <option value="pending">Pending</option>
-                                  <option value="in_delivery">In Delivery</option>
-                                  <option value="delivered">Delivered</option>
-                                </select>
+                        {/* Items */}
+                        {dateOpen && (
+                          <div style={{ padding: "8px 12px 12px 12px", background: "#f8fafc" }}>
+                            {dateEntries.map(entry => (
+                              <div key={entry.id}>
+                                {entry.notes && (
+                                  <div style={{ fontSize: 12, color: "#64748b", padding: "2px 0 6px" }}>📝 {entry.notes}</div>
+                                )}
+                                {entry.items.map(item => {
+                                  const delivered = item.item_status === "delivered";
+                                  return (
+                                    <div key={item.id} style={{
+                                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                                      padding: "8px 10px", marginBottom: 6, borderRadius: 10, gap: 8,
+                                      background: delivered ? "#f0fdf4" : "#fff",
+                                      border: `1px solid ${delivered ? "#bbf7d0" : "#e2e8f0"}`,
+                                      boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                                    }}>
+                                      {/* Left: dot + name + price */}
+                                      <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+                                        <div style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: delivered ? "#16a34a" : "#f59e0b" }} />
+                                        <div style={{ minWidth: 0 }}>
+                                          <div style={{ fontWeight: 600, fontSize: 13, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                            {item.service_name}
+                                          </div>
+                                          <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>
+                                            ₹{item.price_per_unit} × {item.quantity}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      {/* Right: amount + status */}
+                                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                                        <span style={{ fontWeight: 700, fontSize: 13, color: "#1e40af" }}>₹{item.subtotal}</span>
+                                        <select
+                                          style={{
+                                            padding: "3px 6px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+                                            outline: "none", cursor: "pointer",
+                                            border: `1px solid ${delivered ? "#bbf7d0" : "#fde68a"}`,
+                                            background: delivered ? "#dcfce7" : "#fef3c7",
+                                            color: delivered ? "#16a34a" : "#d97706",
+                                          }}
+                                          value={item.item_status || "pending"}
+                                          onChange={async e => {
+                                            await api.patch(`/entries/${entry.id}/items/${item.id}/status`, null, { params: { status: e.target.value } });
+                                            load();
+                                          }}>
+                                          <option value="pending">Pending</option>
+                                          <option value="delivered">Delivered</option>
+                                        </select>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
-                              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                <button style={s.invoiceBtn} onClick={() => {
-                                  const [y, m] = filterType === "month" ? monthVal.split("-") : entry.entry_date.split("-");
-                                  window.open(`${api.defaults.baseURL}/invoices/${entry.customer_id}?month=${m}&year=${y}&token=${localStorage.getItem("token")}`, "_blank");
-                                }}>📄 Invoice</button>
-                                <Trash2 size={16} color="#ef4444" style={{ cursor: "pointer" }} onClick={() => del(entry.id)} />
-                              </div>
-                            </div>
+                            ))}
                           </div>
                         )}
                       </div>
@@ -222,37 +249,27 @@ export default function Entries() {
 }
 
 const s: Record<string, React.CSSProperties> = {
-  title: { color: "#1e3a8a", margin: "0 0 16px" },
+  title: { color: "#1e3a8a", margin: "0 0 16px", fontSize: 22, fontWeight: 800 },
   filterRow: { display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap", alignItems: "center" },
   toggleGroup: { display: "flex", background: "#fff", borderRadius: 8, border: "1px solid #e2e8f0", overflow: "hidden" },
   toggleBtn: { display: "flex", alignItems: "center", gap: 4, padding: "8px 14px", cursor: "pointer", fontSize: 13, color: "#64748b" },
   toggleActive: { background: "#1e40af", color: "#fff" },
   dateInput: { padding: "8px 12px", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 14, outline: "none" },
-  summary: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "#fff", borderRadius: 8, marginBottom: 12, fontSize: 14, color: "#475569" },
+  summary: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "#fff", borderRadius: 10, marginBottom: 12, fontSize: 14, color: "#475569", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" },
   summaryTotal: { fontWeight: 700, color: "#1e3a8a", fontSize: 16 },
-  list: { display: "flex", flexDirection: "column", gap: 10 },
-  customerCard: { background: "#fff", borderRadius: 12, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" },
-  customerHeader: { display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", cursor: "pointer" },
-  avatarBox: { flexShrink: 0 },
-  avatar: { width: 42, height: 42, borderRadius: "50%", background: "#eff6ff", color: "#1e40af", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 18 },
+  list: { display: "flex", flexDirection: "column", gap: 12 },
+  customerCard: { background: "#fff", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" },
+  customerHeader: { display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", cursor: "pointer", borderBottom: "1px solid #f1f5f9" },
+  avatar: { width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#1e40af,#3b82f6)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 18, flexShrink: 0 },
   custInfo: { flex: 1, minWidth: 0 },
   custName: { fontWeight: 700, fontSize: 15, color: "#1e293b" },
   custMeta: { fontSize: 12, color: "#64748b", marginTop: 2 },
-  custRight: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, flexShrink: 0 },
-  custTotal: { fontWeight: 800, fontSize: 16, color: "#1e3a8a" },
+  custRight: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0, minWidth: 100 },
+  custTotal: { fontWeight: 800, fontSize: 17, color: "#1e3a8a" },
   custCount: { fontSize: 11, color: "#94a3b8" },
-  badge: { padding: "2px 8px", borderRadius: 10, fontSize: 11, fontWeight: 600 },
-  entriesList: { borderTop: "1px solid #f1f5f9" },
-  entryItem: { borderBottom: "1px solid #f8fafc" },
-  entryHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px 10px 24px", cursor: "pointer", background: "#fafafa" },
-  entryDate: { fontWeight: 600, fontSize: 13, color: "#334155" },
-  entryAmount: { fontWeight: 700, fontSize: 14, color: "#1e40af" },
-  entryDetails: { padding: "10px 16px 14px 24px", background: "#f8fafc" },
-  itemsTable: { marginBottom: 8 },
-  itemRow: { display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid #f1f5f9", fontSize: 13 },
-  notes: { fontSize: 12, color: "#64748b", padding: "6px 0" },
-  detailActions: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 },
-  statusGroup: { display: "flex", alignItems: "center", gap: 6 },
-  statusSelect: { padding: "5px 8px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 12, outline: "none" },
-  invoiceBtn: { padding: "5px 10px", background: "#eff6ff", color: "#1e40af", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 600 },
+  badge: { padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700 },
+  dateGroup: { borderTop: "1px solid #f1f5f9" },
+  dateHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", cursor: "pointer", background: "#fafafa" },
+  dateLabel: { fontWeight: 600, fontSize: 13, color: "#334155" },
+  invoiceBtn: { padding: "4px 8px", background: "#eff6ff", color: "#1e40af", border: "1px solid #bfdbfe", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 600 },
 };
