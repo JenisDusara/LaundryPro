@@ -19,6 +19,9 @@ export default function Entries() {
   const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [emailEntry, setEmailEntry] = useState<{ cid: string; name: string; email: string; dateStr: string } | null>(null);
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailMsg, setEmailMsg] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -44,6 +47,21 @@ export default function Entries() {
     if (!confirm("Delete this entry?")) return;
     await api.delete(`/entries/${id}`);
     load();
+  };
+
+  const sendEntryInvoice = async () => {
+    if (!emailEntry) return;
+    setEmailSending(true);
+    setEmailMsg("");
+    try {
+      const [y, m] = emailEntry.dateStr.split("-");
+      await api.post(`/invoices/${emailEntry.cid}/email`, null, {
+        params: { month: parseInt(m), year: parseInt(y) },
+      });
+      setEmailMsg("✅ Invoice sent!");
+    } catch (e: any) {
+      setEmailMsg(`❌ ${e.response?.data?.detail || "Failed"}`);
+    } finally { setEmailSending(false); }
   };
 
   const customerMap = new Map<string, { name: string; phone: string; flat: string; society: string; entries: LaundryEntry[] }>();
@@ -110,7 +128,6 @@ export default function Entries() {
 
           return (
             <div key={cid} style={s.customerCard}>
-              {/* Customer Header */}
               <div style={s.customerHeader} onClick={() => {
                 setExpandedCustomer(custOpen ? null : cid);
                 setExpandedDate(null);
@@ -130,7 +147,7 @@ export default function Entries() {
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, flexWrap: "nowrap" }}>
                     <span style={s.custCount}>{dates.length} {dates.length === 1 ? "date" : "dates"}</span>
-                    <button style={s.invoiceBtn} onClick={e => {  
+                    <button style={s.invoiceBtn} onClick={e => {
                       e.stopPropagation();
                       const now = new Date();
                       window.open(`${api.defaults.baseURL}/invoices/${cid}?month=${now.getMonth() + 1}&year=${now.getFullYear()}&token=${localStorage.getItem("token")}`, "_blank");
@@ -140,7 +157,6 @@ export default function Entries() {
                 </div>
               </div>
 
-              {/* Date Groups */}
               {custOpen && (
                 <div>
                   {dates.map(([dateStr, dateEntries]) => {
@@ -151,11 +167,9 @@ export default function Entries() {
                     const dateAllDelivered = allDateItems.length > 0 && allDateItems.every(i => i.item_status === "delivered");
                     const dateBadge = dateAllDelivered ? STATUS_COLORS.delivered : STATUS_COLORS.pending;
                     const formattedDate = new Date(dateStr + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-                    // Use first entry id for single-entry invoice; for multiple use month invoice
 
                     return (
                       <div key={dateStr} style={s.dateGroup}>
-                        {/* Date Header */}
                         <div style={s.dateHeader} onClick={() => setExpandedDate(dateOpen ? null : dateKey)}>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={s.dateLabel}>📅 {formattedDate}</div>
@@ -171,13 +185,19 @@ export default function Entries() {
                               const [y, m] = dateStr.split("-");
                               window.open(`${api.defaults.baseURL}/invoices/${cid}?month=${m}&year=${y}&entry_date=${dateStr}&token=${localStorage.getItem("token")}`, "_blank");
                             }}>📄</button>
+                            <button style={{ ...s.invoiceBtn, background: "#f0fdf4", color: "#16a34a", borderColor: "#bbf7d0" }} onClick={e => {
+                              e.stopPropagation();
+                              const email = entries.find(en => en.customer_id === cid)?.customer?.email || "";
+                              if (!email) { alert("Customer has no email"); return; }
+                              setEmailEntry({ cid, name: cust.name, email, dateStr });
+                              setEmailMsg("");
+                            }}>✉️</button>
                             <Trash2 size={15} color="#ef4444" style={{ cursor: "pointer", flexShrink: 0 }}
                               onClick={e => { e.stopPropagation(); dateEntries.forEach(en => del(en.id)); }} />
                             {dateOpen ? <ChevronUp size={14} color="#94a3b8" /> : <ChevronDown size={14} color="#94a3b8" />}
                           </div>
                         </div>
 
-                        {/* Items */}
                         {dateOpen && (
                           <div style={{ padding: "8px 12px 12px 12px", background: "#f8fafc" }}>
                             {dateEntries.map(entry => (
@@ -195,7 +215,6 @@ export default function Entries() {
                                       border: `1px solid ${delivered ? "#bbf7d0" : "#e2e8f0"}`,
                                       boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
                                     }}>
-                                      {/* Left: dot + name + price */}
                                       <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
                                         <div style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: delivered ? "#16a34a" : "#f59e0b" }} />
                                         <div style={{ minWidth: 0 }}>
@@ -207,7 +226,6 @@ export default function Entries() {
                                           </div>
                                         </div>
                                       </div>
-                                      {/* Right: amount + status */}
                                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                                         <span style={{ fontWeight: 700, fontSize: 13, color: "#1e40af" }}>₹{item.subtotal}</span>
                                         <select
@@ -223,26 +241,54 @@ export default function Entries() {
                                             await api.patch(`/entries/${entry.id}/items/${item.id}/status`, null, { params: { status: e.target.value } });
                                             load();
                                           }}>
-                                          <option value="pending">Pending</option>
-                                          <option value="delivered">Delivered</option>
-                                        </select>
+                                            <option value="pending">Pending</option>
+                                            <option value="delivered">Delivered</option>
+                                          </select>
+                                        </div>
                                       </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                                    );
+                                  })}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+      {emailEntry && (
+        <div style={s.overlay} onClick={() => setEmailEntry(null)}>
+          <div style={s.modal} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ margin: 0 }}>Send Invoice</h3>
+              <span style={{ cursor: "pointer", fontSize: 18 }} onClick={() => setEmailEntry(null)}>✕</span>
             </div>
-          );
-        })}
-      </div>
+            <p style={{ color: "#64748b", fontSize: 14, margin: "0 0 16px" }}>
+              Send invoice to <strong>{emailEntry.name}</strong> at <strong>{emailEntry.email}</strong><br />
+              <span style={{ fontSize: 13 }}>Date: {emailEntry.dateStr}</span>
+            </p>
+            {emailMsg && (
+              <div style={{
+                padding: "10px 14px", borderRadius: 8, marginBottom: 12, fontSize: 13,
+                background: emailMsg.startsWith("✅") ? "#f0fdf4" : "#fef2f2",
+                color: emailMsg.startsWith("✅") ? "#16a34a" : "#dc2626",
+              }}>
+                {emailMsg}
+              </div>
+            )}
+            <button style={{ width: "100%", padding: 12, background: "#10b981", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+              onClick={sendEntryInvoice} disabled={emailSending}>
+              {emailSending ? "Sending..." : "📧 Send Invoice"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -271,4 +317,6 @@ const s: Record<string, React.CSSProperties> = {
   dateHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", cursor: "pointer", background: "#fafafa" },
   dateLabel: { fontWeight: 600, fontSize: 13, color: "#334155" },
   invoiceBtn: { padding: "4px 8px", background: "#eff6ff", color: "#1e40af", border: "1px solid #bfdbfe", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 600 },
+  overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 16 },
+  modal: { background: "#fff", borderRadius: 12, padding: 24, width: "100%", maxWidth: 400 },
 };

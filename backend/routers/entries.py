@@ -9,6 +9,7 @@ from models import LaundryEntry, EntryItem, Service, Customer
 from routers.auth import get_current_admin
 from schemas import EntryCreate, EntryOut
 from utils.email import send_email, pickup_email_html, delivery_email_html
+from utils.sms import send_sms, pickup_sms_msg, delivery_sms_msg
 
 router = APIRouter(dependencies=[Depends(get_current_admin)])
 
@@ -51,19 +52,22 @@ def create_entry(data: EntryCreate, db: Session = Depends(get_db)):
         joinedload(LaundryEntry.customer),
     ).filter(LaundryEntry.id == entry.id).first()
 
-    # Send pickup email
-    if entry and entry.customer and entry.customer.email:
+    if entry and entry.customer:
         items_data = [
             {"service_name": i.service_name, "quantity": i.quantity, "subtotal": float(i.subtotal)}
             for i in entry.items
         ]
-        html = pickup_email_html(
-            entry.customer.name,
-            str(entry.entry_date),
-            items_data,
-            float(entry.total_amount),
-        )
-        send_email(entry.customer.email, "LaundryPro - Pickup Confirmation 👔", html)
+        if entry.customer.email:
+            html = pickup_email_html(
+                entry.customer.name,
+                str(entry.entry_date),
+                items_data,
+                float(entry.total_amount),
+            )
+            send_email(entry.customer.email, "LaundryPro - Pickup Confirmation 👔", html)
+        if entry.customer.phone:
+            sms = pickup_sms_msg(entry.customer.name, str(entry.entry_date), items_data)
+            send_sms(entry.customer.phone, sms)
 
     return entry
 
@@ -125,25 +129,28 @@ def update_status(entry_id: UUID, status: str = Query(...), db: Session = Depend
     e.delivery_status = status
     db.commit()
 
-    # Send delivery email
     if status == "delivered":
         e = db.query(LaundryEntry).options(
             joinedload(LaundryEntry.items),
             joinedload(LaundryEntry.customer),
         ).filter(LaundryEntry.id == entry_id).first()
-        if e and e.customer and e.customer.email:
+        if e and e.customer:
             items_data = [
                 {"service_name": i.service_name, "quantity": i.quantity, "subtotal": float(i.subtotal)}
                 for i in e.items
             ]
-            html = delivery_email_html(
-                e.customer.name,
-                str(e.entry_date),
-                str(date.today()),
-                items_data,
-                float(e.total_amount),
-            )
-            send_email(e.customer.email, "LaundryPro - Delivery Complete ✅", html)
+            if e.customer.email:
+                html = delivery_email_html(
+                    e.customer.name,
+                    str(e.entry_date),
+                    str(date.today()),
+                    items_data,
+                    float(e.total_amount),
+                )
+                send_email(e.customer.email, "LaundryPro - Delivery Complete ✅", html)
+            if e.customer.phone:
+                sms = delivery_sms_msg(e.customer.name, str(e.entry_date), str(date.today()), items_data)
+                send_sms(e.customer.phone, sms)
 
     return {"detail": f"Status updated to {status}"}
 
@@ -157,4 +164,4 @@ def update_item_status(entry_id: UUID, item_id: UUID, status: str = Query(...), 
         raise HTTPException(404, "Item not found")
     item.item_status = status
     db.commit()
-    return {"detail": f"Status updated to {status}"}
+    return {"detail": f"Item status updated to {status}"}

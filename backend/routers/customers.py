@@ -54,12 +54,15 @@ def update_customer(customer_id: UUID, data: CustomerUpdate, db: Session = Depen
     db.refresh(c)
     return c
 
-
 @router.delete("/{customer_id}")
 def delete_customer(customer_id: UUID, db: Session = Depends(get_db)):
     c = db.query(Customer).filter(Customer.id == customer_id).first()
     if not c:
         raise HTTPException(404, "Customer not found")
-    db.delete(c)
-    db.commit()
-    return {"detail": "Deleted"}
+    try:
+        db.delete(c)
+        db.commit()
+        return {"detail": "Deleted"}
+    except Exception:
+        db.rollback()
+        raise HTTPException(400, "Cannot delete customer with existing entries. Delete entries first.")

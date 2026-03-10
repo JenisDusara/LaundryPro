@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     EMAIL_USER: str = ""
     EMAIL_PASS: str = ""
+    FAST2SMS_API_KEY: str = ""
 
     class Config:
         env_file = ".env"

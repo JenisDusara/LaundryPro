@@ -37,8 +37,7 @@ class Customer(Base):
     email: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
-
-    entries: Mapped[list["LaundryEntry"]] = relationship(back_populates="customer")
+    entries: Mapped[list["LaundryEntry"]] = relationship(back_populates="customer", cascade="all, delete-orphan")
 
 
 # ── Service ────────────────────────────────────────────
