@@ -49,7 +49,7 @@ export default function Customers() {
     } finally { setLoading(false); }
   };
 
-const del = async (id: string) => {
+  const del = async (id: string) => {
     if (!confirm("Delete this customer?")) return;
     await api.delete(`/customers/${id}`);
     load(search);
@@ -98,10 +98,11 @@ const del = async (id: string) => {
               {c.email && <div style={s.info}>✉️ {c.email}</div>}
             </div>
             <div style={s.actions}>
-              <Mail size={18} color={c.email ? "#10b981" : "#cbd5e1"}
-                style={{ cursor: c.email ? "pointer" : "default" }}
-                title={c.email ? "Send Invoice" : "No email"}
-                onClick={() => { if (c.email) { setInvoiceCustomer(c); setInvoiceMsg(""); } }} />
+              <span title={c.email ? "Send Invoice" : "No email"}>
+                <Mail size={18} color={c.email ? "#10b981" : "#cbd5e1"}
+                  style={{ cursor: c.email ? "pointer" : "default" }}
+                  onClick={() => { if (c.email) { setInvoiceCustomer(c); setInvoiceMsg(""); } }} />
+              </span>
               <Edit2 size={18} color="#3b82f6" style={{ cursor: "pointer" }} onClick={() => openEdit(c)} />
               <Trash2 size={18} color="#ef4444" style={{ cursor: "pointer" }} onClick={() => del(c.id)} />
             </div>
