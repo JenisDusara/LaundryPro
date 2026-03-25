@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id            String   @id @default(uuid())
+  username      String   @unique
+  password_hash String
+  name          String
+  created_at    DateTime @default(now())
+
+  @@map("admins")
+}
+
+model Customer {
+  id           String         @id @default(uuid())
+  name         String
+  phone        String         @unique
+  flat_number  String         @default("")
+  society_name String         @default("")
+  address      String         @default("")
+  email        String?
+  created_at   DateTime       @default(now())
+  updated_at   DateTime       @updatedAt
+  entries      LaundryEntry[]
+
+  @@index([phone])
+  @@map("customers")
+}
+
+model Service {
+  id         String      @id @default(uuid())
+  name       String
+  parent_id  String?
+  parent     Service?    @relation("ServiceChildren", fields: [parent_id], references: [id])
+  children   Service[]   @relation("ServiceChildren")
+  price      Decimal?    @db.Decimal(10, 2)
+  is_active  Boolean     @default(true)
+  created_at DateTime    @default(now())
+  updated_at DateTime    @updatedAt
+  items      EntryItem[]
+
+  @@map("services")
+}
+
+model LaundryEntry {
+  id              String      @id @default(uuid())
+  customer_id     String
+  customer        Customer    @relation(fields: [customer_id], references: [id])
+  entry_date      String
+  total_amount    Decimal     @db.Decimal(10, 2)
+  delivery_status String      @default("pending")
+  notes           String      @default("")
+  created_at      DateTime    @default(now())
+  updated_at      DateTime    @updatedAt
+  items           EntryItem[]
+
+  @@index([entry_date])
+  @@map("laundry_entries")
+}
+
+model EntryItem {
+  id             String       @id @default(uuid())
+  entry_id       String
+  entry          LaundryEntry @relation(fields: [entry_id], references: [id], onDelete: Cascade)
+  service_id     String
+  service        Service      @relation(fields: [service_id], references: [id])
+  service_name   String
+  price_per_unit Decimal      @db.Decimal(10, 2)
+  quantity       Int
+  subtotal       Decimal      @db.Decimal(10, 2)
+  item_status    String       @default("pending")
+
+  @@map("entry_items")
+}
+
+model Labour {
+  id         String       @id @default(uuid())
+  name       String
+  is_active  Boolean      @default(true)
+  created_at DateTime     @default(now())
+  works      LabourWork[]
+
+  @@map("labours")
+}
+
+model LabourWork {
+  id             String   @id @default(uuid())
+  labour_id      String
+  labour         Labour   @relation(fields: [labour_id], references: [id])
+  work_date      String
+  press_count    Int
+  rate_per_piece Decimal  @default(2) @db.Decimal(10, 2)
+  created_at     DateTime @default(now())
+
+  @@map("labour_work")
+}
