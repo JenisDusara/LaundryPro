@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx prisma:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(npx tsc:*)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\Jenish\\Desktop\\laundry-pro\\node-backend\\src\\app\\api\\invoices\\[customerId]"
+    ]
+  }
+}
