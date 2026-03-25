@@ -3,7 +3,10 @@
     "allow": [
       "Bash(npx prisma:*)",
       "Bash(npx ts-node:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Jenish\\Desktop\\laundry-pro\\node-backend\\src\\app\\api\\invoices\\[customerId]"
