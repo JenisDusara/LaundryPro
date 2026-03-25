@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   ws.getRow(1).font = { bold: true };
   customers.forEach(c => ws.addRow({ name: c.name, phone: c.phone, flat: c.flat_number, society: c.society_name, address: c.address, email: c.email || "" }));
   const buffer = await wb.xlsx.writeBuffer();
-  return new NextResponse(buffer as Buffer, {
+  return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename="customers.xlsx"`,
