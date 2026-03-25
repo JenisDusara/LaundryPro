@@ -43,7 +43,7 @@ export default function Entries() {
 
   const customerMap = new Map<string,{name:string;phone:string;flat:string;society:string;entries:LaundryEntry[]}>();
   entries.forEach(e=>{ if(!customerMap.has(e.customer_id)) customerMap.set(e.customer_id,{name:e.customer?.name||"Unknown",phone:e.customer?.phone||"",flat:e.customer?.flat_number||"",society:e.customer?.society_name||"",entries:[]}); customerMap.get(e.customer_id)!.entries.push(e); });
-  const customers=[...customerMap.entries()];
+  const customers=Array.from(customerMap.entries());
   const totalAmount=entries.reduce((s,e)=>s+Number(e.total_amount),0);
 
   return (
