@@ -21,7 +21,7 @@ export default function Deliveries() {
   const filtered = filter==="all"?entries:entries.filter(e=>e.delivery_status===filter);
   const customerMap = new Map<string,{name:string;phone:string;flat:string;society:string;entries:LaundryEntry[]}>();
   filtered.forEach(e=>{ if(!customerMap.has(e.customer_id)) customerMap.set(e.customer_id,{name:e.customer?.name||"Unknown",phone:e.customer?.phone||"",flat:e.customer?.flat_number||"",society:e.customer?.society_name||"",entries:[]}); customerMap.get(e.customer_id)!.entries.push(e); });
-  const customers=[...customerMap.entries()];
+  const customers=Array.from(customerMap.entries());
 
   if(loading) return <ProtectedLayout><p style={{color:"#94a3b8",textAlign:"center",marginTop:40}}>Loading...</p></ProtectedLayout>;
 
