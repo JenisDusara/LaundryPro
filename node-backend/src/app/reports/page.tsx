@@ -14,8 +14,7 @@ export default function Reports() {
 
   useEffect(()=>{ setLoading(true); const [y,m]=monthVal.split("-"); api.get("/entries",{params:{year:parseInt(y),month:parseInt(m)}}).then(r=>setEntries(r.data)).finally(()=>setLoading(false)); },[monthVal]);
 
-  const exportEntries = () => { const [y,m]=monthVal.split("-"); window.open(`/api/exports/entries?month=${m}&year=${y}&token=${localStorage.getItem("token")}`,"_blank"); };
-  const exportCustomers = () => window.open(`/api/exports/customers?token=${localStorage.getItem("token")}`,"_blank");
+  const exportCombined = () => { const [y,m]=monthVal.split("-"); window.open(`/api/exports/combined?month=${m}&year=${y}&token=${localStorage.getItem("token")}`,"_blank"); };
 
   const totalRevenue=entries.reduce((s,e)=>s+Number(e.total_amount),0);
   const uniqueCustomers=new Set(entries.map(e=>e.customer_id)).size;
@@ -53,8 +52,7 @@ export default function Reports() {
         <div><h2 style={{color:"#0f172a",margin:0,fontSize:24,fontWeight:700}}>Reports</h2><p style={{color:"#64748b",margin:"4px 0 0",fontSize:14}}>{monthName}</p></div>
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
           <input type="month" value={monthVal} onChange={e=>setMonthVal(e.target.value)} style={{padding:"8px 12px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,outline:"none"}}/>
-          <button onClick={exportEntries} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:"#1e40af",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}><Download size={14}/> Entries</button>
-          <button onClick={exportCustomers} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:"#7c3aed",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}><Download size={14}/> Customers</button>
+          <button onClick={exportCombined} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",background:"linear-gradient(135deg,#1e40af,#7c3aed)",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600,boxShadow:"0 2px 8px rgba(30,64,175,0.3)"}}><Download size={14}/> Export Excel</button>
         </div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:14,marginBottom:24}}>

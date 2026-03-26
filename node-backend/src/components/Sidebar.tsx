@@ -19,10 +19,10 @@ const navItems = [
 ];
 
 const mobileNav = [
-  { path: "/dashboard",  label: "Home",     icon: LayoutDashboard },
-  { path: "/new-entry",  label: "New",      icon: PlusCircle },
-  { path: "/entries",    label: "Entries",  icon: ClipboardList },
-  { path: "/deliveries", label: "Delivery", icon: Truck },
+  { path: "/dashboard",  label: "Home",      icon: LayoutDashboard },
+  { path: "/new-entry",  label: "New",       icon: PlusCircle },
+  { path: "/customers",  label: "Customers", icon: Users },
+  { path: "/entries",    label: "Entries",   icon: ClipboardList },
 ];
 
 const moreItems = [

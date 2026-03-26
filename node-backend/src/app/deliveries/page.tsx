@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { CheckCircle, Clock } from "lucide-react";
+import { CheckCircle, Clock, RefreshCw } from "lucide-react";
 import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import type { LaundryEntry } from "@/types";
@@ -14,7 +14,18 @@ export default function Deliveries() {
   const [expandedCustomer, setExpandedCustomer] = useState<string|null>(null);
 
   const load = async () => { setLoading(true); const d=new Date(); const res=await api.get("/entries",{params:{month:d.getMonth()+1,year:d.getFullYear()}}); setEntries(res.data); setLoading(false); };
-  useEffect(()=>{load();},[]);
+
+  useEffect(()=>{
+    load();
+    // Re-fetch whenever user comes back to this page/tab
+    const onVisible = () => { if(document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", load);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", load);
+    };
+  },[]);
 
   const updateStatus = async (id:string,status:string) => { await api.patch(`/entries/${id}/status`,null,{params:{status}}); load(); };
 
@@ -27,7 +38,12 @@ export default function Deliveries() {
 
   return (
     <ProtectedLayout>
-      <h2 style={{color:"#1e3a8a",marginBottom:16,fontSize:22,fontWeight:800}}>Deliveries</h2>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <h2 style={{color:"#1e3a8a",margin:0,fontSize:22,fontWeight:800}}>Deliveries</h2>
+        <button onClick={load} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:"#eff6ff",color:"#1d4ed8",border:"1px solid #bfdbfe",borderRadius:10,fontSize:13,fontWeight:600,cursor:"pointer"}}>
+          <RefreshCw size={14}/> Refresh
+        </button>
+      </div>
       <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
         {["all","pending","delivered"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:filter===f?"#1e40af":"#e2e8f0",color:filter===f?"#fff":"#475569"}}>{f.charAt(0).toUpperCase()+f.slice(1)}</button>)}
       </div>

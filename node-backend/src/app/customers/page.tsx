@@ -33,6 +33,7 @@ export default function Customers() {
   const [invoiceMsg, setInvoiceMsg] = useState("");
   const [focusField, setFocusField] = useState("");
   const [phoneError, setPhoneError] = useState("");
+  const [showSuggestion, setShowSuggestion] = useState<"flat_number"|"society_name"|null>(null);
 
   const load = async (q = "") => {
     const res = await api.get("/customers", { params: q ? { search: q } : {} });
@@ -123,91 +124,54 @@ export default function Customers() {
         {search && <X size={16} color="#94a3b8" style={{ cursor: "pointer" }} onClick={() => { setSearch(""); load(); }} />}
       </div>
 
-      {/* Customer Cards */}
+      {/* Customer List */}
       {customers.length === 0 ? (
         <div style={{ textAlign: "center", padding: "60px 0" }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>👥</div>
           <p style={{ color: "#94a3b8", fontSize: 15 }}>No customers found</p>
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>
-          {customers.map(c => {
+        <div style={{ background: "#fff", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", border: "1px solid #f1f5f9" }}>
+          {customers.map((c, idx) => {
             const color = getColor(c.name);
             return (
               <div key={c.id} style={{
-                background: "#fff", borderRadius: 14, padding: 18,
-                boxShadow: "0 2px 8px rgba(0,0,0,0.06)", border: "1px solid #f1f5f9",
-                transition: "all 0.2s", cursor: "default"
-              }}
-                onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.10)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
-                onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)"; e.currentTarget.style.transform = "none"; }}
-              >
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
-                  {/* Avatar */}
-                  <div style={{
-                    width: 46, height: 46, borderRadius: 12, background: color,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    color: "#fff", fontWeight: 700, fontSize: 16, flexShrink: 0
-                  }}>
-                    {getInitials(c.name)}
-                  </div>
+                display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
+                borderBottom: idx < customers.length - 1 ? "1px solid #f1f5f9" : "none",
+              }}>
+                {/* Avatar */}
+                <div style={{
+                  width: 40, height: 40, borderRadius: 10, background: color, flexShrink: 0,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "#fff", fontWeight: 700, fontSize: 14
+                }}>
+                  {getInitials(c.name)}
+                </div>
 
-                  {/* Info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: "#1e293b", marginBottom: 6 }}>{c.name}</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#64748b" }}>
-                        <Phone size={12} color="#94a3b8" /> {c.phone}
-                      </div>
-                      {c.flat_number && (
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#64748b" }}>
-                          <Home size={12} color="#94a3b8" /> {c.flat_number}
-                          {c.society_name && `, ${c.society_name}`}
-                        </div>
-                      )}
-                      {c.email && (
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#64748b" }}>
-                          <Mail size={12} color="#94a3b8" />
-                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.email}</span>
-                        </div>
-                      )}
-                    </div>
+                {/* Info */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "#1e293b" }}>{c.name}</div>
+                  <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <span>{c.phone}</span>
+                    {c.flat_number && <span>🏠 {c.flat_number}{c.society_name && `, ${c.society_name}`}</span>}
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div style={{ display: "flex", gap: 8, marginTop: 14, paddingTop: 14, borderTop: "1px solid #f1f5f9" }}>
+                {/* Icon Actions */}
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                   {c.email && (
-                    <button
-                      onClick={() => { setInvoiceCustomer(c); setInvoiceMsg(""); }}
-                      style={{
-                        flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                        padding: "8px 0", background: "#f0fdf4", color: "#16a34a",
-                        border: "1px solid #bbf7d0", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer"
-                      }}
-                    >
-                      <Mail size={13} /> Invoice
+                    <button onClick={() => { setInvoiceCustomer(c); setInvoiceMsg(""); }}
+                      style={{ width: 32, height: 32, borderRadius: 8, background: "#f0fdf4", border: "1px solid #bbf7d0", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Mail size={14} color="#16a34a" />
                     </button>
                   )}
-                  <button
-                    onClick={() => { setForm({ name: c.name, phone: c.phone, flat_number: c.flat_number, society_name: c.society_name, address: c.address, email: c.email || "" }); setEditId(c.id); setShowForm(true); }}
-                    style={{
-                      flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                      padding: "8px 0", background: "#eff6ff", color: "#2563eb",
-                      border: "1px solid #bfdbfe", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer"
-                    }}
-                  >
-                    <Edit2 size={13} /> Edit
+                  <button onClick={() => { setForm({ name: c.name, phone: c.phone, flat_number: c.flat_number, society_name: c.society_name, address: c.address, email: c.email || "" }); setEditId(c.id); setShowForm(true); }}
+                    style={{ width: 32, height: 32, borderRadius: 8, background: "#eff6ff", border: "1px solid #bfdbfe", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Edit2 size={14} color="#2563eb" />
                   </button>
-                  <button
-                    onClick={() => del(c.id)}
-                    style={{
-                      flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                      padding: "8px 0", background: "#fff5f5", color: "#dc2626",
-                      border: "1px solid #fecaca", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer"
-                    }}
-                  >
-                    <Trash2 size={13} /> Delete
+                  <button onClick={() => del(c.id)}
+                    style={{ width: 32, height: 32, borderRadius: 8, background: "#fff5f5", border: "1px solid #fecaca", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Trash2 size={14} color="#dc2626" />
                   </button>
                 </div>
               </div>
@@ -232,48 +196,85 @@ export default function Customers() {
               </button>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {fields.map(f => (
-                <div key={f.key}>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
-                    {f.icon} {f.label} {f.required && <span style={{ color: "#ef4444" }}>*</span>}
-                  </label>
-                  <input
-                    style={{
-                      ...inputStyle,
-                      borderColor: f.key === "phone" && phoneError ? "#ef4444" : focusField === f.key ? "#3b82f6" : "#e2e8f0",
-                      boxShadow: f.key === "phone" && phoneError ? "0 0 0 3px rgba(239,68,68,0.1)" : focusField === f.key ? "0 0 0 3px rgba(59,130,246,0.1)" : "none"
-                    }}
-                    placeholder={f.key === "phone" ? "10-digit number" : `Enter ${f.label.toLowerCase()}`}
-                    value={(form as any)[f.key]}
-                    inputMode={f.key === "phone" ? "numeric" : "text"}
-                    maxLength={f.key === "phone" ? 10 : undefined}
-                    onChange={e => {
-                      if (f.key === "phone") {
-                        const val = e.target.value.replace(/\D/g, "").slice(0, 10);
-                        setForm({ ...form, phone: val });
-                        setPhoneError(val.length > 0 && val.length < 10 ? "Must be 10 digits" : "");
-                      } else {
-                        setForm({ ...form, [f.key]: e.target.value });
-                      }
-                    }}
-                    onFocus={() => setFocusField(f.key)}
-                    onBlur={() => setFocusField("")}
-                  />
-                  {f.key === "phone" && (
-                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-                      {phoneError
-                        ? <span style={{ fontSize: 11, color: "#ef4444" }}>{phoneError}</span>
-                        : <span />
-                      }
-                      <span style={{ fontSize: 11, color: form.phone.length === 10 ? "#16a34a" : "#94a3b8" }}>
-                        {form.phone.length}/10
-                      </span>
-                    </div>
-                  )}
+            {(() => {
+              // Unique suggestions from existing customers
+              const societySuggestions = Array.from(new Set(customers.map(c => c.society_name).filter(Boolean)));
+
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {fields.map(f => {
+                    const isSuggestField = f.key === "society_name";
+                    const allSuggestions = societySuggestions;
+                    const val = (form as any)[f.key] as string;
+                    const filteredSugg = allSuggestions.filter(s =>
+                      s.toLowerCase().includes(val.toLowerCase()) && s.toLowerCase() !== val.toLowerCase()
+                    );
+                    const showDrop = showSuggestion === f.key && filteredSugg.length > 0;
+
+                    return (
+                      <div key={f.key} style={{ position: "relative" }}>
+                        <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
+                          {f.icon} {f.label} {f.required && <span style={{ color: "#ef4444" }}>*</span>}
+                        </label>
+                        <input
+                          style={{
+                            ...inputStyle,
+                            borderColor: f.key === "phone" && phoneError ? "#ef4444" : focusField === f.key ? "#3b82f6" : "#e2e8f0",
+                            boxShadow: f.key === "phone" && phoneError ? "0 0 0 3px rgba(239,68,68,0.1)" : focusField === f.key ? "0 0 0 3px rgba(59,130,246,0.1)" : "none"
+                          }}
+                          placeholder={f.key === "phone" ? "10-digit number" : `Enter ${f.label.toLowerCase()}`}
+                          value={val}
+                          inputMode={f.key === "phone" ? "numeric" : "text"}
+                          maxLength={f.key === "phone" ? 10 : undefined}
+                          autoComplete="off"
+                          onChange={e => {
+                            if (f.key === "phone") {
+                              const v = e.target.value.replace(/\D/g, "").slice(0, 10);
+                              setForm({ ...form, phone: v });
+                              setPhoneError(v.length > 0 && v.length < 10 ? "Must be 10 digits" : "");
+                            } else {
+                              setForm({ ...form, [f.key]: e.target.value });
+                            }
+                          }}
+                          onFocus={() => { setFocusField(f.key); if (isSuggestField) setShowSuggestion(f.key as any); }}
+                          onBlur={() => { setFocusField(""); setTimeout(() => setShowSuggestion(null), 150); }}
+                        />
+
+                        {/* Suggestions dropdown */}
+                        {showDrop && (
+                          <div style={{
+                            position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+                            background: "#fff", border: "1.5px solid #bfdbfe", borderRadius: 10,
+                            zIndex: 300, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", overflow: "hidden"
+                          }}>
+                            {filteredSugg.map(s => (
+                              <div key={s}
+                                onMouseDown={() => { setForm({ ...form, [f.key]: s }); setShowSuggestion(null); }}
+                                style={{ padding: "10px 14px", fontSize: 13, cursor: "pointer", color: "#1e293b", display: "flex", alignItems: "center", gap: 8, borderBottom: "1px solid #f1f5f9" }}
+                                onMouseEnter={e => e.currentTarget.style.background = "#eff6ff"}
+                                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                              >
+                                {f.key === "flat_number" ? <Home size={13} color="#3b82f6"/> : <Building2 size={13} color="#3b82f6"/>}
+                                {s}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {f.key === "phone" && (
+                          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                            {phoneError ? <span style={{ fontSize: 11, color: "#ef4444" }}>{phoneError}</span> : <span />}
+                            <span style={{ fontSize: 11, color: form.phone.length === 10 ? "#16a34a" : "#94a3b8" }}>
+                              {form.phone.length}/10
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
 
             <button
               style={{
