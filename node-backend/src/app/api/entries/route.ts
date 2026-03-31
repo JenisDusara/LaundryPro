@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import prisma, { withRetry } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { sendEmail, pickupEmailHtml } from "@/lib/email";
 import { sendSms } from "@/lib/sms";
@@ -19,11 +19,11 @@ export async function GET(req: NextRequest) {
   }
   if (p.get("customer_id")) where.customer_id = p.get("customer_id");
 
-  const entries = await prisma.laundryEntry.findMany({
+  const entries = await withRetry(() => prisma.laundryEntry.findMany({
     where,
     include: { customer: true, items: true },
     orderBy: { entry_date: "desc" },
-  });
+  }));
   return NextResponse.json(entries.map(e => ({
     ...e,
     total_amount: Number(e.total_amount),

@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import prisma, { withRetry } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
-  const all = await prisma.service.findMany({
+  const all = await withRetry(() => prisma.service.findMany({
     where: { is_active: true },
     orderBy: { created_at: "asc" },
-  });
+  }));
   const parents = all.filter(s => !s.parent_id);
   const result = parents.map(p => ({
     ...p,

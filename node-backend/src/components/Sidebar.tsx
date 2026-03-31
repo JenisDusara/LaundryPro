@@ -1,10 +1,11 @@
 "use client";
 import { useRouter, usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard, PlusCircle, Users, ClipboardList, Truck,
-  BarChart3, Wrench, Hammer, ShieldCheck, LogOut, X, MoreHorizontal
+  BarChart3, Wrench, Hammer, LogOut, X, MoreHorizontal, User, Key, Eye, EyeOff
 } from "lucide-react";
+import api from "@/lib/api";
 
 const navItems = [
   { path: "/dashboard",  label: "Dashboard",  icon: LayoutDashboard },
@@ -15,7 +16,6 @@ const navItems = [
   { path: "/reports",    label: "Reports",     icon: BarChart3 },
   { path: "/services",   label: "Services",    icon: Wrench },
   { path: "/labour",     label: "Labour",      icon: Hammer },
-  { path: "/admin",      label: "Admin",       icon: ShieldCheck },
 ];
 
 const mobileNav = [
@@ -30,16 +30,42 @@ const moreItems = [
   { path: "/services",  label: "Services",  icon: Wrench },
   { path: "/labour",    label: "Labour",    icon: Hammer },
   { path: "/customers", label: "Customers", icon: Users },
-  { path: "/admin",     label: "Admin",     icon: ShieldCheck },
 ];
 
 export default function Sidebar({ children }: { children: React.ReactNode }) {
   const router   = useRouter();
   const pathname = usePathname();
   const [showMore, setShowMore] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [profile, setProfile] = useState<{name:string;username:string}|null>(null);
+  const [oldPass, setOldPass] = useState(""); const [newPass, setNewPass] = useState(""); const [confirmPass, setConfirmPass] = useState("");
+  const [showOld, setShowOld] = useState(false); const [showNew, setShowNew] = useState(false);
+  const [passMsg, setPassMsg] = useState<{text:string;ok:boolean}|null>(null); const [passLoading, setPassLoading] = useState(false);
+
+  useEffect(() => {
+    api.get("/auth/me").then(r => setProfile(r.data)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    setShowProfile(false);
+    setShowMore(false);
+  }, [pathname]);
 
   const logout = () => { localStorage.removeItem("token"); router.push("/login"); };
   const goTo   = (path: string) => { router.push(path); setShowMore(false); };
+
+  const changePassword = async () => {
+    if (!oldPass || !newPass || !confirmPass) { setPassMsg({text:"Please fill all fields",ok:false}); return; }
+    if (newPass !== confirmPass) { setPassMsg({text:"New passwords do not match",ok:false}); return; }
+    if (newPass.length < 6) { setPassMsg({text:"Password must be at least 6 characters",ok:false}); return; }
+    setPassLoading(true);
+    try {
+      await api.post("/admin/change-password", {old_password:oldPass, new_password:newPass});
+      setPassMsg({text:"Password changed successfully!",ok:true});
+      setOldPass(""); setNewPass(""); setConfirmPass("");
+    } catch(e:any) { setPassMsg({text:e.response?.data?.detail||"Something went wrong",ok:false}); }
+    finally { setPassLoading(false); setTimeout(()=>setPassMsg(null), 4000); }
+  };
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f0f4f8" }}>
@@ -93,20 +119,38 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        {/* Logout */}
+        {/* Profile Card (clickable) */}
         <div style={{ padding: "12px 10px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-          <div
-            onClick={logout}
-            style={{
-              display: "flex", alignItems: "center", gap: 12, padding: "11px 14px",
-              borderRadius: 10, cursor: "pointer", color: "rgba(255,100,100,0.8)",
-              fontSize: 14, fontWeight: 500, transition: "all 0.15s"
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background="rgba(239,68,68,0.15)"; e.currentTarget.style.color="#f87171"; }}
-            onMouseLeave={e => { e.currentTarget.style.background="transparent"; e.currentTarget.style.color="rgba(255,100,100,0.8)"; }}
-          >
-            <LogOut size={18} /><span>Logout</span>
-          </div>
+          {profile && (
+            <div
+              onClick={() => setShowProfile(true)}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 12px", borderRadius: 12,
+                background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)",
+                cursor: "pointer", transition: "all 0.15s"
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background="rgba(255,255,255,0.13)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background="rgba(255,255,255,0.07)"; }}
+            >
+              <div style={{
+                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                background: "linear-gradient(135deg,#3b82f6,#60a5fa)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontWeight: 800, fontSize: 15, color: "#fff",
+                boxShadow: "0 2px 8px rgba(59,130,246,0.4)"
+              }}>
+                {profile.name.charAt(0).toUpperCase()}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: "#fff", fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {profile.name}
+                </div>
+                <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>@{profile.username}</div>
+              </div>
+              <User size={14} color="rgba(255,255,255,0.35)" />
+            </div>
+          )}
         </div>
       </aside>
 
@@ -143,6 +187,106 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
           <span style={{ fontSize: 10 }}>More</span>
         </div>
       </nav>
+
+      {/* ── Profile Modal ── */}
+      {showProfile && profile && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
+          onClick={() => setShowProfile(false)}>
+          <div style={{ background:"#fff", borderRadius:20, width:"100%", maxWidth:360, boxShadow:"0 20px 60px rgba(0,0,0,0.25)", maxHeight:"90vh", overflowY:"auto" }}
+            onClick={e => e.stopPropagation()}>
+
+            {/* Header */}
+            <div style={{ background:"linear-gradient(135deg,#0f172a,#1e3a8a)", padding:"28px 24px 24px", position:"relative" }}>
+              <button onClick={() => setShowProfile(false)} style={{ position:"absolute", top:14, right:14, background:"rgba(255,255,255,0.1)", border:"none", borderRadius:8, padding:6, cursor:"pointer", display:"flex" }}>
+                <X size={16} color="#fff" />
+              </button>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:12 }}>
+                <div style={{ width:70, height:70, borderRadius:20, background:"linear-gradient(135deg,#3b82f6,#60a5fa)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, fontSize:30, color:"#fff", boxShadow:"0 4px 16px rgba(59,130,246,0.5)" }}>
+                  {profile.name.charAt(0).toUpperCase()}
+                </div>
+                <div style={{ textAlign:"center" }}>
+                  <div style={{ color:"#fff", fontWeight:800, fontSize:18 }}>{profile.name}</div>
+                  <div style={{ color:"rgba(255,255,255,0.5)", fontSize:13, marginTop:2 }}>@{profile.username}</div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding:"20px" }}>
+              {/* Change Password Section */}
+              <div style={{ marginBottom:18 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+                  <div style={{ width:32, height:32, borderRadius:8, background:"#eff6ff", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                    <Key size={15} color="#1d4ed8" />
+                  </div>
+                  <span style={{ fontWeight:700, fontSize:14, color:"#1e293b" }}>Change Password</span>
+                </div>
+
+                {/* Old Password */}
+                <div style={{ position:"relative", marginBottom:10 }}>
+                  <input
+                    type={showOld?"text":"password"}
+                    placeholder="Current Password"
+                    value={oldPass}
+                    onChange={e=>setOldPass(e.target.value)}
+                    style={{ width:"100%", padding:"10px 40px 10px 12px", border:"1.5px solid #e2e8f0", borderRadius:10, fontSize:14, outline:"none", boxSizing:"border-box", background:"#f8fafc" }}
+                  />
+                  <button onClick={()=>setShowOld(v=>!v)} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", display:"flex", padding:2 }}>
+                    {showOld?<EyeOff size={16} color="#94a3b8"/>:<Eye size={16} color="#94a3b8"/>}
+                  </button>
+                </div>
+
+                {/* New Password */}
+                <div style={{ position:"relative", marginBottom:10 }}>
+                  <input
+                    type={showNew?"text":"password"}
+                    placeholder="New Password"
+                    value={newPass}
+                    onChange={e=>setNewPass(e.target.value)}
+                    style={{ width:"100%", padding:"10px 40px 10px 12px", border:"1.5px solid #e2e8f0", borderRadius:10, fontSize:14, outline:"none", boxSizing:"border-box", background:"#f8fafc" }}
+                  />
+                  <button onClick={()=>setShowNew(v=>!v)} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", display:"flex", padding:2 }}>
+                    {showNew?<EyeOff size={16} color="#94a3b8"/>:<Eye size={16} color="#94a3b8"/>}
+                  </button>
+                </div>
+
+                {/* Confirm Password */}
+                <div style={{ marginBottom:12 }}>
+                  <input
+                    type="password"
+                    placeholder="Confirm New Password"
+                    value={confirmPass}
+                    onChange={e=>setConfirmPass(e.target.value)}
+                    style={{ width:"100%", padding:"10px 12px", border:`1.5px solid ${confirmPass && confirmPass!==newPass?"#fca5a5":"#e2e8f0"}`, borderRadius:10, fontSize:14, outline:"none", boxSizing:"border-box", background:"#f8fafc" }}
+                  />
+                </div>
+
+                {passMsg && (
+                  <div style={{ padding:"9px 12px", borderRadius:8, marginBottom:12, fontSize:13, fontWeight:600, background:passMsg.ok?"#f0fdf4":"#fef2f2", color:passMsg.ok?"#16a34a":"#dc2626", border:`1px solid ${passMsg.ok?"#bbf7d0":"#fecaca"}` }}>
+                    {passMsg.text}
+                  </div>
+                )}
+
+                <button
+                  onClick={changePassword}
+                  disabled={passLoading}
+                  style={{ width:"100%", padding:"11px", border:"none", borderRadius:10, cursor:passLoading?"not-allowed":"pointer", background:"linear-gradient(135deg,#1e3a8a,#1d4ed8)", color:"#fff", fontWeight:700, fontSize:14, display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:passLoading?0.7:1 }}>
+                  <Key size={15}/> {passLoading?"Saving...":"Change Password"}
+                </button>
+              </div>
+
+              {/* Divider */}
+              <div style={{ borderTop:"1px solid #f1f5f9", marginBottom:16 }}/>
+
+              {/* Logout */}
+              <button
+                onClick={() => { setShowProfile(false); logout(); }}
+                style={{ width:"100%", padding:"11px", border:"none", borderRadius:10, cursor:"pointer", background:"linear-gradient(135deg,#ef4444,#dc2626)", color:"#fff", fontWeight:700, fontSize:14, display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:"0 4px 12px rgba(239,68,68,0.3)" }}>
+                <LogOut size={15}/> Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── More Overlay ── */}
       {showMore && (

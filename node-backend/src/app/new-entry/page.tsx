@@ -81,9 +81,7 @@ export default function NewEntry() {
     } finally { setSaving(false); }
   };
 
-  const topServices = services.filter(s=>!s.parent_id);
-  const getChildren = (pid:string) => services.filter(s=>s.parent_id===pid);
-  const hasChildren = (id:string)  => services.some(s=>s.parent_id===id);
+  const topServices = services;
 
   const pendingEntries = pastEntries.filter(e => e.delivery_status !== "delivered");
 
@@ -244,29 +242,31 @@ export default function NewEntry() {
 
       {/* ── Select Services ── */}
       <div style={{background:"#fff",borderRadius:14,padding:"18px 20px",marginBottom:14,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",border:"1px solid #f1f5f9"}}>
-        <div style={{fontWeight:700,fontSize:13,color:"#475569",marginBottom:12,textTransform:"uppercase",letterSpacing:"0.05em"}}>🧺 Select Services</div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+        <div style={{fontWeight:700,fontSize:13,color:"#475569",marginBottom:14,textTransform:"uppercase",letterSpacing:"0.05em"}}>🧺 Select Services</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12}}>
           {topServices.map((svc,idx)=>{
             const color=COLORS[idx%COLORS.length];
-            if(!hasChildren(svc.id)) return (
-              <button key={svc.id} className="svc-btn" onClick={()=>addItem(svc)} style={{padding:"8px 16px",background:color.bg,color:color.text,border:`1.5px solid ${color.border}`,borderRadius:20,cursor:"pointer",fontSize:13,fontWeight:600,transition:"all 0.15s"}}>
+            const children = svc.children || [];
+            if(children.length === 0) return (
+              <button key={svc.id} className="svc-btn" onClick={()=>addItem(svc)}
+                style={{padding:"14px 12px",background:color.bg,color:color.text,border:`2px solid ${color.border}`,borderRadius:14,cursor:"pointer",fontSize:14,fontWeight:700,transition:"all 0.15s",textAlign:"center",width:"100%"}}>
                 + {svc.name}
               </button>
             );
             return (
-              <div key={svc.id} style={{background:color.bg,border:`1.5px solid ${color.border}`,borderRadius:12,overflow:"hidden"}}>
-                <button className="svc-btn" onClick={()=>toggleGroup(svc.id)} style={{padding:"8px 14px",background:"transparent",color:color.text,border:"none",cursor:"pointer",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>
-                  {svc.name}{expandedGroups.has(svc.id)?<ChevronUp size={14}/>:<ChevronDown size={14}/>}
-                </button>
-                {expandedGroups.has(svc.id)&&(
-                  <div style={{display:"flex",flexWrap:"wrap",gap:6,padding:"6px 10px 10px"}}>
-                    {getChildren(svc.id).map(child=>(
-                      <button key={child.id} className="svc-btn" onClick={()=>addItem(child)} style={{padding:"6px 12px",background:"#fff",color:color.text,border:`1px solid ${color.border}`,borderRadius:16,cursor:"pointer",fontSize:12,fontWeight:600}}>
-                        + {child.name} <span style={{opacity:0.7}}>₹{child.price}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+              <div key={svc.id} style={{background:color.bg,border:`2px solid ${color.border}`,borderRadius:14,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+                <div style={{padding:"10px 12px 6px",fontWeight:700,fontSize:13,color:color.text,borderBottom:`1px solid ${color.border}`}}>
+                  {svc.name}
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:4,padding:"8px 10px 10px"}}>
+                  {children.map(child=>(
+                    <button key={child.id} className="svc-btn" onClick={()=>addItem(child)}
+                      style={{padding:"7px 10px",background:"#fff",color:color.text,border:`1.5px solid ${color.border}`,borderRadius:10,cursor:"pointer",fontSize:12,fontWeight:600,display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",transition:"all 0.15s"}}>
+                      <span>+ {child.name}</span>
+                      <span style={{opacity:0.7,fontSize:11}}>₹{child.price}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             );
           })}

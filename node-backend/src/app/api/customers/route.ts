@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import prisma, { withRetry } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
   const search = new URL(req.url).searchParams.get("search") || "";
-  const customers = await prisma.customer.findMany({
+  const customers = await withRetry(() => prisma.customer.findMany({
     where: search ? {
       OR: [
         { name: { contains: search, mode: "insensitive" } },
@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
       ],
     } : {},
     orderBy: { name: "asc" },
-  });
+  }));
   return NextResponse.json(customers);
 }
 

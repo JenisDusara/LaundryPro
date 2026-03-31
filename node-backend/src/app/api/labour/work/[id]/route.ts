@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import prisma, { withRetry } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
