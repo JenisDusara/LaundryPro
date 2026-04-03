@@ -23,6 +23,9 @@ export async function POST(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
   const data = await req.json();
+  if (!data.phone || !/^\d{10}$/.test(data.phone)) {
+    return NextResponse.json({ detail: "Phone number must be exactly 10 digits" }, { status: 400 });
+  }
   const existing = await prisma.customer.findFirst({ where: { phone: data.phone } });
   if (existing) return NextResponse.json({ detail: "Phone already registered" }, { status: 400 });
   const customer = await prisma.customer.create({ data });

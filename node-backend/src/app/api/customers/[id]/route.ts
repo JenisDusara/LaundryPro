@@ -14,6 +14,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
   const data = await req.json();
+  if (data.phone !== undefined && !/^\d{10}$/.test(data.phone)) {
+    return NextResponse.json({ detail: "Phone number must be exactly 10 digits" }, { status: 400 });
+  }
   const customer = await withRetry(() => prisma.customer.update({ where: { id: params.id }, data }));
   return NextResponse.json(customer);
 }

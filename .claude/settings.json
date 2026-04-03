@@ -6,10 +6,14 @@
       "Bash(npx tsc:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(cmd /c \"taskkill /F /IM node.exe\")",
+      "Bash(cmd /c \"cd /d c:\\\\Users\\\\Jenish\\\\Desktop\\\\laundry-pro\\\\node-backend && npx prisma generate\")"
     ],
     "additionalDirectories": [
-      "C:\\Users\\Jenish\\Desktop\\laundry-pro\\node-backend\\src\\app\\api\\invoices\\[customerId]"
+      "C:\\Users\\Jenish\\Desktop\\laundry-pro\\node-backend\\src\\app\\api\\invoices\\[customerId]",
+      "c:\\Users\\Jenish\\Desktop\\laundry-pro\\node-backend\\src\\app\\api\\labour\\advance"
     ]
   }
 }

@@ -80,11 +80,12 @@ model EntryItem {
 }
 
 model Labour {
-  id         String       @id @default(uuid())
+  id         String          @id @default(uuid())
   name       String
-  is_active  Boolean      @default(true)
-  created_at DateTime     @default(now())
+  is_active  Boolean         @default(true)
+  created_at DateTime        @default(now())
   works      LabourWork[]
+  advances   LabourAdvance[]
 
   @@map("labours")
 }
@@ -99,4 +100,16 @@ model LabourWork {
   created_at     DateTime @default(now())
 
   @@map("labour_work")
+}
+
+model LabourAdvance {
+  id           String   @id @default(uuid())
+  labour_id    String
+  labour       Labour   @relation(fields: [labour_id], references: [id])
+  advance_date String
+  amount       Decimal  @db.Decimal(10, 2)
+  description  String   @default("")
+  created_at   DateTime @default(now())
+
+  @@map("labour_advances")
 }

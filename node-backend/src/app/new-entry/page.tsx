@@ -24,10 +24,12 @@ export default function NewEntry() {
   const [saving,           setSaving]           = useState(false);
   const [success,          setSuccess]          = useState(false);
   const [expandedGroups,   setExpandedGroups]   = useState<Set<string>>(new Set());
+  const [openServices,     setOpenServices]     = useState<Set<string>>(new Set());
   const [pastEntries,      setPastEntries]      = useState<LaundryEntry[]>([]);
   const [pastLoading,      setPastLoading]      = useState(false);
   const [showDropdown,     setShowDropdown]     = useState(false);
   const [updatingId,       setUpdatingId]       = useState<string|null>(null);
+  const [updatingItemId,   setUpdatingItemId]   = useState<string|null>(null);
 
   useEffect(() => {
     api.get("/customers").then(r=>setCustomers(r.data));
@@ -89,8 +91,24 @@ export default function NewEntry() {
     setUpdatingId(entryId);
     try {
       await api.patch(`/entries/${entryId}/status`, null, { params: { status: "delivered" } });
-      setPastEntries(prev => prev.map(e => e.id === entryId ? { ...e, delivery_status: "delivered" } : e));
+      setPastEntries(prev => prev.map(e => e.id === entryId
+        ? { ...e, delivery_status: "delivered", items: e.items.map(i => ({ ...i, item_status: "delivered" })) }
+        : e));
     } finally { setUpdatingId(null); }
+  };
+
+  const markItemStatus = async (entryId: string, itemId: string, currentStatus: string) => {
+    const newStatus = currentStatus === "delivered" ? "pending" : "delivered";
+    setUpdatingItemId(itemId);
+    try {
+      await api.patch(`/entries/${entryId}/items/${itemId}/status`, null, { params: { status: newStatus } });
+      setPastEntries(prev => prev.map(e => {
+        if (e.id !== entryId) return e;
+        const updatedItems = e.items.map(i => i.id === itemId ? { ...i, item_status: newStatus } : i);
+        const allDel = updatedItems.every(i => i.item_status === "delivered");
+        return { ...e, items: updatedItems, delivery_status: allDel ? "delivered" : "pending" };
+      }));
+    } finally { setUpdatingItemId(null); }
   };
 
   return (
@@ -188,49 +206,45 @@ export default function NewEntry() {
           ) : (
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {pendingEntries.map(e => {
-                const sc = statusConfig[e.delivery_status];
+                const allDel = e.items.every(i => i.item_status === "delivered");
                 const isUpdating = updatingId === e.id;
+                const delCount = e.items.filter(i=>i.item_status==="delivered").length;
                 return (
-                  <div key={e.id} style={{background: e.delivery_status==="in_delivery"?"#eff6ff":"#fffbeb", borderRadius:12, padding:"12px 14px", border:`1px solid ${e.delivery_status==="in_delivery"?"#bfdbfe":"#fde68a"}`}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
-                      <div style={{flex:1}}>
-                        {/* Date + status */}
-                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                          <span style={{fontSize:12,fontWeight:700,color: e.delivery_status==="in_delivery"?"#1d4ed8":"#92400e"}}>
-                            {new Date(e.entry_date).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}
-                          </span>
-                          <span style={{display:"flex",alignItems:"center",gap:3,fontSize:11,fontWeight:600,color:sc.color,background:sc.bg,border:`1px solid ${sc.border}`,borderRadius:20,padding:"2px 8px"}}>
-                            {sc.icon} {sc.label}
-                          </span>
-                        </div>
-                        {/* Items */}
-                        <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>
-                          {e.items?.map((item,idx)=>(
-                            <span key={idx} style={{background:"#fff",border:`1px solid ${e.delivery_status==="in_delivery"?"#bfdbfe":"#fde68a"}`,borderRadius:12,padding:"3px 10px",fontSize:12,fontWeight:600,color:e.delivery_status==="in_delivery"?"#1d4ed8":"#92400e"}}>
-                              {item.service_name} ×{item.quantity}
-                            </span>
-                          ))}
-                        </div>
-                        {/* Amount */}
-                        <div style={{fontWeight:800,color:"#0f172a",fontSize:15}}>₹{Number(e.total_amount).toLocaleString("en-IN")}</div>
+                  <div key={e.id} style={{background:"#fffbeb",borderRadius:12,padding:"10px 14px",border:"1px solid #fde68a"}}>
+                    {/* Header */}
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{fontWeight:700,fontSize:13,color:"#92400e"}}>📅 {new Date(e.entry_date+"T00:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short"})}</span>
+                        <span style={{fontSize:11,color:"#d97706"}}>{delCount}/{e.items.length} done</span>
                       </div>
-                      {/* Deliver button */}
-                      <button
-                        onClick={() => markDelivered(e.id)}
-                        disabled={isUpdating}
-                        style={{
-                          display:"flex",alignItems:"center",gap:6,padding:"8px 14px",
-                          background: isUpdating ? "#e2e8f0" : "linear-gradient(135deg,#059669,#10b981)",
-                          color: isUpdating ? "#94a3b8" : "#fff",
-                          border:"none",borderRadius:10,fontSize:12,fontWeight:700,
-                          cursor: isUpdating ? "not-allowed" : "pointer",
-                          whiteSpace:"nowrap",flexShrink:0,
-                          boxShadow: isUpdating ? "none" : "0 2px 8px rgba(16,185,129,0.35)"
-                        }}
-                      >
-                        <CheckCircle2 size={14}/>
-                        {isUpdating ? "..." : "Mark Delivered"}
-                      </button>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{fontWeight:700,fontSize:13,color:"#1e40af"}}>₹{Number(e.total_amount)}</span>
+                        {!allDel&&<button onClick={()=>markDelivered(e.id)} disabled={isUpdating}
+                          style={{padding:"3px 10px",background:"#059669",color:"#fff",border:"none",borderRadius:20,fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                          {isUpdating?"...":"All ✓"}
+                        </button>}
+                      </div>
+                    </div>
+                    {/* Items as chips */}
+                    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                      {e.items.map(item => {
+                        const isDel = item.item_status === "delivered";
+                        const isItemUpdating = updatingItemId === item.id;
+                        return (
+                          <button key={item.id} onClick={()=>markItemStatus(e.id,item.id,item.item_status)} disabled={isItemUpdating}
+                            title={isDel?"Click to undo":"Click to mark delivered"}
+                            style={{display:"flex",alignItems:"center",gap:5,padding:"5px 10px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",border:"none",transition:"all 0.15s",
+                              background:isDel?"#dcfce7":"#fff",
+                              color:isDel?"#16a34a":"#92400e",
+                              boxShadow:isDel?"0 0 0 1.5px #86efac":"0 0 0 1.5px #fde68a"
+                            }}>
+                            {isItemUpdating ? "..." : isDel ? "✓" : "○"}
+                            <span>{item.service_name}</span>
+                            <span style={{opacity:0.6}}>×{item.quantity}</span>
+                            <span style={{opacity:0.7}}>₹{item.subtotal}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -247,26 +261,40 @@ export default function NewEntry() {
           {topServices.map((svc,idx)=>{
             const color=COLORS[idx%COLORS.length];
             const children = svc.children || [];
+            const isOpen = openServices.has(svc.id);
+            const toggle = () => setOpenServices(prev=>{ const s=new Set(prev); s.has(svc.id)?s.delete(svc.id):s.add(svc.id); return s; });
+
+            // No children → plain button
             if(children.length === 0) return (
               <button key={svc.id} className="svc-btn" onClick={()=>addItem(svc)}
                 style={{padding:"14px 12px",background:color.bg,color:color.text,border:`2px solid ${color.border}`,borderRadius:14,cursor:"pointer",fontSize:14,fontWeight:700,transition:"all 0.15s",textAlign:"center",width:"100%"}}>
                 + {svc.name}
               </button>
             );
+
+            // Has children → click to expand/collapse
             return (
-              <div key={svc.id} style={{background:color.bg,border:`2px solid ${color.border}`,borderRadius:14,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-                <div style={{padding:"10px 12px 6px",fontWeight:700,fontSize:13,color:color.text,borderBottom:`1px solid ${color.border}`}}>
-                  {svc.name}
-                </div>
-                <div style={{display:"flex",flexDirection:"column",gap:4,padding:"8px 10px 10px"}}>
-                  {children.map(child=>(
-                    <button key={child.id} className="svc-btn" onClick={()=>addItem(child)}
-                      style={{padding:"7px 10px",background:"#fff",color:color.text,border:`1.5px solid ${color.border}`,borderRadius:10,cursor:"pointer",fontSize:12,fontWeight:600,display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",transition:"all 0.15s"}}>
-                      <span>+ {child.name}</span>
-                      <span style={{opacity:0.7,fontSize:11}}>₹{child.price}</span>
-                    </button>
-                  ))}
-                </div>
+              <div key={svc.id} style={{background:color.bg,border:`2px solid ${isOpen?color.border:color.border}`,borderRadius:14,overflow:"hidden"}}>
+                {/* Header button */}
+                <button onClick={toggle}
+                  style={{width:"100%",padding:"13px 14px",background:"transparent",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",fontWeight:700,fontSize:14,color:color.text,textAlign:"left"}}>
+                  <span>{svc.name}</span>
+                  <span style={{fontSize:18,fontWeight:400,lineHeight:1,color:color.text,opacity:0.7}}>{isOpen?"−":"+"}</span>
+                </button>
+
+                {/* Sub-items — visible only when open */}
+                {isOpen&&(
+                  <div style={{display:"flex",flexDirection:"column",gap:4,padding:"0 10px 10px",borderTop:`1px solid ${color.border}`}}>
+                    <div style={{height:6}}/>
+                    {children.map(child=>(
+                      <button key={child.id} className="svc-btn" onClick={()=>{ addItem(child); }}
+                        style={{padding:"8px 10px",background:"#fff",color:color.text,border:`1.5px solid ${color.border}`,borderRadius:10,cursor:"pointer",fontSize:12,fontWeight:600,display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",transition:"all 0.15s"}}>
+                        <span>+ {child.name}</span>
+                        <span style={{opacity:0.7,fontSize:11}}>₹{child.price}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}

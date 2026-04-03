@@ -19,16 +19,21 @@ export async function GET(req: NextRequest) {
   }
   if (p.get("customer_id")) where.customer_id = p.get("customer_id");
 
-  const entries = await withRetry(() => prisma.laundryEntry.findMany({
-    where,
-    include: { customer: true, items: true },
-    orderBy: { entry_date: "desc" },
-  }));
-  return NextResponse.json(entries.map(e => ({
-    ...e,
-    total_amount: Number(e.total_amount),
-    items: e.items.map(i => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal) })),
-  })));
+  try {
+    const entries = await withRetry(() => prisma.laundryEntry.findMany({
+      where,
+      include: { customer: true, items: true },
+      orderBy: { entry_date: "desc" },
+    }));
+    return NextResponse.json(entries.map(e => ({
+      ...e,
+      total_amount: Number(e.total_amount),
+      items: e.items.map(i => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal) })),
+    })));
+  } catch (err: any) {
+    console.error("Entries GET error:", err?.message);
+    return NextResponse.json({ detail: "Database is waking up, please try again in a moment." }, { status: 503 });
+  }
 }
 
 export async function POST(req: NextRequest) {

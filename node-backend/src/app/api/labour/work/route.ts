@@ -6,15 +6,32 @@ export async function GET(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
   const p = new URL(req.url).searchParams;
+  const labourId = p.get("labour_id");
+
+  // If labour_id given → return full history for that labour (no month filter)
+  if (labourId) {
+    const works = await withRetry(() => prisma.labourWork.findMany({
+      where: { labour_id: labourId },
+      include: { labour: true },
+      orderBy: { work_date: "desc" },
+    }));
+    return NextResponse.json(works.map(w => ({
+      id: w.id, labour_id: w.labour_id, labour_name: w.labour.name,
+      work_date: w.work_date, press_count: w.press_count,
+      rate_per_piece: Number(w.rate_per_piece),
+      total: w.press_count * Number(w.rate_per_piece),
+    })));
+  }
+
   const month = parseInt(p.get("month") || "1");
   const year = parseInt(p.get("year") || String(new Date().getFullYear()));
   const start = new Date(year, month - 1, 1).toISOString().slice(0, 10);
   const end = new Date(year, month, 0).toISOString().slice(0, 10);
-  const works = await prisma.labourWork.findMany({
+  const works = await withRetry(() => prisma.labourWork.findMany({
     where: { work_date: { gte: start, lte: end } },
     include: { labour: true },
     orderBy: { work_date: "asc" },
-  });
+  }));
   return NextResponse.json(works.map(w => ({
     id: w.id,
     labour_id: w.labour_id,
