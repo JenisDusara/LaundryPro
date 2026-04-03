@@ -24,6 +24,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
+  // Delete entry items → entries → customer (foreign key order)
+  const entries = await withRetry(() => prisma.laundryEntry.findMany({ where: { customer_id: params.id }, select: { id: true } }));
+  const entryIds = entries.map(e => e.id);
+  if (entryIds.length > 0) {
+    await withRetry(() => prisma.entryItem.deleteMany({ where: { entry_id: { in: entryIds } } }));
+    await withRetry(() => prisma.laundryEntry.deleteMany({ where: { customer_id: params.id } }));
+  }
   await withRetry(() => prisma.customer.delete({ where: { id: params.id } }));
   return NextResponse.json({ message: "Deleted" });
 }

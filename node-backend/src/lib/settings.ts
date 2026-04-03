@@ -5,7 +5,7 @@ interface ShopSettings {
 }
 
 let settings: ShopSettings = {
-  shop_name: "LaundryPro",
+  shop_name: "Shree Chamunda Drycleaners",
   contact: "",
   address: "",
 };

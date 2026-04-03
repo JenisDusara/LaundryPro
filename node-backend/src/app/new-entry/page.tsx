@@ -30,6 +30,7 @@ export default function NewEntry() {
   const [showDropdown,     setShowDropdown]     = useState(false);
   const [updatingId,       setUpdatingId]       = useState<string|null>(null);
   const [updatingItemId,   setUpdatingItemId]   = useState<string|null>(null);
+  const [justDelivered,    setJustDelivered]    = useState<{service_name:string;quantity:number;pickup_date:string}[]>([]);
 
   useEffect(() => {
     api.get("/customers").then(r=>setCustomers(r.data));
@@ -60,7 +61,7 @@ export default function NewEntry() {
   };
 
   const clearCustomer = () => {
-    setSelectedCustomer(null); setSearch(""); setPastEntries([]); setShowDropdown(false);
+    setSelectedCustomer(null); setSearch(""); setPastEntries([]); setShowDropdown(false); setJustDelivered([]);
   };
 
   const addItem      = (svc:Service) => setItems(prev=>[...prev,{id:Math.random().toString(),service_id:svc.id,service_name:svc.name,item_name:"",price:Number(svc.price)||0,quantity:1}]);
@@ -70,9 +71,72 @@ export default function NewEntry() {
 
   const total = items.reduce((s,i)=>s+(Number(i.price)*Number(i.quantity)),0);
 
-  const save = async () => {
+  const SHOP_NAME = "Shree Chamunda Drycleaners";
+
+  const sendWAMsg = (phone: string, msg: string) => {
+    const url = `whatsapp://send?phone=91${phone.replace(/\D/g,"").slice(-10)}&text=${encodeURIComponent(msg)}`;
+    const a = document.createElement("a");
+    a.href = url;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const today = () => new Date().toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"});
+
+  const openWhatsApp = (customer: Customer, msgItems: ManualItem[]) => {
+    const lines = msgItems.map(i=>`• ${i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name} ×${i.quantity}`).join("\n");
+    const msg = `Hi ${customer.name}! 🙏\n\n*${SHOP_NAME}*\n${today()}\n\n🧺 *New Pickup:*\n${lines}\n\nThank you for your business! 🙏\n— ${SHOP_NAME}`;
+    sendWAMsg(customer.phone, msg);
+  };
+
+  const openDeliveryWhatsApp = (entryItems: {service_name:string;quantity:number}[]) => {
+    if (!selectedCustomer) return;
+    const lines = entryItems.map(i=>`• ${i.service_name} ×${i.quantity}`).join("\n");
+    const msg = `Hi ${selectedCustomer.name}! 🙏\n\n*${SHOP_NAME}*\n${today()}\n\n✅ *Delivered:*\n${lines}\n\nThank you for your business! 🙏\n— ${SHOP_NAME}`;
+    sendWAMsg(selectedCustomer.phone, msg);
+  };
+
+  const saveAndDeliverWithWA = async () => {
+    if (!selectedCustomer) return;
+    setSaving(true);
+    const today = new Date().toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"});
+    const deliveredItems = pendingEntries.flatMap(e=>e.items);
+    const savedItems = [...items];
+    const savedCustomer = selectedCustomer;
+    try {
+      // Mark all pending entries as delivered
+      await Promise.all(pendingEntries.map(e=>
+        api.patch(`/entries/${e.id}/status`,null,{params:{status:"delivered"}})
+      ));
+      // Save new entry if any items
+      if (items.length > 0) {
+        await api.post("/entries",{customer_id:selectedCustomer.id,notes,items:items.map(i=>({service_id:i.service_id,service_name:i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name,quantity:Number(i.quantity),price_per_unit:Number(i.price)}))});
+        setItems([]); setNotes("");
+      }
+      setSuccess(true);
+      const res = await api.get("/entries",{params:{customer_id:selectedCustomer.id}});
+      setPastEntries(res.data);
+      setTimeout(()=>setSuccess(false),3000);
+      // Single combined WhatsApp message
+      let msg = `Hi ${savedCustomer.name}! 🙏\n\n*${SHOP_NAME}*\n${today()}\n\n`;
+      if (deliveredItems.length > 0) {
+        msg += `✅ *Delivered:*\n${deliveredItems.map(i=>`• ${i.service_name} ×${i.quantity}`).join("\n")}\n\n`;
+      }
+      if (savedItems.length > 0) {
+        msg += `🧺 *New Pickup:*\n${savedItems.map(i=>`• ${i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name} ×${i.quantity}`).join("\n")}\n\n`;
+      }
+      msg += `Thank you for your business! 🙏\n— ${SHOP_NAME}`;
+      sendWAMsg(savedCustomer.phone, msg);
+    } finally { setSaving(false); }
+  };
+
+  const save = async (withWA = false) => {
     if(!selectedCustomer||items.length===0) return;
     setSaving(true);
+    const savedItems = [...items];
+    const savedTotal = total;
+    const savedCustomer = selectedCustomer;
     try {
       await api.post("/entries",{customer_id:selectedCustomer.id,notes,items:items.map(i=>({service_id:i.service_id,service_name:i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name,quantity:Number(i.quantity),price_per_unit:Number(i.price)}))});
       setSuccess(true); setItems([]); setNotes("");
@@ -80,17 +144,50 @@ export default function NewEntry() {
       const res = await api.get("/entries", { params: { customer_id: selectedCustomer.id } });
       setPastEntries(res.data);
       setTimeout(()=>setSuccess(false), 3000);
+      if (withWA) {
+        const jd = justDelivered;
+        if (jd.length > 0) {
+          // Group delivered items by pickup date
+          const byDate = new Map<string, string[]>();
+          jd.forEach(i => {
+            if (!byDate.has(i.pickup_date)) byDate.set(i.pickup_date, []);
+            byDate.get(i.pickup_date)!.push(`• ${i.service_name} ×${i.quantity}`);
+          });
+          const formatDate = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+          const deliveredLines = Array.from(byDate.entries())
+            .map(([date, lines]) => `_(Pickup: ${formatDate(date)})_\n${lines.join("\n")}`)
+            .join("\n\n");
+          let msg = `Hi ${savedCustomer.name}! 🙏\n\n*${SHOP_NAME}*\n${today()}\n\n`;
+          msg += `✅ *Delivered:*\n${deliveredLines}\n\n`;
+          msg += `🧺 *New Pickup:*\n${savedItems.map(i=>`• ${i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name} ×${i.quantity}`).join("\n")}\n\n`;
+          msg += `Thank you for your business! 🙏\n— ${SHOP_NAME}`;
+          sendWAMsg(savedCustomer.phone, msg);
+        } else {
+          openWhatsApp(savedCustomer, savedItems);
+        }
+        setJustDelivered([]);
+      }
     } finally { setSaving(false); }
   };
 
   const topServices = services;
 
-  const pendingEntries = pastEntries.filter(e => e.delivery_status !== "delivered");
+  const pendingEntries = pastEntries.filter(e =>
+    e.delivery_status !== "delivered" && !e.items.every(i => i.item_status === "delivered")
+  );
 
   const markDelivered = async (entryId: string) => {
     setUpdatingId(entryId);
     try {
       await api.patch(`/entries/${entryId}/status`, null, { params: { status: "delivered" } });
+      // Get entry BEFORE updating state to avoid StrictMode double-call
+      const entry = pastEntries.find(e => e.id === entryId);
+      if (entry) {
+        const newItems = entry.items
+          .filter(i => i.item_status !== "delivered")
+          .map(i => ({ service_name: i.service_name, quantity: i.quantity, pickup_date: entry.entry_date }));
+        setJustDelivered(jd => [...jd, ...newItems]);
+      }
       setPastEntries(prev => prev.map(e => e.id === entryId
         ? { ...e, delivery_status: "delivered", items: e.items.map(i => ({ ...i, item_status: "delivered" })) }
         : e));
@@ -102,6 +199,15 @@ export default function NewEntry() {
     setUpdatingItemId(itemId);
     try {
       await api.patch(`/entries/${entryId}/items/${itemId}/status`, null, { params: { status: newStatus } });
+      const entry = pastEntries.find(e => e.id === entryId);
+      const item  = entry?.items.find(i => i.id === itemId);
+      if (item) {
+        if (newStatus === "delivered") {
+          setJustDelivered(jd => [...jd, { service_name: item.service_name, quantity: item.quantity, pickup_date: entry!.entry_date }]);
+        } else {
+          setJustDelivered(jd => { const idx = jd.findIndex(x => x.service_name === item.service_name && x.pickup_date === entry!.entry_date); return idx === -1 ? jd : jd.filter((_,i) => i !== idx); });
+        }
+      }
       setPastEntries(prev => prev.map(e => {
         if (e.id !== entryId) return e;
         const updatedItems = e.items.map(i => i.id === itemId ? { ...i, item_status: newStatus } : i);
@@ -223,6 +329,11 @@ export default function NewEntry() {
                           style={{padding:"3px 10px",background:"#059669",color:"#fff",border:"none",borderRadius:20,fontSize:11,fontWeight:700,cursor:"pointer"}}>
                           {isUpdating?"...":"All ✓"}
                         </button>}
+                        <button onClick={()=>openDeliveryWhatsApp(e.items)}
+                          title="Send delivery WhatsApp"
+                          style={{width:26,height:26,borderRadius:"50%",background:"#dcfce7",border:"1px solid #86efac",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="#16a34a"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                        </button>
                       </div>
                     </div>
                     {/* Items as chips */}
@@ -340,13 +451,25 @@ export default function NewEntry() {
         <textarea style={{width:"100%",padding:"10px 12px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:14,outline:"none",resize:"vertical",boxSizing:"border-box",fontFamily:"inherit"}} placeholder="Any special instructions..." value={notes} onChange={e=>setNotes(e.target.value)} rows={2}/>
       </div>
 
-      <button
-        style={{width:"100%",padding:"15px",background:!selectedCustomer||items.length===0?"#cbd5e1":"linear-gradient(135deg,#1e40af,#3b82f6)",color:"#fff",border:"none",borderRadius:12,fontSize:16,fontWeight:700,cursor:!selectedCustomer||items.length===0?"not-allowed":"pointer",boxShadow:!selectedCustomer||items.length===0?"none":"0 4px 16px rgba(59,130,246,0.35)"}}
-        onClick={save}
-        disabled={!selectedCustomer||items.length===0||saving}
-      >
-        {saving ? "Saving..." : "💾 Save Entry"}
-      </button>
+      {/* ── Save Buttons ── */}
+      <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:8}}>
+        <button
+          style={{width:"100%",padding:"15px",background:!selectedCustomer||items.length===0?"#cbd5e1":"linear-gradient(135deg,#1e40af,#3b82f6)",color:"#fff",border:"none",borderRadius:12,fontSize:16,fontWeight:700,cursor:!selectedCustomer||items.length===0?"not-allowed":"pointer",boxShadow:!selectedCustomer||items.length===0?"none":"0 4px 16px rgba(59,130,246,0.35)"}}
+          onClick={()=>save(false)}
+          disabled={!selectedCustomer||items.length===0||saving}
+        >
+          {saving ? "Saving..." : "💾 Save Entry"}
+        </button>
+
+        <button
+          style={{width:"100%",padding:"15px",background:!selectedCustomer||items.length===0?"#d1fae5":"linear-gradient(135deg,#15803d,#22c55e)",color:!selectedCustomer||items.length===0?"#94a3b8":"#fff",border:"none",borderRadius:12,fontSize:16,fontWeight:700,cursor:!selectedCustomer||items.length===0?"not-allowed":"pointer",boxShadow:!selectedCustomer||items.length===0?"none":"0 4px 16px rgba(34,197,94,0.35)",display:"flex",alignItems:"center",justifyContent:"center",gap:10}}
+          onClick={()=>save(true)}
+          disabled={!selectedCustomer||items.length===0||saving}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+          Save & Send WhatsApp
+        </button>
+      </div>
     </ProtectedLayout>
   );
 }
