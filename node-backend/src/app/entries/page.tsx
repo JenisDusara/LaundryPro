@@ -32,6 +32,8 @@ export default function Entries() {
   const [emailEntry,       setEmailEntry]       = useState<{cid:string;name:string;email:string;dateStr:string}|null>(null);
   const [emailSending,     setEmailSending]     = useState(false);
   const [emailMsg,         setEmailMsg]         = useState("");
+  const [invoiceModal,     setInvoiceModal]     = useState<{url:string;name:string;blob:Blob}|null>(null);
+  const [invoiceLoading,   setInvoiceLoading]   = useState(false);
 
   const load = async () => {
     setLoading(true); setLoadError("");
@@ -63,6 +65,35 @@ export default function Entries() {
       await api.put(`/entries/${editEntry.id}`,{ notes:editNotes, items:editItems.map(i=>({ service_id:i.service_id, service_name:i.service_name, price_per_unit:Number(i.price_per_unit), quantity:Number(i.quantity), item_status:i.item_status })) });
       setEditEntry(null); load();
     } finally { setEditSaving(false); }
+  };
+
+  const openInvoice = async (cid: string, custName: string, params: Record<string,any>) => {
+    setInvoiceLoading(true);
+    try {
+      const res = await api.get(`/invoices/${cid}`, { params, responseType: "blob" });
+      const blob = new Blob([res.data], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const m = params.month || parseInt(params.entry_date?.slice(5,7));
+      const y = params.year  || params.entry_date?.slice(0,4);
+      const monthName = new Date(y, m - 1, 1).toLocaleString("en-IN", { month: "long" });
+      setInvoiceModal({ url, name: `${custName} - ${monthName} ${y}.pdf`, blob });
+    } catch { alert("Failed to load invoice"); }
+    finally { setInvoiceLoading(false); }
+  };
+
+  const closeInvoice = () => {
+    if (invoiceModal) URL.revokeObjectURL(invoiceModal.url);
+    setInvoiceModal(null);
+  };
+
+  const shareInvoice = async () => {
+    if (!invoiceModal) return;
+    const file = new File([invoiceModal.blob], invoiceModal.name, { type: "application/pdf" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ title: "Invoice", files: [file] }); } catch {}
+    } else {
+      alert("Sharing not supported on this browser");
+    }
   };
 
   const sendEntryInvoice = async () => {
@@ -178,9 +209,9 @@ export default function Entries() {
                       onClick={e=>{e.stopPropagation();if(cust.phone)openWA(cust.phone);}} title="Open WhatsApp">
                       {WA_ICON}
                     </button>
-                    <button style={{display:"flex",alignItems:"center",gap:3,padding:"4px 9px",background:"#f8fafc",color:"#1e40af",border:"1px solid #e2e8f0",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:600}}
-                      onClick={e=>{e.stopPropagation();const now=new Date();window.open(`/api/invoices/${cid}?month=${now.getMonth()+1}&year=${now.getFullYear()}&token=${localStorage.getItem("token")}`,"_blank");}}>
-                      <FileText size={11}/>Invoice
+                    <button style={{display:"flex",alignItems:"center",gap:3,padding:"4px 9px",background:invoiceLoading?"#f1f5f9":"#f8fafc",color:"#1e40af",border:"1px solid #e2e8f0",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:600}}
+                      onClick={e=>{e.stopPropagation();const now=new Date();openInvoice(cid,cust.name,{month:now.getMonth()+1,year:now.getFullYear()});}}>
+                      <FileText size={11}/>{invoiceLoading?"...":"Invoice"}
                     </button>
                   </div>
                   {custOpen?<ChevronUp size={15} color="#cbd5e1"/>:<ChevronDown size={15} color="#cbd5e1"/>}
@@ -216,7 +247,7 @@ export default function Entries() {
                               color:dateAllDel?"#16a34a":"#d97706"}}>
                               {dateAllDel?"Done":`${datePending} left`}
                             </span>
-                            <button style={{padding:"3px 8px",background:"#f8fafc",color:"#64748b",border:"1px solid #e2e8f0",borderRadius:7,cursor:"pointer",fontSize:11}} onClick={e=>{e.stopPropagation();const [y,m]=dateStr.split("-");window.open(`/api/invoices/${cid}?month=${m}&year=${y}&entry_date=${dateStr}&token=${localStorage.getItem("token")}`,"_blank");}}>📄</button>
+                            <button style={{padding:"3px 8px",background:"#f8fafc",color:"#64748b",border:"1px solid #e2e8f0",borderRadius:7,cursor:"pointer",fontSize:11}} onClick={e=>{e.stopPropagation();const [y,m]=dateStr.split("-");openInvoice(cid,cust.name,{month:parseInt(m),year:parseInt(y),entry_date:dateStr});}}>📄</button>
                             <button style={{display:"flex",alignItems:"center",gap:3,padding:"3px 8px",background:"#eff6ff",color:"#1e40af",border:"1px solid #bfdbfe",borderRadius:7,cursor:"pointer",fontSize:11,fontWeight:600}}
                               onClick={e=>{e.stopPropagation();openEdit(dateEntries[0]);}}>
                               <Pencil size={10}/>Edit
@@ -348,6 +379,34 @@ export default function Entries() {
                 {editSaving?"Saving...":"💾 Save"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Invoice Modal ── */}
+      {invoiceModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",zIndex:400,padding:16}} onClick={closeInvoice}>
+          <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:720,height:"90vh",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 24px 64px rgba(0,0,0,0.3)"}} onClick={e=>e.stopPropagation()}>
+            {/* Header */}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 18px",borderBottom:"1px solid #f1f5f9",flexShrink:0}}>
+              <div style={{fontWeight:700,fontSize:15,color:"#1e293b",display:"flex",alignItems:"center",gap:8}}>
+                <FileText size={16} color="#1e40af"/> Invoice Preview
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={shareInvoice}
+                  style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",background:"linear-gradient(135deg,#0891b2,#06b6d4)",color:"#fff",border:"none",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                  Share
+                </button>
+                <a href={invoiceModal.url} download={invoiceModal.name}
+                  style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",background:"linear-gradient(135deg,#1e40af,#3b82f6)",color:"#fff",borderRadius:10,fontSize:13,fontWeight:700,textDecoration:"none"}}>
+                  ⬇ Download PDF
+                </a>
+                <button onClick={closeInvoice} style={{background:"#f1f5f9",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontWeight:700,fontSize:13,color:"#64748b"}}>✕ Close</button>
+              </div>
+            </div>
+            {/* PDF Viewer */}
+            <iframe src={invoiceModal.url} style={{flex:1,border:"none",width:"100%"}} title="Invoice"/>
           </div>
         </div>
       )}
