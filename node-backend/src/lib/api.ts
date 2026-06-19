@@ -7,6 +7,8 @@ api.interceptors.request.use(config => {
   if (typeof window !== "undefined") {
     const token = localStorage.getItem("token");
     if (token) config.headers.Authorization = `Bearer ${token}`;
+    const shopId = localStorage.getItem("sa_shop_id");
+    if (shopId) config.headers["x-selected-shop"] = shopId;
   }
   return config;
 });

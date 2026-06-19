@@ -15,6 +15,7 @@ model Admin {
   shop_id       String   @default("shop1")
   shop_name     String   @default("My Shop")
   role          String   @default("admin")   // "superadmin" or "admin"
+  is_active     Boolean  @default(true)
   created_at    DateTime @default(now())
 
   @@map("admins")
@@ -125,3 +126,35 @@ model LabourAdvance {
 
   @@map("labour_advances")
 }
+
+model LoginLog {
+  id         String   @id @default(uuid())
+  username   String
+  name       String   @default("")
+  shop_id    String   @default("")
+  shop_name  String   @default("")
+  role       String   @default("admin")
+  status     String   // "success" | "failed"
+  reason     String   @default("")
+  ip         String   @default("")
+  created_at DateTime @default(now())
+
+  @@index([shop_id])
+  @@index([created_at])
+  @@map("login_logs")
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  date        String
+  category    String
+  description String   @default("")
+  amount      Decimal  @db.Decimal(10, 2)
+  shop_id     String   @default("shop1")
+  created_at  DateTime @default(now())
+
+  @@index([shop_id])
+  @@index([date])
+  @@map("expenses")
+}
+

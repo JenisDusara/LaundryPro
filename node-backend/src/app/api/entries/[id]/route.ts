@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
 import { requireAuth, shopFilter } from "@/lib/auth";
 
@@ -6,7 +6,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
   const entry = await withRetry(() => prisma.laundryEntry.findFirst({
-    where: { id: params.id, ...shopFilter(user) },
+    where: { id: params.id, ...shopFilter(user, req) },
     include: { customer: true, items: true },
   }));
   if (!entry) return NextResponse.json({ detail: "Not found" }, { status: 404 });
@@ -72,6 +72,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
-  await withRetry(() => prisma.laundryEntry.deleteMany({ where: { id: params.id, ...shopFilter(user) } }));
+  await withRetry(() => prisma.laundryEntry.deleteMany({ where: { id: params.id, ...shopFilter(user, req) } }));
   return NextResponse.json({ message: "Deleted" });
 }

@@ -1,21 +1,23 @@
 "use client";
 import { useRouter, usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   LayoutDashboard, PlusCircle, Users, ClipboardList, Truck,
-  BarChart3, Wrench, Hammer, LogOut, X, MoreHorizontal, User, Key, Eye, EyeOff, Building2
+  BarChart3, Wrench, Hammer, LogOut, X, MoreHorizontal, User, Key, Eye, EyeOff, Building2,
+  Wallet, Activity, ShieldCheck, Menu, ChevronRight
 } from "lucide-react";
 import api from "@/lib/api";
 
 const navItems = [
-  { path: "/dashboard",  label: "Dashboard",  icon: LayoutDashboard },
-  { path: "/new-entry",  label: "New Entry",   icon: PlusCircle },
-  { path: "/customers",  label: "Customers",   icon: Users },
-  { path: "/entries",    label: "Entries",     icon: ClipboardList },
-  { path: "/deliveries", label: "Deliveries",  icon: Truck },
-  { path: "/reports",    label: "Reports",     icon: BarChart3 },
-  { path: "/services",   label: "Services",    icon: Wrench },
-  { path: "/labour",     label: "Labour",      icon: Hammer },
+  { path: "/dashboard",  label: "Dashboard",      icon: LayoutDashboard },
+  { path: "/new-entry",  label: "New Entry",       icon: PlusCircle },
+  { path: "/customers",  label: "Customers",       icon: Users },
+  { path: "/entries",    label: "Entries",         icon: ClipboardList },
+  { path: "/deliveries", label: "Deliveries",      icon: Truck },
+  { path: "/accounting", label: "Accounting",      icon: Wallet },
+  { path: "/reports",    label: "Reports",         icon: BarChart3 },
+  { path: "/services",   label: "Services",        icon: Wrench },
+  { path: "/labour",     label: "Labour",          icon: Hammer },
 ];
 
 const mobileNav = [
@@ -26,17 +28,22 @@ const mobileNav = [
 ];
 
 const moreItems = [
-  { path: "/reports",   label: "Reports",   icon: BarChart3 },
-  { path: "/services",  label: "Services",  icon: Wrench },
-  { path: "/labour",    label: "Labour",    icon: Hammer },
-  { path: "/customers", label: "Customers", icon: Users },
+  { path: "/accounting", label: "Accounting", icon: Wallet },
+  { path: "/reports",    label: "Reports",    icon: BarChart3 },
+  { path: "/services",   label: "Services",   icon: Wrench },
 ];
 
 export default function Sidebar({ children }: { children: React.ReactNode }) {
   const router   = useRouter();
   const pathname = usePathname();
-  const [showMore, setShowMore] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
+  const [showMore,     setShowMore]     = useState(false);
+  const [showProfile,  setShowProfile]  = useState(false);
+  const [showSwitcher, setShowSwitcher] = useState(false);
+  const [switcherTop,  setSwitcherTop]  = useState(0);
+  const [showShopPicker, setShowShopPicker] = useState(false);
+  const [shops,          setShops]          = useState<{shop_id:string;shop_name:string;name:string}[]>([]);
+  const [selectedShopId, setSelectedShopId] = useState("");
+  const hamburgerRef = useRef<HTMLButtonElement>(null);
   const [profile, setProfile] = useState<{name:string;username:string;role?:string}|null>(null);
   const [oldPass, setOldPass] = useState(""); const [newPass, setNewPass] = useState(""); const [confirmPass, setConfirmPass] = useState("");
   const [showOld, setShowOld] = useState(false); const [showNew, setShowNew] = useState(false);
@@ -44,15 +51,34 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     api.get("/auth/me").then(r => setProfile(r.data)).catch(() => {});
+    if (typeof window !== "undefined") {
+      setSelectedShopId(localStorage.getItem("sa_shop_id") || "");
+    }
   }, []);
+
+  useEffect(() => {
+    if (profile?.role === "superadmin") {
+      api.get("/admin/shops").then(r => setShops(r.data)).catch(() => {});
+    }
+  }, [profile?.role]);
 
   useEffect(() => {
     setShowProfile(false);
     setShowMore(false);
+    setShowSwitcher(false);
+    setShowShopPicker(false);
   }, [pathname]);
 
-  const logout = () => { localStorage.removeItem("token"); router.push("/login"); };
+  const logout = () => { localStorage.removeItem("token"); localStorage.removeItem("sa_shop_id"); router.push("/login"); };
   const goTo   = (path: string) => { router.push(path); setShowMore(false); };
+
+  const selectShop = (shopId: string) => {
+    if (shopId) localStorage.setItem("sa_shop_id", shopId);
+    else localStorage.removeItem("sa_shop_id");
+    setSelectedShopId(shopId);
+    setShowShopPicker(false);
+    window.location.reload();
+  };
 
   const changePassword = async () => {
     if (!oldPass || !newPass || !confirmPass) { setPassMsg({text:"Please fill all fields",ok:false}); return; }
@@ -76,72 +102,160 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
         background: "linear-gradient(180deg, #0f172a 0%, #1e3a8a 60%, #1d4ed8 100%)",
         display: "flex", flexDirection: "column", boxShadow: "4px 0 24px rgba(0,0,0,0.18)"
       }}>
-        {/* Brand */}
-        <div style={{ padding: "24px 20px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+        {/* Brand + Switcher Button */}
+        <div style={{ padding: "16px 14px 14px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{
-              width: 40, height: 40, borderRadius: 12,
+              width: 40, height: 40, borderRadius: 12, flexShrink: 0,
               background: "linear-gradient(135deg,#3b82f6,#60a5fa)",
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 20, boxShadow: "0 4px 12px rgba(59,130,246,0.4)"
             }}>👔</div>
-            <div>
-              <div style={{ color: "#fff", fontWeight: 800, fontSize: 17, letterSpacing: -0.3 }}>LaundryPro</div>
-              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>Management System</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ color: "#fff", fontWeight: 800, fontSize: 16, letterSpacing: -0.3 }}>LaundryPro</div>
+              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>Management System</div>
             </div>
+            <button
+              ref={hamburgerRef}
+              onClick={() => {
+                if (hamburgerRef.current) {
+                  setSwitcherTop(hamburgerRef.current.getBoundingClientRect().bottom + 8);
+                }
+                setShowSwitcher(v => !v);
+              }}
+              style={{
+                width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+                background: showSwitcher ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.2)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", transition: "all 0.15s",
+              }}
+            >
+              {showSwitcher ? <X size={15} color="#fff" /> : <Menu size={15} color="rgba(255,255,255,0.8)" />}
+            </button>
           </div>
         </div>
 
         {/* Nav */}
         <nav style={{ flex: 1, padding: "12px 10px", overflowY: "auto" }}>
-          {profile?.role === "superadmin" && (() => {
-            const item = { path: "/superadmin", label: "Clients", icon: Building2 };
-            const active = pathname === item.path;
+          {(() => {
+            const isAdminSection = pathname === "/superadmin" || pathname === "/login-activity";
+
+            /* ── ADMINISTRATION SECTION ── */
+            if (isAdminSection && profile?.role === "superadmin") {
+              const superItems = [
+                { path: "/superadmin",     label: "Clients",        icon: Building2 },
+                { path: "/login-activity", label: "Login Activity", icon: Activity  },
+              ];
+              return (
+                <>
+                  {/* Section label */}
+                  <div style={{ padding: "8px 14px 10px", marginBottom: 4 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                      <ShieldCheck size={13} color="rgba(251,191,36,0.7)" />
+                      <span style={{ fontSize: 10, fontWeight: 800, color: "rgba(251,191,36,0.7)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Administration</span>
+                    </div>
+                  </div>
+                  {superItems.map(item => {
+                    const active = pathname === item.path;
+                    return (
+                      <div key={item.path}
+                        onClick={() => router.push(item.path)}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 12,
+                          padding: "11px 14px", borderRadius: 10, marginBottom: 2,
+                          cursor: "pointer", transition: "all 0.15s",
+                          background: active ? "rgba(251,191,36,0.18)" : "transparent",
+                          color: active ? "#fbbf24" : "rgba(255,255,255,0.6)",
+                          fontWeight: active ? 700 : 500, fontSize: 14,
+                          borderLeft: active ? "3px solid #fbbf24" : "3px solid transparent",
+                        }}
+                        onMouseEnter={e => { if(!active){e.currentTarget.style.background="rgba(255,255,255,0.07)";e.currentTarget.style.color="#fff";} }}
+                        onMouseLeave={e => { if(!active){e.currentTarget.style.background="transparent";e.currentTarget.style.color="rgba(255,255,255,0.6)";} }}
+                      >
+                        <item.icon size={17} />
+                        <span>{item.label}</span>
+                      </div>
+                    );
+                  })}
+                </>
+              );
+            }
+
+            /* ── LAUNDRYPRO SECTION (default) ── */
             return (
-              <div key={item.path}
-                onClick={() => router.push(item.path)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  padding: "11px 14px", borderRadius: 10, marginBottom: 2,
-                  cursor: "pointer", transition: "all 0.15s",
-                  background: active ? "rgba(255,255,255,0.15)" : "rgba(255,215,0,0.12)",
-                  color: active ? "#fff" : "#fbbf24",
-                  fontWeight: active ? 700 : 600, fontSize: 14,
-                  boxShadow: active ? "0 2px 8px rgba(0,0,0,0.2)" : "none",
-                  borderBottom: "1px solid rgba(255,255,255,0.08)",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background="rgba(255,215,0,0.2)"; }}
-                onMouseLeave={e => { if(!active) e.currentTarget.style.background="rgba(255,215,0,0.12)"; }}
-              >
-                <item.icon size={18} />
-                <span>{item.label}</span>
-                <span style={{ marginLeft: "auto", fontSize: 9, background: "#fbbf24", color: "#0f172a", padding: "2px 6px", borderRadius: 4, fontWeight: 800 }}>SUPER</span>
-              </div>
+              <>
+                {/* Shop selector — visible to superadmin only */}
+                {profile?.role === "superadmin" && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.3)", letterSpacing: "0.1em", textTransform: "uppercase", padding: "0 14px 5px" }}>Viewing Data For</div>
+                    <div
+                      onClick={() => setShowShopPicker(v => !v)}
+                      style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 14px", borderRadius: 10, cursor: "pointer", transition: "all 0.15s",
+                        background: selectedShopId ? "rgba(99,102,241,0.22)" : "rgba(255,255,255,0.07)",
+                        border: `1px solid ${selectedShopId ? "rgba(99,102,241,0.45)" : "rgba(255,255,255,0.1)"}` }}
+                    >
+                      <Building2 size={14} color={selectedShopId ? "#a5b4fc" : "rgba(255,255,255,0.5)"} />
+                      <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: selectedShopId ? "#c7d2fe" : "rgba(255,255,255,0.65)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {selectedShopId ? (shops.find(s => s.shop_id === selectedShopId)?.shop_name || selectedShopId) : "All Shops"}
+                      </span>
+                      <ChevronRight size={12} color="rgba(255,255,255,0.35)" style={{ transform: showShopPicker ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
+                    </div>
+                    {showShopPicker && (
+                      <div style={{ background: "rgba(0,0,0,0.28)", borderRadius: "0 0 10px 10px", maxHeight: 190, overflowY: "auto", border: "1px solid rgba(255,255,255,0.08)", borderTop: "none" }}>
+                        <div
+                          onClick={() => selectShop("")}
+                          style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600,
+                            background: !selectedShopId ? "rgba(255,255,255,0.13)" : "transparent",
+                            color: !selectedShopId ? "#fff" : "rgba(255,255,255,0.55)" }}
+                          onMouseEnter={e => { if (selectedShopId) e.currentTarget.style.background = "rgba(255,255,255,0.07)"; }}
+                          onMouseLeave={e => { if (selectedShopId) e.currentTarget.style.background = "transparent"; }}
+                        >
+                          🌐 All Shops
+                        </div>
+                        {shops.map(s => (
+                          <div key={s.shop_id}
+                            onClick={() => selectShop(s.shop_id)}
+                            style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600,
+                              background: selectedShopId === s.shop_id ? "rgba(99,102,241,0.28)" : "transparent",
+                              color: selectedShopId === s.shop_id ? "#c7d2fe" : "rgba(255,255,255,0.55)" }}
+                            onMouseEnter={e => { if (selectedShopId !== s.shop_id) e.currentTarget.style.background = "rgba(255,255,255,0.07)"; }}
+                            onMouseLeave={e => { if (selectedShopId !== s.shop_id) e.currentTarget.style.background = "transparent"; }}
+                          >
+                            🏪 {s.shop_name}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {navItems.map(item => {
+                  const active = pathname === item.path;
+                  return (
+                    <div key={item.path}
+                      onClick={() => router.push(item.path)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 12,
+                        padding: "11px 14px", borderRadius: 10, marginBottom: 2,
+                        cursor: "pointer", transition: "all 0.15s",
+                        background: active ? "rgba(255,255,255,0.15)" : "transparent",
+                        color: active ? "#fff" : "rgba(255,255,255,0.55)",
+                        fontWeight: active ? 700 : 500, fontSize: 14,
+                        boxShadow: active ? "0 2px 8px rgba(0,0,0,0.2)" : "none",
+                      }}
+                      onMouseEnter={e => { if(!active){e.currentTarget.style.background="rgba(255,255,255,0.08)";e.currentTarget.style.color="#fff";} }}
+                      onMouseLeave={e => { if(!active){e.currentTarget.style.background="transparent";e.currentTarget.style.color="rgba(255,255,255,0.55)";} }}
+                    >
+                      {active && <div style={{ position:"absolute", left:0, width:3, height:32, borderRadius:"0 4px 4px 0", background:"#60a5fa" }}/>}
+                      <item.icon size={18} />
+                      <span>{item.label}</span>
+                    </div>
+                  );
+                })}
+              </>
             );
           })()}
-          {navItems.map(item => {
-            const active = pathname === item.path;
-            return (
-              <div key={item.path}
-                onClick={() => router.push(item.path)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  padding: "11px 14px", borderRadius: 10, marginBottom: 2,
-                  cursor: "pointer", transition: "all 0.15s",
-                  background: active ? "rgba(255,255,255,0.15)" : "transparent",
-                  color: active ? "#fff" : "rgba(255,255,255,0.55)",
-                  fontWeight: active ? 700 : 500, fontSize: 14,
-                  boxShadow: active ? "0 2px 8px rgba(0,0,0,0.2)" : "none",
-                }}
-                onMouseEnter={e => { if(!active) e.currentTarget.style.background="rgba(255,255,255,0.08)"; e.currentTarget.style.color="#fff"; }}
-                onMouseLeave={e => { if(!active) { e.currentTarget.style.background="transparent"; e.currentTarget.style.color="rgba(255,255,255,0.55)"; } }}
-              >
-                {active && <div style={{ position:"absolute", left:0, width:3, height:32, borderRadius:"0 4px 4px 0", background:"#60a5fa" }}/>}
-                <item.icon size={18} />
-                <span>{item.label}</span>
-              </div>
-            );
-          })}
         </nav>
 
         {/* Profile Card (clickable) */}
@@ -311,6 +425,66 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Section Switcher Overlay ── */}
+      {showSwitcher && (
+        <>
+          {/* Backdrop — click anywhere outside to close */}
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 998 }}
+            onClick={() => setShowSwitcher(false)}
+          />
+          {/* Dropdown panel */}
+          <div style={{
+            position: "fixed",
+            top: switcherTop,
+            left: 14,
+            width: 210,
+            background: "#fff",
+            borderRadius: 16,
+            boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+            zIndex: 999,
+            overflow: "hidden",
+            border: "1.5px solid #e2e8f0",
+          }}>
+            <div style={{ padding: "10px 14px 8px", background: "linear-gradient(135deg,#0f172a,#1e3a8a)" }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Switch Section</div>
+            </div>
+            {[
+              { label: "LaundryPro",     sub: "Main application",        emoji: "👔", path: "/dashboard",  always: true  },
+              { label: "Administration", sub: "Manage clients & logs",   emoji: "🛡️", path: "/superadmin", always: false },
+            ].filter(s => s.always || profile?.role === "superadmin").map(s => {
+              const isActive = s.path === "/dashboard"
+                ? !["/superadmin", "/login-activity"].includes(pathname)
+                : pathname === s.path || pathname === "/login-activity";
+              return (
+                <div key={s.path}
+                  onClick={() => { router.push(s.path); setShowSwitcher(false); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 12, padding: "13px 14px",
+                    cursor: "pointer", transition: "background 0.12s",
+                    background: isActive ? "#eff6ff" : "#fff",
+                    borderLeft: `3px solid ${isActive ? "#1d4ed8" : "transparent"}`,
+                  }}
+                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#f8fafc"; }}
+                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "#fff"; }}
+                >
+                  <div style={{
+                    width: 38, height: 38, borderRadius: 11, flexShrink: 0, fontSize: 18,
+                    background: isActive ? "linear-gradient(135deg,#1e3a8a,#2563eb)" : "#f1f5f9",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>{s.emoji}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: isActive ? "#1d4ed8" : "#0f172a" }}>{s.label}</div>
+                    <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>{s.sub}</div>
+                  </div>
+                  {isActive && <ChevronRight size={13} color="#1d4ed8" />}
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* ── More Overlay ── */}

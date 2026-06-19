@@ -38,9 +38,13 @@ export function requireAuth(req: NextRequest): TokenPayload | NextResponse {
   return payload;
 }
 
-// Returns shop_id filter for Prisma queries
-// superadmin gets no filter (sees all), admin gets their shop_id
-export function shopFilter(user: TokenPayload): { shop_id?: string } {
-  if (user.role === "superadmin") return {};
-  return { shop_id: user.shop_id };
+// Returns shop_id filter for Prisma queries.
+// Superadmin with an x-selected-shop header filters to that shop; otherwise sees all.
+export function shopFilter(user: TokenPayload, req?: NextRequest): { shop_id?: string } {
+  if (user.role !== "superadmin") return { shop_id: user.shop_id };
+  if (req) {
+    const selected = req.headers.get("x-selected-shop");
+    if (selected) return { shop_id: selected };
+  }
+  return {};
 }

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
 import { requireAuth, shopFilter } from "@/lib/auth";
 
@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
   const search = new URL(req.url).searchParams.get("search") || "";
-  const filter = shopFilter(user);
+  const filter = shopFilter(user, req);
   const customers = await withRetry(() => prisma.customer.findMany({
     where: {
       ...filter,

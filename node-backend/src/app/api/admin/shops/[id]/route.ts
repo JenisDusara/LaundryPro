@@ -3,6 +3,18 @@ import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const user = requireAuth(req);
+  if (user instanceof NextResponse) return user;
+  if (user.role !== "superadmin") return NextResponse.json({ detail: "Forbidden" }, { status: 403 });
+
+  const { is_active } = await req.json();
+  const val = Boolean(is_active);
+  await prisma.$executeRaw`UPDATE admins SET is_active = ${val} WHERE id = ${params.id}`;
+  const rows = await prisma.$queryRaw<{ is_active: boolean }[]>`SELECT is_active FROM admins WHERE id = ${params.id}`;
+  return NextResponse.json({ id: params.id, is_active: rows[0]?.is_active ?? val });
+}
+
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;

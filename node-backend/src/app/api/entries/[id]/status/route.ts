@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
 import { requireAuth, shopFilter } from "@/lib/auth";
 import { sendEmail, deliveryEmailHtml } from "@/lib/email";
@@ -10,7 +10,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (user instanceof NextResponse) return user;
   const status = new URL(req.url).searchParams.get("status") || "pending";
   const rows = await withRetry(() => prisma.laundryEntry.updateMany({
-    where: { id: params.id, ...shopFilter(user) },
+    where: { id: params.id, ...shopFilter(user, req) },
     data: { delivery_status: status },
   }));
   if (rows.count === 0) return NextResponse.json({ detail: "Not found" }, { status: 404 });

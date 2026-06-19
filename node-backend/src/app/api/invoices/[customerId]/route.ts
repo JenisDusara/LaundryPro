@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAuth, shopFilter } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
@@ -13,10 +13,10 @@ export async function GET(req: NextRequest, { params }: { params: { customerId: 
   const year  = p.get("year")  ? parseInt(p.get("year")!)  : null;
   const entry_date = p.get("entry_date");
 
-  const customer = await prisma.customer.findFirst({ where: { id: params.customerId, ...shopFilter(user) } });
+  const customer = await prisma.customer.findFirst({ where: { id: params.customerId, ...shopFilter(user, req) } });
   if (!customer) return NextResponse.json({ detail: "Customer not found" }, { status: 404 });
 
-  const where: any = { customer_id: params.customerId, ...shopFilter(user) };
+  const where: any = { customer_id: params.customerId, ...shopFilter(user, req) };
   if (entry_date) {
     where.entry_date = entry_date;
   } else if (month && year) {

@@ -8,16 +8,17 @@ export async function GET(req: NextRequest) {
   if (user instanceof NextResponse) return user;
   if (user.role !== "superadmin") return NextResponse.json({ detail: "Forbidden" }, { status: 403 });
 
-  const clients = await prisma.admin.findMany({
-    where: { role: "admin" },
-    orderBy: { created_at: "asc" },
-  });
+  const clients = await prisma.$queryRaw<{
+    id: string; username: string; name: string;
+    shop_id: string; shop_name: string; is_active: boolean; created_at: Date;
+  }[]>`SELECT id, username, name, shop_id, shop_name, is_active, created_at FROM admins WHERE role = 'admin' ORDER BY created_at ASC`;
   return NextResponse.json(clients.map(c => ({
     id: c.id,
     username: c.username,
     name: c.name,
     shop_id: c.shop_id,
     shop_name: c.shop_name,
+    is_active: c.is_active,
     created_at: c.created_at,
   })));
 }
