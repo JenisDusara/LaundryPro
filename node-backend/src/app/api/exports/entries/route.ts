@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, shopFilter } from "@/lib/auth";
 import ExcelJS from "exceljs";
 
 export async function GET(req: NextRequest) {
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const end = new Date(year, month, 0).toISOString().slice(0, 10);
 
   const entries = await prisma.laundryEntry.findMany({
-    where: { entry_date: { gte: start, lte: end } },
+    where: { entry_date: { gte: start, lte: end }, ...shopFilter(user) },
     include: { customer: true, items: true },
     orderBy: { entry_date: "asc" },
   });

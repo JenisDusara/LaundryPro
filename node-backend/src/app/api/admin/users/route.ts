@@ -6,6 +6,7 @@ import { requireAuth } from "@/lib/auth";
 export async function GET(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
+  if (user.role !== "superadmin") return NextResponse.json({ detail: "Forbidden" }, { status: 403 });
   const admins = await prisma.admin.findMany({ orderBy: { created_at: "asc" } });
   return NextResponse.json(admins.map(a => ({ id: a.id, username: a.username, name: a.name, created_at: a.created_at })));
 }
@@ -13,6 +14,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
+  if (user.role !== "superadmin") return NextResponse.json({ detail: "Forbidden" }, { status: 403 });
   const { username, password, name } = await req.json();
   const existing = await prisma.admin.findUnique({ where: { username } });
   if (existing) return NextResponse.json({ detail: "Username taken" }, { status: 400 });

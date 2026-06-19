@@ -7,10 +7,16 @@ async function main() {
   const existing = await prisma.admin.findUnique({ where: { username: "admin" } });
   if (!existing) {
     const hash = await bcrypt.hash("admin123", 12);
-    await prisma.admin.create({ data: { username: "admin", password_hash: hash, name: "Admin" } });
-    console.log("✅ Admin created: admin / admin123");
+    await prisma.admin.create({ data: { username: "admin", password_hash: hash, name: "Admin", role: "superadmin", shop_id: "superadmin", shop_name: "Super Admin" } });
+    console.log("✅ Superadmin created: admin / admin123");
   } else {
-    console.log("ℹ️  Admin already exists");
+    // Upgrade existing admin to superadmin if not already
+    if (existing.role !== "superadmin") {
+      await prisma.admin.update({ where: { username: "admin" }, data: { role: "superadmin", shop_id: "superadmin", shop_name: "Super Admin" } });
+      console.log("✅ Upgraded admin to superadmin");
+    } else {
+      console.log("ℹ️  Superadmin already exists");
+    }
   }
 
   const serviceCount = await prisma.service.count();

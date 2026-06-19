@@ -10,9 +10,15 @@ export async function POST(req: NextRequest) {
     if (!admin) return NextResponse.json({ detail: "Invalid credentials" }, { status: 401 });
     const valid = await bcrypt.compare(password, admin.password_hash);
     if (!valid) return NextResponse.json({ detail: "Invalid credentials" }, { status: 401 });
-    const token = signToken({ sub: admin.id, username: admin.username });
+    const token = signToken({
+      sub:       admin.id,
+      username:  admin.username,
+      shop_id:   admin.shop_id,
+      shop_name: admin.shop_name,
+      role:      admin.role,
+    });
     return NextResponse.json({ access_token: token, token_type: "bearer" });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ detail: "Server error" }, { status: 500 });
   }
 }

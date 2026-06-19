@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, shopFilter } from "@/lib/auth";
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
   const { name, price, parent_id } = await req.json();
-  const service = await withRetry(() => prisma.service.update({
-    where: { id: params.id },
+  const service = await withRetry(() => prisma.service.updateMany({
+    where: { id: params.id, ...shopFilter(user) },
     data: { name, price: price ?? null, parent_id: parent_id || null },
   }));
   return NextResponse.json(service);
@@ -16,6 +16,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
-  await withRetry(() => prisma.service.update({ where: { id: params.id }, data: { is_active: false } }));
+  await withRetry(() => prisma.service.updateMany({
+    where: { id: params.id, ...shopFilter(user) },
+    data: { is_active: false },
+  }));
   return NextResponse.json({ message: "Deactivated" });
 }

@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, shopFilter } from "@/lib/auth";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
-  const entry = await withRetry(() => prisma.laundryEntry.findUnique({
-    where: { id: params.id },
+  const entry = await withRetry(() => prisma.laundryEntry.findFirst({
+    where: { id: params.id, ...shopFilter(user) },
     include: { customer: true, items: true },
   }));
   if (!entry) return NextResponse.json({ detail: "Not found" }, { status: 404 });
+  const ddRows: { delivery_date: string | null }[] = await prisma.$queryRawUnsafe(`SELECT delivery_date FROM laundry_entries WHERE id::text = $1`, params.id);
   return NextResponse.json({
     ...entry,
+    delivery_date: ddRows[0]?.delivery_date ?? null,
     total_amount: Number(entry.total_amount),
     items: entry.items.map(i => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal) })),
   });
@@ -20,9 +22,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
-  const { notes, items } = await req.json();
+  const { notes, items, delivery_date } = await req.json();
 
-  // Delete existing items first
   await withRetry(() => prisma.entryItem.deleteMany({ where: { entry_id: params.id } }));
 
   let total = 0;
@@ -50,8 +51,19 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     include: { customer: true, items: true },
   }));
 
+  // Update delivery_date via raw SQL if provided
+  if (delivery_date !== undefined) {
+    if (delivery_date) {
+      await prisma.$executeRawUnsafe(`UPDATE laundry_entries SET delivery_date = $1 WHERE id::text = $2`, delivery_date, params.id);
+    } else {
+      await prisma.$executeRawUnsafe(`UPDATE laundry_entries SET delivery_date = NULL WHERE id::text = $1`, params.id);
+    }
+  }
+
+  const ddRows2: { delivery_date: string | null }[] = await prisma.$queryRawUnsafe(`SELECT delivery_date FROM laundry_entries WHERE id::text = $1`, params.id);
   return NextResponse.json({
     ...entry,
+    delivery_date: ddRows2[0]?.delivery_date ?? null,
     total_amount: Number(entry.total_amount),
     items: entry.items.map(i => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal) })),
   });
@@ -60,6 +72,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
-  await withRetry(() => prisma.laundryEntry.delete({ where: { id: params.id } }));
+  await withRetry(() => prisma.laundryEntry.deleteMany({ where: { id: params.id, ...shopFilter(user) } }));
   return NextResponse.json({ message: "Deleted" });
 }

@@ -12,6 +12,9 @@ model Admin {
   username      String   @unique
   password_hash String
   name          String
+  shop_id       String   @default("shop1")
+  shop_name     String   @default("My Shop")
+  role          String   @default("admin")   // "superadmin" or "admin"
   created_at    DateTime @default(now())
 
   @@map("admins")
@@ -20,16 +23,18 @@ model Admin {
 model Customer {
   id           String         @id @default(uuid())
   name         String
-  phone        String         @unique
+  phone        String
   flat_number  String         @default("")
   society_name String         @default("")
   address      String         @default("")
   email        String?
+  shop_id      String         @default("shop1")
   created_at   DateTime       @default(now())
   updated_at   DateTime       @updatedAt
   entries      LaundryEntry[]
 
-  @@index([phone])
+  @@unique([phone, shop_id])
+  @@index([shop_id])
   @@map("customers")
 }
 
@@ -41,10 +46,12 @@ model Service {
   children   Service[]   @relation("ServiceChildren")
   price      Decimal?    @db.Decimal(10, 2)
   is_active  Boolean     @default(true)
+  shop_id    String      @default("shop1")
   created_at DateTime    @default(now())
   updated_at DateTime    @updatedAt
   items      EntryItem[]
 
+  @@index([shop_id])
   @@map("services")
 }
 
@@ -56,11 +63,14 @@ model LaundryEntry {
   total_amount    Decimal     @db.Decimal(10, 2)
   delivery_status String      @default("pending")
   notes           String      @default("")
+  delivery_date   String?
+  shop_id         String      @default("shop1")
   created_at      DateTime    @default(now())
   updated_at      DateTime    @updatedAt
   items           EntryItem[]
 
   @@index([entry_date])
+  @@index([shop_id])
   @@map("laundry_entries")
 }
 
@@ -83,10 +93,12 @@ model Labour {
   id         String          @id @default(uuid())
   name       String
   is_active  Boolean         @default(true)
+  shop_id    String          @default("shop1")
   created_at DateTime        @default(now())
   works      LabourWork[]
   advances   LabourAdvance[]
 
+  @@index([shop_id])
   @@map("labours")
 }
 

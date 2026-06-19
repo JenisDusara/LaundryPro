@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 
+function labourFilter(user: { role: string; shop_id: string }) {
+  return user.role === "superadmin" ? {} : { labour: { shop_id: user.shop_id } };
+}
+
 export async function GET(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
@@ -11,7 +15,7 @@ export async function GET(req: NextRequest) {
   // If labour_id given → return full history for that labour (no month filter)
   if (labourId) {
     const advances = await withRetry(() => prisma.labourAdvance.findMany({
-      where: { labour_id: labourId },
+      where: { labour_id: labourId, ...labourFilter(user) },
       include: { labour: true },
       orderBy: { advance_date: "desc" },
     }));
@@ -26,7 +30,7 @@ export async function GET(req: NextRequest) {
   const start = new Date(year, month - 1, 1).toISOString().slice(0, 10);
   const end   = new Date(year, month,     0).toISOString().slice(0, 10);
   const advances = await withRetry(() => prisma.labourAdvance.findMany({
-    where: { advance_date: { gte: start, lte: end } },
+    where: { advance_date: { gte: start, lte: end }, ...labourFilter(user) },
     include: { labour: true },
     orderBy: { advance_date: "desc" },
   }));

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, shopFilter } from "@/lib/auth";
 import { sendEmail, pickupEmailHtml } from "@/lib/email";
 import { sendSms } from "@/lib/sms";
 import { getSettings } from "@/lib/settings";
@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
   const p = new URL(req.url).searchParams;
-  const where: any = {};
+  const where: any = { ...shopFilter(user) };
   if (p.get("entry_date")) where.entry_date = p.get("entry_date");
   if (p.get("month") && p.get("year")) {
     const m = parseInt(p.get("month")!), y = parseInt(p.get("year")!);
@@ -25,8 +25,18 @@ export async function GET(req: NextRequest) {
       include: { customer: true, items: true },
       orderBy: { entry_date: "desc" },
     }));
+    // Fetch delivery_date separately via raw SQL (Prisma client may not include it yet)
+    const ids = entries.map(e => e.id);
+    const ddRows: { id: string; delivery_date: string | null }[] = ids.length > 0
+      ? await prisma.$queryRawUnsafe(
+          `SELECT id::text, delivery_date FROM laundry_entries WHERE id::text = ANY($1::text[])`,
+          ids
+        )
+      : [];
+    const ddMap = new Map(ddRows.map(r => [r.id, r.delivery_date ?? null]));
     return NextResponse.json(entries.map(e => ({
       ...e,
+      delivery_date: ddMap.get(e.id) ?? null,
       total_amount: Number(e.total_amount),
       items: e.items.map(i => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal) })),
     })));
@@ -39,9 +49,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
-  const { customer_id, notes, items } = await req.json();
+  const { customer_id, notes, items, delivery_date } = await req.json();
 
-  const customer = await prisma.customer.findUnique({ where: { id: customer_id } });
+  const customer = await prisma.customer.findFirst({ where: { id: customer_id, ...shopFilter(user) } });
   if (!customer) return NextResponse.json({ detail: "Customer not found" }, { status: 404 });
 
   let total = 0;
@@ -66,10 +76,16 @@ export async function POST(req: NextRequest) {
       total_amount: total,
       delivery_status: "pending",
       notes: notes || "",
+      shop_id: user.shop_id,
       items: { create: entryItems },
     },
     include: { customer: true, items: true },
   });
+
+  // Set delivery_date via raw SQL (Prisma client may not have this field yet)
+  if (delivery_date) {
+    await prisma.$executeRawUnsafe(`UPDATE laundry_entries SET delivery_date = $1 WHERE id::text = $2`, delivery_date, entry.id);
+  }
 
   const settings = getSettings();
   if (customer.email) {
@@ -83,6 +99,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     ...entry,
+    delivery_date: (entry as any).delivery_date ?? null,
     total_amount: Number(entry.total_amount),
     items: entry.items.map(i => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal) })),
   }, { status: 201 });

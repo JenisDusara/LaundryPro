@@ -37,6 +37,7 @@ export interface LaundryEntry {
   id: string;
   customer_id: string;
   entry_date: string;
+  delivery_date: string | null;
   total_amount: number;
   delivery_status: string;
   notes: string;

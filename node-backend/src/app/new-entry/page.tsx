@@ -31,6 +31,7 @@ export default function NewEntry() {
   const [updatingId,       setUpdatingId]       = useState<string|null>(null);
   const [updatingItemId,   setUpdatingItemId]   = useState<string|null>(null);
   const [justDelivered,    setJustDelivered]    = useState<{service_name:string;quantity:number;pickup_date:string}[]>([]);
+  const [deliveryDate,     setDeliveryDate]     = useState("");
 
   useEffect(() => {
     api.get("/customers").then(r=>setCustomers(r.data));
@@ -100,7 +101,6 @@ export default function NewEntry() {
   const saveAndDeliverWithWA = async () => {
     if (!selectedCustomer) return;
     setSaving(true);
-    const today = new Date().toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"});
     const deliveredItems = pendingEntries.flatMap(e=>e.items);
     const savedItems = [...items];
     const savedCustomer = selectedCustomer;
@@ -138,8 +138,8 @@ export default function NewEntry() {
     const savedTotal = total;
     const savedCustomer = selectedCustomer;
     try {
-      await api.post("/entries",{customer_id:selectedCustomer.id,notes,items:items.map(i=>({service_id:i.service_id,service_name:i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name,quantity:Number(i.quantity),price_per_unit:Number(i.price)}))});
-      setSuccess(true); setItems([]); setNotes("");
+      await api.post("/entries",{customer_id:selectedCustomer.id,notes,delivery_date:deliveryDate||null,items:items.map(i=>({service_id:i.service_id,service_name:i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name,quantity:Number(i.quantity),price_per_unit:Number(i.price)}))});
+      setSuccess(true); setItems([]); setNotes(""); setDeliveryDate("");
       // Refresh past entries
       const res = await api.get("/entries", { params: { customer_id: selectedCustomer.id } });
       setPastEntries(res.data);
@@ -444,6 +444,28 @@ export default function NewEntry() {
           </div>
         </div>
       )}
+
+      {/* ── Delivery Date ── */}
+      <div style={{background:"#fff",borderRadius:14,padding:"18px 20px",marginBottom:14,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",border:"1px solid #f1f5f9"}}>
+        <div style={{fontWeight:700,fontSize:13,color:"#475569",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.05em"}}>🚚 Expected Delivery Date <span style={{fontSize:11,fontWeight:400,textTransform:"none",color:"#94a3b8"}}>(optional)</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <input
+            type="date"
+            value={deliveryDate}
+            min={new Date().toISOString().slice(0,10)}
+            onChange={e=>setDeliveryDate(e.target.value)}
+            style={{flex:1,padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:14,outline:"none",background:"#f8fafc",color:"#1e293b"}}
+          />
+          {deliveryDate&&(
+            <button onClick={()=>setDeliveryDate("")} style={{padding:"10px 14px",background:"#fef2f2",border:"1.5px solid #fecaca",borderRadius:10,fontSize:12,fontWeight:600,color:"#dc2626",cursor:"pointer"}}>Clear</button>
+          )}
+        </div>
+        {deliveryDate&&(
+          <div style={{marginTop:8,fontSize:12,color:"#d97706",fontWeight:600,display:"flex",alignItems:"center",gap:4}}>
+            🔔 Delivery reminder set for {new Date(deliveryDate+"T00:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"})}
+          </div>
+        )}
+      </div>
 
       {/* ── Notes ── */}
       <div style={{background:"#fff",borderRadius:14,padding:"18px 20px",marginBottom:14,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",border:"1px solid #f1f5f9"}}>

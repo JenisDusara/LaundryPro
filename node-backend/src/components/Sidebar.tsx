@@ -3,7 +3,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard, PlusCircle, Users, ClipboardList, Truck,
-  BarChart3, Wrench, Hammer, LogOut, X, MoreHorizontal, User, Key, Eye, EyeOff
+  BarChart3, Wrench, Hammer, LogOut, X, MoreHorizontal, User, Key, Eye, EyeOff, Building2
 } from "lucide-react";
 import api from "@/lib/api";
 
@@ -37,7 +37,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [showMore, setShowMore] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [profile, setProfile] = useState<{name:string;username:string}|null>(null);
+  const [profile, setProfile] = useState<{name:string;username:string;role?:string}|null>(null);
   const [oldPass, setOldPass] = useState(""); const [newPass, setNewPass] = useState(""); const [confirmPass, setConfirmPass] = useState("");
   const [showOld, setShowOld] = useState(false); const [showNew, setShowNew] = useState(false);
   const [passMsg, setPassMsg] = useState<{text:string;ok:boolean}|null>(null); const [passLoading, setPassLoading] = useState(false);
@@ -94,6 +94,31 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
 
         {/* Nav */}
         <nav style={{ flex: 1, padding: "12px 10px", overflowY: "auto" }}>
+          {profile?.role === "superadmin" && (() => {
+            const item = { path: "/superadmin", label: "Clients", icon: Building2 };
+            const active = pathname === item.path;
+            return (
+              <div key={item.path}
+                onClick={() => router.push(item.path)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "11px 14px", borderRadius: 10, marginBottom: 2,
+                  cursor: "pointer", transition: "all 0.15s",
+                  background: active ? "rgba(255,255,255,0.15)" : "rgba(255,215,0,0.12)",
+                  color: active ? "#fff" : "#fbbf24",
+                  fontWeight: active ? 700 : 600, fontSize: 14,
+                  boxShadow: active ? "0 2px 8px rgba(0,0,0,0.2)" : "none",
+                  borderBottom: "1px solid rgba(255,255,255,0.08)",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background="rgba(255,215,0,0.2)"; }}
+                onMouseLeave={e => { if(!active) e.currentTarget.style.background="rgba(255,215,0,0.12)"; }}
+              >
+                <item.icon size={18} />
+                <span>{item.label}</span>
+                <span style={{ marginLeft: "auto", fontSize: 9, background: "#fbbf24", color: "#0f172a", padding: "2px 6px", borderRadius: 4, fontWeight: 800 }}>SUPER</span>
+              </div>
+            );
+          })()}
           {navItems.map(item => {
             const active = pathname === item.path;
             return (
