@@ -176,9 +176,9 @@ export default function LoginActivityPage() {
                 <div>
                   <div style={{fontWeight:600,fontSize:13,color:"#374151"}}>{log.shop_name||"—"}</div>
                   <div style={{display:"inline-block",marginTop:3,fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:5,
-                    background:log.role==="superadmin"?"linear-gradient(135deg,#fbbf24,#f59e0b)":"#eff6ff",
-                    color:log.role==="superadmin"?"#78350f":"#1d4ed8"}}>
-                    {log.role==="superadmin"?"SUPERADMIN":"ADMIN"}
+                    background:log.role==="superadmin"?"linear-gradient(135deg,#fbbf24,#f59e0b)":log.role==="staff"?"#f0fdf4":"#eff6ff",
+                    color:log.role==="superadmin"?"#78350f":log.role==="staff"?"#15803d":"#1d4ed8"}}>
+                    {log.role==="superadmin"?"SUPERADMIN":log.role==="staff"?"STAFF":"ADMIN"}
                   </div>
                 </div>
 

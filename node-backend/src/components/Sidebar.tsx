@@ -4,11 +4,26 @@ import { useState, useEffect, useRef } from "react";
 import {
   LayoutDashboard, PlusCircle, Users, ClipboardList, Truck,
   BarChart3, Wrench, Hammer, LogOut, X, MoreHorizontal, User, Key, Eye, EyeOff, Building2,
-  Wallet, Activity, ShieldCheck, Menu, ChevronRight
+  Wallet, Activity, ShieldCheck, Menu, ChevronRight, UserCog
 } from "lucide-react";
 import api from "@/lib/api";
 
-const navItems = [
+// Decode JWT role immediately (no API call needed for nav rendering)
+function getTokenRole(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) return null;
+    const payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = JSON.parse(atob(payload));
+    return decoded.role || null;
+  } catch {
+    return null;
+  }
+}
+
+// All nav items for admin role
+const adminNavItems = [
   { path: "/dashboard",  label: "Dashboard",      icon: LayoutDashboard },
   { path: "/new-entry",  label: "New Entry",       icon: PlusCircle },
   { path: "/customers",  label: "Customers",       icon: Users },
@@ -18,6 +33,17 @@ const navItems = [
   { path: "/reports",    label: "Reports",         icon: BarChart3 },
   { path: "/services",   label: "Services",        icon: Wrench },
   { path: "/labour",     label: "Labour",          icon: Hammer },
+  { path: "/staff",      label: "Staff",           icon: UserCog },
+];
+
+// Limited nav for staff role
+const staffNavItems = [
+  { path: "/dashboard",  label: "Dashboard",  icon: LayoutDashboard },
+  { path: "/new-entry",  label: "New Entry",  icon: PlusCircle },
+  { path: "/customers",  label: "Customers",  icon: Users },
+  { path: "/entries",    label: "Entries",    icon: ClipboardList },
+  { path: "/deliveries", label: "Deliveries", icon: Truck },
+  { path: "/services",   label: "Services",   icon: Wrench },
 ];
 
 const mobileNav = [
@@ -44,7 +70,10 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
   const [shops,          setShops]          = useState<{shop_id:string;shop_name:string;name:string}[]>([]);
   const [selectedShopId, setSelectedShopId] = useState("");
   const hamburgerRef = useRef<HTMLButtonElement>(null);
-  const [profile, setProfile] = useState<{name:string;username:string;role?:string}|null>(null);
+  const [profile, setProfile] = useState<{name:string;username:string;role?:string;read_only?:boolean;expires_at?:string|null}|null>(() => {
+    const role = getTokenRole();
+    return role ? { name: "", username: "", role } : null;
+  });
   const [oldPass, setOldPass] = useState(""); const [newPass, setNewPass] = useState(""); const [confirmPass, setConfirmPass] = useState("");
   const [showOld, setShowOld] = useState(false); const [showNew, setShowNew] = useState(false);
   const [passMsg, setPassMsg] = useState<{text:string;ok:boolean}|null>(null); const [passLoading, setPassLoading] = useState(false);
@@ -230,7 +259,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
                   </div>
                 )}
 
-                {navItems.map(item => {
+                {(profile?.role === "staff" ? staffNavItems : adminNavItems).map(item => {
                   const active = pathname === item.path;
                   return (
                     <div key={item.path}
@@ -298,6 +327,31 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
         flex: 1, marginLeft: 230, padding: 28, paddingBottom: 90,
         width: "calc(100% - 230px)", minHeight: "100vh"
       }}>
+        {/* Read-only warning banner */}
+        {profile?.read_only && (
+          <div style={{
+            background:"linear-gradient(135deg,#7c2d12,#9a3412)", color:"#fff",
+            borderRadius:14, padding:"12px 18px", marginBottom:20,
+            display:"flex", alignItems:"center", gap:12,
+            boxShadow:"0 4px 16px rgba(154,52,18,0.35)",
+            animation:"fadeUp 0.3s ease both"
+          }}>
+            <span style={{fontSize:20}}>⚠️</span>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:800,fontSize:14}}>Subscription Expired — Read-Only Mode</div>
+              <div style={{fontSize:12,opacity:0.8,marginTop:2}}>
+                Aap data dekh sakte hain lekin naya entry, billing ya changes nahi kar sakte.
+                {profile.expires_at && (() => {
+                  const days = Math.abs(Math.ceil((Date.now() - new Date(profile.expires_at!).getTime()) / 86400000));
+                  return ` ${days} din${days===1?"":" "} pehle expire hua — 3 din baad complete block ho jayega.`;
+                })()}
+              </div>
+            </div>
+            <div style={{fontSize:12,fontWeight:700,background:"rgba(255,255,255,0.15)",padding:"6px 14px",borderRadius:8,whiteSpace:"nowrap"}}>
+              Contact Admin
+            </div>
+          </div>
+        )}
         {children}
       </main>
 

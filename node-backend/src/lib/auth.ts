@@ -3,12 +3,16 @@ import { NextRequest, NextResponse } from "next/server";
 
 const SECRET = process.env.SECRET_KEY || "laundrypro-secret";
 
+const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+
 export interface TokenPayload {
   sub: string;
   username: string;
   shop_id: string;
   shop_name: string;
-  role: string;  // "superadmin" | "admin"
+  role: string;
+  expires_at?: string; // ISO string — shop subscription expiry
+  read_only?: boolean; // true when in 3-day grace period after expiry
 }
 
 export function signToken(payload: object): string {
@@ -35,6 +39,12 @@ export function requireAuth(req: NextRequest): TokenPayload | NextResponse {
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const payload = verifyToken(token);
   if (!payload) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+  // Compute read_only dynamically so it's always accurate regardless of when token was issued
+  if (payload.expires_at && payload.role !== "superadmin") {
+    const expiry = new Date(payload.expires_at).getTime();
+    const now = Date.now();
+    payload.read_only = now > expiry && now <= expiry + THREE_DAYS_MS;
+  }
   return payload;
 }
 
