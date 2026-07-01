@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Building2, Plus, Trash2, X, Eye, EyeOff, ShieldCheck,
+  Building2, Plus, Trash2, X, Eye, EyeOff,
   Pencil, Check, Search, Users, RefreshCw, KeyRound,
   CalendarClock, AlertTriangle, RotateCcw, UserCheck, UserX, TrendingUp
 } from "lucide-react";
@@ -33,10 +33,10 @@ function fmtDate(iso: string) {
 
 function expiryBadge(expiresAt: string | null) {
   const d = daysLeft(expiresAt);
-  if (d === null) return { label: "No Plan", bg: "#f1f5f9", text: "#94a3b8", dot: "#cbd5e1" };
-  if (d < 0)      return { label: "Expired",  bg: "#fef2f2", text: "#dc2626", dot: "#dc2626" };
-  if (d <= 7)     return { label: `${d}d left`, bg: "#fffbeb", text: "#d97706", dot: "#f59e0b" };
-  return           { label: `${d}d left`, bg: "#f0fdf4", text: "#16a34a", dot: "#22c55e" };
+  if (d === null) return { label: "No plan",  sub: "Not subscribed", color: "var(--text-muted)", dot: "var(--text-muted)" };
+  if (d < 0)      return { label: "Expired",  sub: fmtDate(expiresAt!),       color: "#ef4444",           dot: "#ef4444" };
+  if (d <= 7)     return { label: `${d}d left`, sub: fmtDate(expiresAt!),     color: "#f59e0b",           dot: "#f59e0b" };
+  return           { label: `${d}d left`, sub: fmtDate(expiresAt!),           color: "#10b981",           dot: "#10b981" };
 }
 
 const AVATAR_COLORS = ["#6d28d9","#1d4ed8","#059669","#d97706","#be185d","#0891b2","#dc2626","#0f766e"];
@@ -137,83 +137,71 @@ export default function SuperAdminPage() {
     c.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const inp: React.CSSProperties = { width:"100%", padding:"11px 14px", border:"1.5px solid #e2e8f0", borderRadius:10, fontSize:14, outline:"none", boxSizing:"border-box", background:"#f8fafc", color:"#0f172a" };
-  const lbl: React.CSSProperties = { fontSize:11, fontWeight:700, color:"#64748b", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.05em" };
+  const inp: React.CSSProperties = { width:"100%", padding:"11px 14px", border:"1px solid var(--border-hard)", borderRadius:10, fontSize:14, outline:"none", boxSizing:"border-box", background:"var(--bg-input)", color:"var(--text-primary)" };
+  const lbl: React.CSSProperties = { fontSize:12, fontWeight:600, color:"var(--text-secondary)", marginBottom:6, display:"block" };
 
   const expiryAlerts = clients.filter(c => { const d = daysLeft(c.expires_at); return d !== null && d <= 7; });
 
   return (
     <ProtectedLayout>
       <style>{`
-        @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes slideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes pop{from{opacity:0;transform:scale(0.96)}to{opacity:1;transform:scale(1)}}
-        .card-hover{transition:box-shadow 0.18s,transform 0.18s}
-        .card-hover:hover{box-shadow:0 12px 40px rgba(0,0,0,0.10)!important;transform:translateY(-2px)}
-        .act{transition:all 0.14s;cursor:pointer}
-        .act:hover{opacity:0.8;transform:translateY(-1px)}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .client-row:hover{background:var(--pressed)!important}
       `}</style>
 
-      {/* ─── TOP BAR ─── */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:28,flexWrap:"wrap",gap:14}}>
-        <div style={{animation:"fadeUp 0.3s ease both"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
-            <div style={{width:4,height:28,borderRadius:4,background:"linear-gradient(#7c3aed,#4c1d95)"}}/>
-            <h1 style={{margin:0,fontSize:22,fontWeight:900,color:"#0f172a",letterSpacing:-0.5}}>Client Management</h1>
-            <span style={{fontSize:10,fontWeight:800,background:"linear-gradient(135deg,#7c3aed,#4c1d95)",color:"#fff",padding:"3px 10px",borderRadius:20,letterSpacing:"0.08em"}}>SUPERADMIN</span>
-          </div>
-          <p style={{margin:0,fontSize:13,color:"#94a3b8"}}>{clients.filter(c=>c.is_active).length} active · {clients.length} total shops</p>
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:24,flexWrap:"wrap",gap:14}}>
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:4}}>Super Admin</div>
+          <h2 style={{color:"var(--text-primary)",margin:"0 0 4px",fontSize:26,fontWeight:900,letterSpacing:-0.5}}>Client management</h2>
+          <p style={{color:"var(--text-muted)",fontSize:13,margin:0}}>{clients.filter(c=>c.is_active).length} active · {clients.length} total shops</p>
         </div>
-        <div style={{display:"flex",gap:10,animation:"fadeUp 0.3s ease 0.05s both"}}>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <div style={{position:"relative"}}>
-            <Search size={14} style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:"#94a3b8",pointerEvents:"none"}}/>
+            <Search size={14} style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:"var(--text-muted)",pointerEvents:"none"}}/>
             <input placeholder="Search shop, username…" value={search} onChange={e=>setSearch(e.target.value)}
-              style={{padding:"10px 16px 10px 36px",border:"1.5px solid #e2e8f0",borderRadius:12,fontSize:13,outline:"none",background:"#fff",width:210,color:"#0f172a",boxShadow:"0 1px 4px rgba(0,0,0,0.04)"}}/>
+              style={{padding:"10px 14px 10px 34px",border:"1px solid var(--border-hard)",borderRadius:10,fontSize:13,outline:"none",background:"var(--bg-input)",width:200,color:"var(--text-primary)",boxSizing:"border-box"}}/>
           </div>
-          <button onClick={load} style={{width:40,height:40,borderRadius:11,border:"1.5px solid #e2e8f0",background:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#64748b",boxShadow:"0 1px 4px rgba(0,0,0,0.04)"}}>
-            <RefreshCw size={15}/>
+          <button onClick={load} style={{width:38,height:38,borderRadius:10,border:"1px solid var(--border-hard)",background:"var(--bg-card)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-secondary)"}}>
+            <RefreshCw size={15} style={{animation:loading?"spin 1s linear infinite":undefined}}/>
           </button>
           <button onClick={()=>{setShowForm(v=>!v);setEditClient(null);}}
-            style={{display:"flex",alignItems:"center",gap:8,padding:"10px 20px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#6d28d9,#4c1d95)",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",boxShadow:"0 4px 14px rgba(109,40,217,0.35)"}}>
-            <Plus size={16}/> New Client
+            style={{display:"flex",alignItems:"center",gap:8,padding:"10px 20px",borderRadius:10,border:"none",background:"#2563eb",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",boxShadow:"0 4px 14px rgba(37,99,235,0.28)"}}>
+            <Plus size={16}/> New client
           </button>
         </div>
       </div>
 
-      {/* ─── STATS ─── */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:24}}>
+      {/* Stats */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:14,marginBottom:24}}>
         {[
-          { label:"Total Clients",   value:clients.length,                                   icon:Building2,   from:"#ede9fe", to:"#ddd6fe", accent:"#7c3aed" },
-          { label:"Active",          value:clients.filter(c=>c.is_active).length,            icon:UserCheck,   from:"#dcfce7", to:"#bbf7d0", accent:"#16a34a" },
-          { label:"Disabled",        value:clients.filter(c=>!c.is_active).length,           icon:UserX,       from:"#fee2e2", to:"#fecaca", accent:"#dc2626" },
-          { label:"Total Staff",     value:clients.reduce((s,c)=>s+(c.staff_count||0),0),    icon:Users,       from:"#e0f2fe", to:"#bae6fd", accent:"#0284c7" },
+          {label:"Total clients", value:clients.length,                                icon:<Building2 size={18}/>, iconBg:"rgba(109,40,217,0.15)",  iconColor:"#8b5cf6"},
+          {label:"Active",        value:clients.filter(c=>c.is_active).length,         icon:<UserCheck size={18}/>, iconBg:"rgba(5,150,105,0.15)",   iconColor:"#10b981"},
+          {label:"Disabled",      value:clients.filter(c=>!c.is_active).length,        icon:<UserX size={18}/>,     iconBg:"rgba(239,68,68,0.15)",   iconColor:"#ef4444"},
+          {label:"Total staff",   value:clients.reduce((s,c)=>s+(c.staff_count||0),0), icon:<Users size={18}/>,     iconBg:"rgba(245,158,11,0.15)",  iconColor:"#f59e0b"},
         ].map((s,i)=>(
-          <div key={i} style={{animation:`fadeUp 0.3s ease ${i*0.06}s both`,borderRadius:16,padding:"20px 22px",
-            background:`linear-gradient(135deg,${s.from},${s.to})`,border:`1px solid ${s.to}`,
-            boxShadow:"0 2px 12px rgba(0,0,0,0.05)"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
-              <span style={{fontSize:12,fontWeight:700,color:"#475569",letterSpacing:"0.02em"}}>{s.label}</span>
-              <div style={{width:32,height:32,borderRadius:9,background:"rgba(255,255,255,0.6)",display:"flex",alignItems:"center",justifyContent:"center",color:s.accent}}>
-                <s.icon size={16}/>
-              </div>
+          <div key={i} style={{background:"var(--bg-card)",borderRadius:14,padding:"16px 18px",border:"1px solid var(--border-hard)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+              <div style={{width:36,height:36,borderRadius:10,background:s.iconBg,display:"flex",alignItems:"center",justifyContent:"center",color:s.iconColor,flexShrink:0}}>{s.icon}</div>
+              <span style={{fontSize:12,fontWeight:600,color:"var(--text-secondary)"}}>{s.label}</span>
             </div>
-            <div style={{fontSize:32,fontWeight:900,color:s.accent,letterSpacing:-1}}>{s.value}</div>
+            <div style={{fontSize:28,fontWeight:900,color:s.iconColor}}>{s.value}</div>
           </div>
         ))}
       </div>
 
-      {/* ─── ALERTS ─── */}
+      {/* Expiry alerts */}
       {expiryAlerts.length > 0 && (
-        <div style={{animation:"slideIn 0.25s ease both",background:"#fffbeb",border:"1.5px solid #fde68a",borderRadius:14,padding:"14px 18px",marginBottom:20,display:"flex",gap:14,alignItems:"flex-start"}}>
-          <div style={{width:36,height:36,borderRadius:10,background:"#fef3c7",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:2}}>
-            <AlertTriangle size={18} color="#d97706"/>
+        <div style={{background:"rgba(245,158,11,0.1)",border:"1px solid rgba(245,158,11,0.25)",borderRadius:12,padding:"14px 18px",marginBottom:20,display:"flex",gap:14,alignItems:"flex-start"}}>
+          <div style={{width:34,height:34,borderRadius:9,background:"rgba(245,158,11,0.15)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <AlertTriangle size={16} color="#f59e0b"/>
           </div>
           <div>
-            <div style={{fontWeight:800,fontSize:13,color:"#92400e",marginBottom:4}}>Subscription Alert</div>
-            <div style={{fontSize:13,color:"#78350f",lineHeight:1.6}}>
+            <div style={{fontWeight:700,fontSize:13,color:"var(--text-primary)",marginBottom:3}}>Subscription alert</div>
+            <div style={{fontSize:13,color:"var(--text-secondary)",lineHeight:1.6}}>
               {expiryAlerts.map((c,i)=>{
                 const d=daysLeft(c.expires_at);
-                return <span key={c.id}>{i>0&&" · "}<b>{c.shop_name}</b> — {d!==null&&d<0?"expired":`${d}d left`}</span>;
+                return <span key={c.id}>{i>0&&" · "}<b style={{color:"var(--text-primary)"}}>{c.shop_name}</b> — {d!==null&&d<0?"expired":`${d}d left`}</span>;
               })}
             </div>
           </div>
@@ -221,119 +209,117 @@ export default function SuperAdminPage() {
       )}
 
       {msg && (
-        <div style={{animation:"slideIn 0.2s ease both",padding:"12px 18px",borderRadius:12,marginBottom:18,fontSize:14,fontWeight:600,
-          background:msg.ok?"#f0fdf4":"#fef2f2",color:msg.ok?"#16a34a":"#dc2626",border:`1.5px solid ${msg.ok?"#86efac":"#fca5a5"}`}}>
-          {msg.ok?"✓  ":"✕  "}{msg.text}
+        <div style={{padding:"12px 18px",borderRadius:10,marginBottom:16,fontSize:13,fontWeight:600,
+          background:msg.ok?"rgba(5,150,105,0.1)":"rgba(239,68,68,0.1)",
+          color:msg.ok?"#10b981":"#ef4444",
+          border:`1px solid ${msg.ok?"rgba(5,150,105,0.25)":"rgba(239,68,68,0.25)"}`}}>
+          {msg.text}
         </div>
       )}
 
-      {/* ─── ADD FORM ─── */}
+      {/* Add form */}
       {showForm && (
-        <div style={{animation:"slideIn 0.22s ease both",background:"#fff",borderRadius:20,border:"1.5px solid #e2e8f0",boxShadow:"0 8px 40px rgba(0,0,0,0.09)",marginBottom:24,overflow:"hidden"}}>
-          <div style={{background:"linear-gradient(135deg,#1e1b4b,#4c1d95)",padding:"20px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{background:"var(--bg-card)",borderRadius:16,border:"1px solid var(--border-hard)",marginBottom:24,padding:24}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
             <div>
-              <div style={{color:"#fff",fontWeight:800,fontSize:16}}>New Client</div>
-              <div style={{color:"rgba(255,255,255,0.45)",fontSize:12,marginTop:2}}>Create a new shop admin account</div>
+              <h3 style={{margin:0,color:"var(--text-primary)",fontSize:17,fontWeight:800}}>New client</h3>
+              <p style={{margin:"4px 0 0",fontSize:12,color:"var(--text-muted)"}}>Create a new shop admin account</p>
             </div>
-            <button onClick={()=>setShowForm(false)} style={{width:32,height:32,background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:9,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-              <X size={15} color="#fff"/>
+            <X size={20} style={{cursor:"pointer",color:"var(--text-secondary)"}} onClick={()=>setShowForm(false)}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+            <div>
+              <label style={lbl}>Shop Name *</label>
+              <input style={inp} placeholder="e.g. Shree Chamunda Drycleaners" value={form.shop_name} onChange={e=>setForm(f=>({...f,shop_name:e.target.value}))}/>
+            </div>
+            <div>
+              <label style={lbl}>Shop ID *</label>
+              <input style={inp} placeholder="e.g. shop2 (unique, no spaces)" value={form.shop_id} onChange={e=>setForm(f=>({...f,shop_id:e.target.value}))}/>
+            </div>
+            <div>
+              <label style={lbl}>Username *</label>
+              <input style={inp} placeholder="Login username" value={form.username} onChange={e=>setForm(f=>({...f,username:e.target.value}))}/>
+            </div>
+            <div>
+              <label style={lbl}>Password *</label>
+              <div style={{position:"relative"}}>
+                <input type={showPass?"text":"password"} placeholder="Login password" value={form.password}
+                  onChange={e=>setForm(f=>({...f,password:e.target.value}))} style={{...inp,paddingRight:42}}/>
+                <button onClick={()=>setShowPass(v=>!v)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",display:"flex",padding:2}}>
+                  {showPass?<EyeOff size={16} color="var(--text-muted)"/>:<Eye size={16} color="var(--text-muted)"/>}
+                </button>
+              </div>
+            </div>
+            <div style={{gridColumn:"1 / -1"}}>
+              <label style={lbl}>Owner Name <span style={{fontWeight:400,color:"var(--text-muted)"}}>(optional)</span></label>
+              <input style={inp} placeholder="e.g. Harsh Chudasama" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}/>
+            </div>
+            <div style={{gridColumn:"1 / -1",background:"var(--bg-elevated)",borderRadius:12,padding:16,border:"1px solid var(--border-hard)"}}>
+              <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:14}}>
+                <CalendarClock size={14} color="#2563eb"/>
+                <span style={{fontSize:12,fontWeight:700,color:"var(--text-secondary)",textTransform:"uppercase",letterSpacing:"0.06em"}}>Subscription Plan</span>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+                {([["monthly","Monthly","30 days"],["yearly","Yearly","365 days"]] as const).map(([val,label,days])=>(
+                  <div key={val} onClick={()=>setForm(f=>({...f,plan_type:val,expires_at:calcExpiry(val,null)}))}
+                    style={{padding:"13px 16px",borderRadius:10,cursor:"pointer",transition:"all 0.15s",display:"flex",alignItems:"center",gap:12,
+                      background:form.plan_type===val?"#2563eb":"var(--bg-input)",
+                      border:`2px solid ${form.plan_type===val?"#2563eb":"var(--border-hard)"}`,
+                      boxShadow:form.plan_type===val?"0 4px 12px rgba(37,99,235,0.25)":"none"}}>
+                    <div style={{width:32,height:32,borderRadius:8,flexShrink:0,background:form.plan_type===val?"rgba(255,255,255,0.2)":"var(--bg-elevated)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                      <TrendingUp size={15} color={form.plan_type===val?"#fff":"#2563eb"}/>
+                    </div>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:13,color:form.plan_type===val?"#fff":"var(--text-primary)"}}>{label}</div>
+                      <div style={{fontSize:11,color:form.plan_type===val?"rgba(255,255,255,0.6)":"var(--text-muted)",marginTop:1}}>{days}</div>
+                    </div>
+                    {form.plan_type===val&&<Check size={14} color="#fff" style={{marginLeft:"auto"}}/>}
+                  </div>
+                ))}
+              </div>
+              <div>
+                <label style={{...lbl,marginBottom:7}}>Expiry Date <span style={{fontWeight:400,color:"var(--text-muted)"}}>— auto or custom</span></label>
+                <input type="date" min={new Date().toISOString().slice(0,10)} value={form.expires_at}
+                  onChange={e=>setForm(f=>({...f,expires_at:e.target.value}))}
+                  style={{...inp,cursor:"pointer",
+                    border:form.expires_at?"2px solid #2563eb":"1px solid var(--border-hard)",
+                    background:form.expires_at?"rgba(37,99,235,0.08)":"var(--bg-input)",
+                    color:form.expires_at?"#2563eb":"var(--text-muted)"}}/>
+                {form.expires_at&&<div style={{marginTop:6,fontSize:12,color:"#2563eb",fontWeight:600}}>
+                  ✓ {new Date(form.expires_at+"T00:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"2-digit",month:"long",year:"numeric"})}
+                </div>}
+              </div>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:18}}>
+            <button onClick={()=>setShowForm(false)} style={{flex:1,padding:"11px",border:"1px solid var(--border-hard)",borderRadius:10,background:"transparent",fontWeight:600,fontSize:14,cursor:"pointer",color:"var(--text-secondary)"}}>Cancel</button>
+            <button onClick={save} disabled={saving}
+              style={{flex:2,padding:"11px",border:"none",borderRadius:10,background:saving?"var(--bg-elevated)":"#2563eb",color:saving?"var(--text-muted)":"#fff",fontWeight:700,fontSize:14,cursor:saving?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:saving?0.7:1}}>
+              <Check size={15}/>{saving?"Creating…":"Create client"}
             </button>
           </div>
-          <div style={{padding:24}}>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-              <div>
-                <div style={lbl}>Shop Name *</div>
-                <input style={inp} placeholder="e.g. Shree Chamunda Drycleaners" value={form.shop_name} onChange={e=>setForm(f=>({...f,shop_name:e.target.value}))}/>
-              </div>
-              <div>
-                <div style={lbl}>Shop ID *</div>
-                <input style={inp} placeholder="e.g. shop2 (unique, no spaces)" value={form.shop_id} onChange={e=>setForm(f=>({...f,shop_id:e.target.value}))}/>
-              </div>
-              <div>
-                <div style={lbl}>Username *</div>
-                <input style={inp} placeholder="Login username" value={form.username} onChange={e=>setForm(f=>({...f,username:e.target.value}))}/>
-              </div>
-              <div>
-                <div style={lbl}>Password *</div>
-                <div style={{position:"relative"}}>
-                  <input type={showPass?"text":"password"} placeholder="Login password" value={form.password}
-                    onChange={e=>setForm(f=>({...f,password:e.target.value}))} style={{...inp,paddingRight:42}}/>
-                  <button onClick={()=>setShowPass(v=>!v)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",display:"flex",padding:2}}>
-                    {showPass?<EyeOff size={16} color="#94a3b8"/>:<Eye size={16} color="#94a3b8"/>}
-                  </button>
-                </div>
-              </div>
-              <div style={{gridColumn:"1 / -1"}}>
-                <div style={lbl}>Owner Name <span style={{fontWeight:400,textTransform:"none",color:"#94a3b8"}}>(optional)</span></div>
-                <input style={inp} placeholder="e.g. Harsh Chudasama" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}/>
-              </div>
-              <div style={{gridColumn:"1 / -1",background:"#fafafa",borderRadius:14,padding:16,border:"1px solid #f1f5f9"}}>
-                <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:14}}>
-                  <CalendarClock size={14} color="#7c3aed"/>
-                  <span style={{fontSize:12,fontWeight:800,color:"#374151",textTransform:"uppercase",letterSpacing:"0.06em"}}>Subscription Plan</span>
-                </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
-                  {([["monthly","Monthly","30 din"],["yearly","Yearly","365 din"]] as const).map(([val,label,days])=>(
-                    <div key={val} onClick={()=>setForm(f=>({...f,plan_type:val,expires_at:calcExpiry(val,null)}))}
-                      style={{padding:"13px 16px",borderRadius:11,cursor:"pointer",transition:"all 0.15s",display:"flex",alignItems:"center",gap:12,
-                        background:form.plan_type===val?"linear-gradient(135deg,#4c1d95,#7c3aed)":"#fff",
-                        border:`2px solid ${form.plan_type===val?"#7c3aed":"#e2e8f0"}`,
-                        boxShadow:form.plan_type===val?"0 4px 12px rgba(124,58,237,0.22)":"none"}}>
-                      <div style={{width:34,height:34,borderRadius:9,flexShrink:0,background:form.plan_type===val?"rgba(255,255,255,0.15)":"#ede9fe",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                        <TrendingUp size={16} color={form.plan_type===val?"#fff":"#7c3aed"}/>
-                      </div>
-                      <div>
-                        <div style={{fontWeight:800,fontSize:13,color:form.plan_type===val?"#fff":"#1e1b4b"}}>{label}</div>
-                        <div style={{fontSize:11,color:form.plan_type===val?"rgba(255,255,255,0.6)":"#94a3b8",marginTop:1}}>{days}</div>
-                      </div>
-                      {form.plan_type===val&&<Check size={14} color="#fff" style={{marginLeft:"auto"}}/>}
-                    </div>
-                  ))}
-                </div>
-                <div>
-                  <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:7,textTransform:"uppercase",letterSpacing:"0.05em"}}>
-                    Expiry Date <span style={{fontWeight:500,textTransform:"none",color:"#94a3b8"}}>— auto ya khud set karo</span>
-                  </div>
-                  <input type="date" min={new Date().toISOString().slice(0,10)} value={form.expires_at}
-                    onChange={e=>setForm(f=>({...f,expires_at:e.target.value}))}
-                    style={{...inp,cursor:"pointer",fontWeight:form.expires_at?700:400,
-                      border:form.expires_at?"2px solid #7c3aed":"1.5px solid #e2e8f0",
-                      background:form.expires_at?"#faf5ff":"#f8fafc",color:form.expires_at?"#4c1d95":"#94a3b8"}}/>
-                  {form.expires_at&&<div style={{marginTop:6,fontSize:12,color:"#7c3aed",fontWeight:600}}>
-                    ✓ {new Date(form.expires_at+"T00:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"2-digit",month:"long",year:"numeric"})}
-                  </div>}
-                </div>
-              </div>
-            </div>
-            <div style={{display:"flex",gap:10,marginTop:18}}>
-              <button onClick={()=>setShowForm(false)} style={{flex:1,padding:"11px",border:"1.5px solid #e2e8f0",borderRadius:10,background:"#f8fafc",fontWeight:600,fontSize:14,cursor:"pointer",color:"#64748b"}}>Cancel</button>
-              <button onClick={save} disabled={saving} style={{flex:2,padding:"11px",border:"none",borderRadius:10,background:"linear-gradient(135deg,#4c1d95,#7c3aed)",color:"#fff",fontWeight:700,fontSize:14,cursor:saving?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:saving?0.7:1,boxShadow:"0 4px 14px rgba(124,58,237,0.3)"}}>
-                <Check size={16}/>{saving?"Creating…":"Create Client"}
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
-      {/* ─── CLIENT CARDS ─── */}
+      {/* Clients table */}
       {loading ? (
-        <div style={{textAlign:"center",padding:"80px 20px",color:"#94a3b8"}}>
-          <RefreshCw size={32} style={{margin:"0 auto 14px",display:"block",opacity:0.25}}/>
+        <div style={{textAlign:"center",padding:"80px 20px",color:"var(--text-muted)"}}>
+          <RefreshCw size={32} style={{margin:"0 auto 14px",display:"block",opacity:0.25,animation:"spin 1s linear infinite"}}/>
           <div style={{fontWeight:600,fontSize:14}}>Loading clients…</div>
         </div>
       ) : filtered.length === 0 ? (
-        <div style={{textAlign:"center",padding:"80px 20px"}}>
-          <Building2 size={44} style={{margin:"0 auto 16px",display:"block",color:"#e2e8f0"}}/>
-          <div style={{fontWeight:700,fontSize:15,color:"#94a3b8"}}>{search?"No results found":"No clients yet"}</div>
-          <div style={{fontSize:13,color:"#cbd5e1",marginTop:4}}>{search?"Try a different search":"Add your first client above"}</div>
+        <div style={{textAlign:"center",padding:"80px 20px",color:"var(--text-muted)"}}>
+          <Building2 size={44} style={{margin:"0 auto 16px",display:"block",opacity:0.2}}/>
+          <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{search?"No results found":"No clients yet"}</div>
+          <div style={{fontSize:13}}>{search?"Try a different search":"Add your first client above"}</div>
         </div>
       ) : (
-        <div style={{background:"#fff",borderRadius:14,border:"1px solid #e5e7eb",overflow:"hidden",animation:"fadeUp 0.3s ease both"}}>
-          {/* Header */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 150px 60px 200px 80px 200px",
-            background:"#f9fafb",borderBottom:"1px solid #e5e7eb",padding:"0 16px"}}>
+        <div className="mob-scroll" style={{borderRadius:14}}>
+        <div style={{background:"var(--bg-card)",border:"1px solid var(--border-hard)",borderRadius:14,overflow:"hidden",minWidth:700}}>
+          {/* Column headers */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 150px 60px 200px 80px 200px",background:"var(--bg-elevated)",borderBottom:"1px solid var(--border-hard)",padding:"0 16px"}}>
             {["Shop / Owner","Shop ID","Staff","Expiry","Active","Actions"].map(h=>(
-              <div key={h} style={{padding:"11px 12px",fontSize:11,fontWeight:700,color:"#6b7280",letterSpacing:"0.03em"}}>{h}</div>
+              <div key={h} style={{padding:"11px 12px",fontSize:11,fontWeight:700,color:"var(--text-secondary)",textTransform:"uppercase",letterSpacing:"0.05em"}}>{h}</div>
             ))}
           </div>
 
@@ -341,24 +327,21 @@ export default function SuperAdminPage() {
             const badge = expiryBadge(c.expires_at);
             const color = avatarBg(c.shop_name);
             return (
-              <div key={c.id}
+              <div key={c.id} className="client-row"
                 style={{display:"grid",gridTemplateColumns:"1fr 150px 60px 200px 80px 200px",
-                  padding:"0 16px",borderBottom:i<filtered.length-1?"1px solid #f3f4f6":"none",
-                  background:"#fff",transition:"background 0.12s"}}
-                onMouseEnter={e=>e.currentTarget.style.background="#f9fafb"}
-                onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+                  padding:"0 16px",borderBottom:i<filtered.length-1?"1px solid var(--border-hard)":"none"}}>
 
                 {/* Shop / Owner */}
-                <div style={{padding:"13px 12px",display:"flex",alignItems:"center",gap:10,minWidth:0}}>
+                <div style={{padding:"14px 12px",display:"flex",alignItems:"center",gap:12,minWidth:0}}>
                   <div style={{width:36,height:36,borderRadius:9,flexShrink:0,
-                    background:c.is_active?color:"#d1d5db",
+                    background:c.is_active?`${color}22`:"var(--bg-elevated)",
                     display:"flex",alignItems:"center",justifyContent:"center",
-                    color:"#fff",fontWeight:700,fontSize:15}}>
+                    color:c.is_active?color:"var(--text-muted)",fontWeight:700,fontSize:15}}>
                     {c.shop_name.charAt(0).toUpperCase()}
                   </div>
                   <div style={{minWidth:0}}>
-                    <div style={{fontWeight:600,fontSize:14,color:"#111827",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.shop_name}</div>
-                    <div style={{fontSize:12,color:"#6b7280",marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                    <div style={{fontWeight:600,fontSize:14,color:"var(--text-primary)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.shop_name}</div>
+                    <div style={{fontSize:12,color:"var(--text-muted)",marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
                       {c.name||"—"} · <span style={{fontFamily:"monospace"}}>@{c.username}</span>
                     </div>
                   </div>
@@ -366,8 +349,8 @@ export default function SuperAdminPage() {
 
                 {/* Shop ID */}
                 <div style={{display:"flex",alignItems:"center",padding:"0 12px",minWidth:0}}>
-                  <span style={{fontSize:12,color:"#374151",fontFamily:"monospace",background:"#f3f4f6",
-                    padding:"4px 8px",borderRadius:5,maxWidth:"100%",
+                  <span style={{fontSize:12,color:"var(--text-secondary)",fontFamily:"monospace",background:"var(--bg-elevated)",
+                    padding:"4px 8px",borderRadius:6,maxWidth:"100%",
                     overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>
                     {c.shop_id}
                   </span>
@@ -375,48 +358,49 @@ export default function SuperAdminPage() {
 
                 {/* Staff */}
                 <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"0 12px"}}>
-                  <span style={{fontSize:13,fontWeight:600,color:"#374151"}}>{c.staff_count||0}</span>
+                  <span style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{c.staff_count||0}</span>
                 </div>
 
                 {/* Expiry */}
-                <div style={{display:"flex",flexDirection:"column",justifyContent:"center",gap:3,padding:"0 12px"}}>
+                <div style={{display:"flex",flexDirection:"column",justifyContent:"center",gap:2,padding:"0 12px"}}>
                   {c.expires_at ? <>
-                    <div style={{display:"flex",alignItems:"center",gap:6}}>
-                      <span style={{width:7,height:7,borderRadius:"50%",background:badge.dot,flexShrink:0}}/>
-                      <span style={{fontSize:12,fontWeight:600,color:badge.text,whiteSpace:"nowrap"}}>{badge.label}</span>
+                    <div style={{display:"flex",alignItems:"center",gap:5}}>
+                      <span style={{width:6,height:6,borderRadius:"50%",background:badge.dot,flexShrink:0}}/>
+                      <span style={{fontSize:12,fontWeight:700,color:badge.color,whiteSpace:"nowrap"}}>{badge.label}</span>
                     </div>
-                    <span style={{fontSize:11,color:"#6b7280"}}>{fmtDate(c.expires_at)} · <span style={{textTransform:"capitalize"}}>{c.plan_type||""}</span></span>
-                  </> : (
-                    <span style={{fontSize:12,color:"#9ca3af"}}>— No plan</span>
-                  )}
+                    <span style={{fontSize:11,color:"var(--text-muted)"}}>{badge.sub} · <span style={{textTransform:"capitalize"}}>{c.plan_type||""}</span></span>
+                  </> : <>
+                    <span style={{fontSize:12,color:"var(--text-muted)",fontWeight:600}}>— No plan</span>
+                    <span style={{fontSize:11,color:"var(--text-muted)"}}>Not subscribed</span>
+                  </>}
                 </div>
 
                 {/* Toggle */}
                 <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"0 12px"}}>
                   <div onClick={()=>toggleActive(c)} style={{cursor:"pointer"}}>
                     <div style={{width:44,height:24,borderRadius:12,position:"relative",transition:"background 0.2s",
-                      background:c.is_active?"#16a34a":"#d1d5db"}}>
+                      background:c.is_active?"#16a34a":"var(--bg-elevated)"}}>
                       <div style={{position:"absolute",top:2,left:c.is_active?22:2,width:20,height:20,borderRadius:"50%",
-                        background:"#fff",boxShadow:"0 1px 3px rgba(0,0,0,0.2)",transition:"left 0.2s"}}/>
+                        background:"#fff",boxShadow:"0 1px 3px rgba(0,0,0,0.25)",transition:"left 0.2s"}}/>
                     </div>
                   </div>
                 </div>
 
                 {/* Actions */}
                 <div style={{display:"flex",alignItems:"center",gap:6,padding:"0 12px"}}>
-                  <button className="act" onClick={()=>{setRenewClient(c);setRenewPlan("monthly");setRenewDate(calcExpiry("monthly",c.expires_at));}}
-                    style={{padding:"6px 11px",border:"1px solid #d1fae5",borderRadius:7,background:"#f0fdf4",
-                      color:"#15803d",fontWeight:600,fontSize:12,display:"flex",alignItems:"center",gap:4,whiteSpace:"nowrap"}}>
+                  <button onClick={()=>{setRenewClient(c);setRenewPlan("monthly");setRenewDate(calcExpiry("monthly",c.expires_at));}}
+                    style={{padding:"6px 11px",border:"1px solid rgba(5,150,105,0.3)",borderRadius:7,background:"rgba(5,150,105,0.1)",
+                      color:"#10b981",fontWeight:600,fontSize:12,display:"flex",alignItems:"center",gap:4,cursor:"pointer",whiteSpace:"nowrap"}}>
                     <RotateCcw size={11}/> Renew
                   </button>
-                  <button className="act" onClick={()=>openEdit(c)}
-                    style={{padding:"6px 11px",border:"1px solid #dbeafe",borderRadius:7,background:"#eff6ff",
-                      color:"#1d4ed8",fontWeight:600,fontSize:12,display:"flex",alignItems:"center",gap:4}}>
+                  <button onClick={()=>openEdit(c)}
+                    style={{padding:"6px 11px",border:"1px solid var(--border-hard)",borderRadius:7,background:"transparent",
+                      color:"var(--text-secondary)",fontWeight:600,fontSize:12,display:"flex",alignItems:"center",gap:4,cursor:"pointer"}}>
                     <Pencil size={11}/> Edit
                   </button>
-                  <button className="act" onClick={()=>setDeleteId(c.id)}
-                    style={{width:30,height:30,border:"1px solid #fecaca",borderRadius:7,background:"#fef2f2",
-                      color:"#dc2626",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <button onClick={()=>setDeleteId(c.id)}
+                    style={{width:30,height:30,border:"1px solid var(--border-hard)",borderRadius:7,background:"transparent",
+                      color:"#ef4444",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
                     <Trash2 size={12}/>
                   </button>
                 </div>
@@ -424,48 +408,49 @@ export default function SuperAdminPage() {
             );
           })}
         </div>
+        </div>
       )}
 
-      {/* ─── EDIT MODAL ─── */}
+      {/* Edit modal */}
       {editClient&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.6)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setEditClient(null)}>
-          <div style={{background:"#fff",borderRadius:20,width:"100%",maxWidth:480,boxShadow:"0 32px 80px rgba(0,0,0,0.25)",overflow:"hidden",animation:"pop 0.2s ease both"}} onClick={e=>e.stopPropagation()}>
-            <div style={{background:"linear-gradient(135deg,#1e1b4b,#4c1d95)",padding:"20px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setEditClient(null)}>
+          <div style={{background:"var(--bg-card)",borderRadius:16,width:"100%",maxWidth:480,border:"1px solid var(--border-hard)",overflow:"hidden"}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"20px 24px",borderBottom:"1px solid var(--border-hard)"}}>
               <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:40,height:40,borderRadius:11,background:`linear-gradient(135deg,${avatarBg(editClient.shop_name)},${avatarBg(editClient.shop_name)}99)`,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:800,fontSize:18}}>
+                <div style={{width:38,height:38,borderRadius:10,background:`${avatarBg(editClient.shop_name)}22`,display:"flex",alignItems:"center",justifyContent:"center",color:avatarBg(editClient.shop_name),fontWeight:800,fontSize:16}}>
                   {editClient.shop_name.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <div style={{color:"#fff",fontWeight:800,fontSize:15}}>Edit Client</div>
-                  <div style={{color:"rgba(255,255,255,0.4)",fontSize:12,marginTop:1}}>{editClient.shop_name}</div>
+                  <div style={{color:"var(--text-primary)",fontWeight:800,fontSize:15}}>Edit client</div>
+                  <div style={{color:"var(--text-muted)",fontSize:12,marginTop:1}}>{editClient.shop_name}</div>
                 </div>
               </div>
-              <button onClick={()=>setEditClient(null)} style={{width:32,height:32,background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                <X size={15} color="#fff"/>
+              <button onClick={()=>setEditClient(null)} style={{width:32,height:32,background:"var(--bg-elevated)",border:"none",borderRadius:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <X size={15} color="var(--text-secondary)"/>
               </button>
             </div>
             <div style={{padding:24}}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-                <div><div style={lbl}>Shop Name *</div><input style={inp} value={editForm.shop_name} onChange={e=>setEditForm(f=>({...f,shop_name:e.target.value}))} placeholder="Shop name"/></div>
-                <div><div style={lbl}>Shop ID *</div><input style={inp} value={editForm.shop_id} onChange={e=>setEditForm(f=>({...f,shop_id:e.target.value}))} placeholder="Shop ID"/></div>
-                <div><div style={lbl}>Username *</div><input style={inp} value={editForm.username} onChange={e=>setEditForm(f=>({...f,username:e.target.value}))} placeholder="Username"/></div>
-                <div><div style={lbl}>Owner Name</div><input style={inp} value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} placeholder="Owner name"/></div>
+                <div><label style={lbl}>Shop Name *</label><input style={inp} value={editForm.shop_name} onChange={e=>setEditForm(f=>({...f,shop_name:e.target.value}))} placeholder="Shop name"/></div>
+                <div><label style={lbl}>Shop ID *</label><input style={inp} value={editForm.shop_id} onChange={e=>setEditForm(f=>({...f,shop_id:e.target.value}))} placeholder="Shop ID"/></div>
+                <div><label style={lbl}>Username *</label><input style={inp} value={editForm.username} onChange={e=>setEditForm(f=>({...f,username:e.target.value}))} placeholder="Username"/></div>
+                <div><label style={lbl}>Owner Name</label><input style={inp} value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} placeholder="Owner name"/></div>
                 <div style={{gridColumn:"1 / -1"}}>
-                  <div style={lbl}><KeyRound size={11} style={{display:"inline",marginRight:4}}/>New Password <span style={{fontWeight:400,textTransform:"none",color:"#94a3b8"}}>(blank = keep current)</span></div>
+                  <label style={lbl}><KeyRound size={11} style={{display:"inline",marginRight:4}}/>New Password <span style={{fontWeight:400,color:"var(--text-muted)"}}>— blank = keep current</span></label>
                   <div style={{position:"relative"}}>
                     <input type={showEditPass?"text":"password"} placeholder="Enter new password to change"
                       value={editForm.password} onChange={e=>setEditForm(f=>({...f,password:e.target.value}))}
                       style={{...inp,paddingRight:42}}/>
                     <button onClick={()=>setShowEditPass(v=>!v)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",display:"flex",padding:2}}>
-                      {showEditPass?<EyeOff size={16} color="#94a3b8"/>:<Eye size={16} color="#94a3b8"/>}
+                      {showEditPass?<EyeOff size={16} color="var(--text-muted)"/>:<Eye size={16} color="var(--text-muted)"/>}
                     </button>
                   </div>
                 </div>
               </div>
               <div style={{display:"flex",gap:10,marginTop:20}}>
-                <button onClick={()=>setEditClient(null)} style={{flex:1,padding:"11px",border:"1.5px solid #e2e8f0",borderRadius:10,background:"#f8fafc",fontWeight:600,fontSize:14,cursor:"pointer",color:"#64748b"}}>Cancel</button>
-                <button onClick={saveEdit} disabled={editSaving} style={{flex:2,padding:"11px",border:"none",borderRadius:10,background:"linear-gradient(135deg,#4c1d95,#7c3aed)",color:"#fff",fontWeight:700,fontSize:14,cursor:editSaving?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:editSaving?0.7:1,boxShadow:"0 4px 14px rgba(124,58,237,0.28)"}}>
-                  <Check size={15}/>{editSaving?"Saving…":"Save Changes"}
+                <button onClick={()=>setEditClient(null)} style={{flex:1,padding:"11px",border:"1px solid var(--border-hard)",borderRadius:10,background:"transparent",fontWeight:600,fontSize:14,cursor:"pointer",color:"var(--text-secondary)"}}>Cancel</button>
+                <button onClick={saveEdit} disabled={editSaving} style={{flex:2,padding:"11px",border:"none",borderRadius:10,background:editSaving?"var(--bg-elevated)":"#2563eb",color:editSaving?"var(--text-muted)":"#fff",fontWeight:700,fontSize:14,cursor:editSaving?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:editSaving?0.7:1}}>
+                  <Check size={15}/>{editSaving?"Saving…":"Save changes"}
                 </button>
               </div>
             </div>
@@ -473,57 +458,59 @@ export default function SuperAdminPage() {
         </div>
       )}
 
-      {/* ─── RENEW MODAL ─── */}
+      {/* Renew modal */}
       {renewClient&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.6)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setRenewClient(null)}>
-          <div style={{background:"#fff",borderRadius:20,width:"100%",maxWidth:400,boxShadow:"0 32px 80px rgba(0,0,0,0.25)",overflow:"hidden",animation:"pop 0.2s ease both"}} onClick={e=>e.stopPropagation()}>
-            <div style={{background:"linear-gradient(135deg,#064e3b,#065f46)",padding:"20px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setRenewClient(null)}>
+          <div style={{background:"var(--bg-card)",borderRadius:16,width:"100%",maxWidth:400,border:"1px solid var(--border-hard)",overflow:"hidden"}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"20px 24px",borderBottom:"1px solid var(--border-hard)"}}>
               <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:40,height:40,borderRadius:11,background:"rgba(255,255,255,0.12)",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                  <CalendarClock size={20} color="#fff"/>
+                <div style={{width:38,height:38,borderRadius:10,background:"rgba(5,150,105,0.15)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  <CalendarClock size={18} color="#10b981"/>
                 </div>
                 <div>
-                  <div style={{color:"#fff",fontWeight:800,fontSize:15}}>Renew Subscription</div>
-                  <div style={{color:"rgba(255,255,255,0.5)",fontSize:12,marginTop:1}}>{renewClient.shop_name}</div>
+                  <div style={{color:"var(--text-primary)",fontWeight:800,fontSize:15}}>Renew subscription</div>
+                  <div style={{color:"var(--text-muted)",fontSize:12,marginTop:1}}>{renewClient.shop_name}</div>
                 </div>
               </div>
-              <button onClick={()=>setRenewClient(null)} style={{width:32,height:32,background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                <X size={15} color="#fff"/>
+              <button onClick={()=>setRenewClient(null)} style={{width:32,height:32,background:"var(--bg-elevated)",border:"none",borderRadius:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <X size={15} color="var(--text-secondary)"/>
               </button>
             </div>
             <div style={{padding:24}}>
-              <div style={{background:"#f8fafc",borderRadius:11,padding:"12px 14px",marginBottom:18,border:"1px solid #f1f5f9",fontSize:13,color:"#64748b"}}>
+              <div style={{background:"var(--bg-elevated)",borderRadius:10,padding:"12px 14px",marginBottom:16,border:"1px solid var(--border-hard)",fontSize:13,color:"var(--text-secondary)"}}>
                 Current: {renewClient.expires_at
-                  ? <><b style={{color:expiryBadge(renewClient.expires_at).text}}>{expiryBadge(renewClient.expires_at).label}</b> · {new Date(renewClient.expires_at).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})}</>
-                  : <span style={{color:"#94a3b8"}}>No plan set</span>}
+                  ? <><b style={{color:expiryBadge(renewClient.expires_at).color}}>{expiryBadge(renewClient.expires_at).label}</b> · {new Date(renewClient.expires_at).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})}</>
+                  : <span style={{color:"var(--text-muted)"}}>No plan set</span>}
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
                 {([["monthly","Monthly","30 days"],["yearly","Yearly","365 days"]] as const).map(([val,label,sub])=>(
                   <div key={val} onClick={()=>{setRenewPlan(val);setRenewDate(calcExpiry(val,renewClient.expires_at));}}
-                    style={{padding:"13px 14px",borderRadius:11,cursor:"pointer",transition:"all 0.15s",
-                      background:renewPlan===val?"linear-gradient(135deg,#064e3b,#065f46)":"#f8fafc",
-                      border:`2px solid ${renewPlan===val?"#059669":"#e2e8f0"}`,
-                      boxShadow:renewPlan===val?"0 4px 12px rgba(5,150,105,0.2)":"none"}}>
-                    <div style={{fontWeight:800,fontSize:13,color:renewPlan===val?"#fff":"#1e1b4b"}}>{label}</div>
-                    <div style={{fontSize:11,color:renewPlan===val?"rgba(255,255,255,0.6)":"#94a3b8",marginTop:2}}>{sub}</div>
+                    style={{padding:"13px 14px",borderRadius:10,cursor:"pointer",transition:"all 0.15s",
+                      background:renewPlan===val?"rgba(5,150,105,0.15)":"var(--bg-input)",
+                      border:`2px solid ${renewPlan===val?"#10b981":"var(--border-hard)"}`,
+                      boxShadow:renewPlan===val?"0 4px 12px rgba(5,150,105,0.15)":"none"}}>
+                    <div style={{fontWeight:700,fontSize:13,color:renewPlan===val?"#10b981":"var(--text-primary)"}}>{label}</div>
+                    <div style={{fontSize:11,color:"var(--text-muted)",marginTop:2}}>{sub}</div>
                   </div>
                 ))}
               </div>
               <div style={{marginBottom:16}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:7}}>
-                  Expiry Date <span style={{fontWeight:400,textTransform:"none",color:"#94a3b8"}}>— auto ya khud set karo</span>
-                </div>
+                <label style={{...lbl,marginBottom:7}}>Expiry Date</label>
                 <input type="date" value={renewDate} min={new Date().toISOString().slice(0,10)}
                   onChange={e=>setRenewDate(e.target.value)}
-                  style={{width:"100%",padding:"11px 14px",border:"2px solid #059669",borderRadius:10,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box",background:"#f0fdf4",color:"#064e3b",cursor:"pointer"}}/>
-                {renewDate&&<div style={{marginTop:6,fontSize:12,color:"#059669",fontWeight:600}}>
+                  style={{...inp,cursor:"pointer",
+                    border:"2px solid #10b981",
+                    background:"rgba(5,150,105,0.08)",
+                    color:"#10b981",fontWeight:700}}/>
+                {renewDate&&<div style={{marginTop:6,fontSize:12,color:"#10b981",fontWeight:600}}>
                   ✓ {new Date(renewDate+"T00:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"2-digit",month:"long",year:"numeric"})}
                 </div>}
               </div>
               <div style={{display:"flex",gap:10}}>
-                <button onClick={()=>setRenewClient(null)} style={{flex:1,padding:"11px",border:"1.5px solid #e2e8f0",borderRadius:10,background:"#f8fafc",fontWeight:600,fontSize:14,cursor:"pointer",color:"#64748b"}}>Cancel</button>
-                <button onClick={renewSubscription} disabled={renewSaving} style={{flex:2,padding:"11px",border:"none",borderRadius:10,background:"linear-gradient(135deg,#064e3b,#059669)",color:"#fff",fontWeight:700,fontSize:14,cursor:renewSaving?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:renewSaving?0.7:1,boxShadow:"0 4px 14px rgba(5,150,105,0.3)"}}>
-                  <RotateCcw size={14}/>{renewSaving?"Renewing…":"Confirm Renewal"}
+                <button onClick={()=>setRenewClient(null)} style={{flex:1,padding:"11px",border:"1px solid var(--border-hard)",borderRadius:10,background:"transparent",fontWeight:600,fontSize:14,cursor:"pointer",color:"var(--text-secondary)"}}>Cancel</button>
+                <button onClick={renewSubscription} disabled={renewSaving}
+                  style={{flex:2,padding:"11px",border:"none",borderRadius:10,background:renewSaving?"var(--bg-elevated)":"rgba(5,150,105,0.9)",color:renewSaving?"var(--text-muted)":"#fff",fontWeight:700,fontSize:14,cursor:renewSaving?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:renewSaving?0.7:1}}>
+                  <RotateCcw size={14}/>{renewSaving?"Renewing…":"Confirm renewal"}
                 </button>
               </div>
             </div>
@@ -531,18 +518,18 @@ export default function SuperAdminPage() {
         </div>
       )}
 
-      {/* ─── DELETE MODAL ─── */}
+      {/* Delete modal */}
       {deleteId&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.6)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setDeleteId(null)}>
-          <div style={{background:"#fff",borderRadius:20,padding:28,maxWidth:340,width:"100%",boxShadow:"0 32px 80px rgba(0,0,0,0.22)",animation:"pop 0.2s ease both",textAlign:"center"}} onClick={e=>e.stopPropagation()}>
-            <div style={{width:56,height:56,borderRadius:16,background:"#fef2f2",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}>
-              <Trash2 size={26} color="#dc2626"/>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setDeleteId(null)}>
+          <div style={{background:"var(--bg-card)",borderRadius:16,padding:28,maxWidth:340,width:"100%",border:"1px solid var(--border-hard)",textAlign:"center"}} onClick={e=>e.stopPropagation()}>
+            <div style={{width:52,height:52,borderRadius:14,background:"rgba(239,68,68,0.1)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}>
+              <Trash2 size={24} color="#ef4444"/>
             </div>
-            <div style={{fontWeight:800,fontSize:17,color:"#0f172a",marginBottom:8}}>Remove Client?</div>
-            <div style={{fontSize:13,color:"#64748b",lineHeight:1.6,marginBottom:22}}>Login access will be removed. Customer data stays in the database.</div>
+            <div style={{fontWeight:800,fontSize:17,color:"var(--text-primary)",marginBottom:8}}>Remove client?</div>
+            <div style={{fontSize:13,color:"var(--text-muted)",lineHeight:1.6,marginBottom:22}}>Login access will be removed. Customer data stays in the database.</div>
             <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setDeleteId(null)} style={{flex:1,padding:"11px",border:"1.5px solid #e2e8f0",borderRadius:10,background:"#f8fafc",fontWeight:600,fontSize:14,cursor:"pointer",color:"#475569"}}>Cancel</button>
-              <button onClick={()=>deleteClient(deleteId)} style={{flex:1,padding:"11px",border:"none",borderRadius:10,background:"linear-gradient(135deg,#ef4444,#dc2626)",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",boxShadow:"0 4px 12px rgba(239,68,68,0.3)"}}>Remove</button>
+              <button onClick={()=>setDeleteId(null)} style={{flex:1,padding:"11px",border:"1px solid var(--border-hard)",borderRadius:10,background:"transparent",fontWeight:600,fontSize:14,cursor:"pointer",color:"var(--text-secondary)"}}>Cancel</button>
+              <button onClick={()=>deleteClient(deleteId)} style={{flex:1,padding:"11px",border:"none",borderRadius:10,background:"#ef4444",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer"}}>Remove</button>
             </div>
           </div>
         </div>

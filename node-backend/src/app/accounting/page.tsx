@@ -102,10 +102,10 @@ function MonthYearPicker({ month, year, onChange }: { month: number; year: numbe
   return (
     <>
       <button ref={btnRef} onClick={openPicker}
-        style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.15)", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-        <CalendarDays size={15} />
+        style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", borderRadius: 10, border: "1.5px solid var(--border-hard,#e2e8f0)", background: "var(--bg-card,#fff)", color: "var(--text-primary,#0f172a)", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+        <CalendarDays size={15} color="#1d4ed8"/>
         {MONTH_SHORT[month - 1]} {year}
-        <ChevronDown size={14} style={{ opacity: 0.7 }} />
+        <ChevronDown size={14} style={{ opacity: 0.4 }} />
       </button>
       {mounted && dropdown && createPortal(dropdown, document.body)}
     </>
@@ -217,58 +217,49 @@ export default function AccountingPage() {
         .exp-row{transition:all 0.15s}
         .exp-row:hover{box-shadow:0 4px 16px rgba(0,0,0,0.1)!important;transform:translateY(-1px)}
         .day-row{transition:background 0.15s;cursor:pointer}
-        .day-row:hover{background:#f8fafc!important}
+        .day-row:hover{background:var(--pressed)!important}
       `}</style>
 
       {/* ── HEADER ── */}
-      <div style={{animation:"fadeUp 0.3s ease both",background:"linear-gradient(135deg,#0f172a 0%,#1e3a8a 55%,#2563eb 100%)",borderRadius:20,padding:"24px 28px",marginBottom:20,color:"#fff",boxShadow:"0 8px 32px rgba(29,78,216,0.22)"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
-          <div style={{display:"flex",alignItems:"center",gap:14}}>
-            <div style={{width:50,height:50,borderRadius:14,background:"rgba(255,255,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",border:"1px solid rgba(255,255,255,0.2)"}}>
-              <Wallet size={24}/>
-            </div>
-            <div>
-              <div style={{fontWeight:800,fontSize:22,letterSpacing:-0.3}}>Accounting</div>
-              <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:2}}>{MONTH_NAMES[month-1]} {year} — Income, expenses & daily report</div>
-            </div>
-          </div>
-          <MonthYearPicker month={month} year={year} onChange={(m,y)=>{ setMonth(m); setYear(y); }} />
+      <div style={{animation:"fadeUp 0.3s ease both",marginBottom:20,display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}}>BOOKS</div>
+          <h2 style={{fontWeight:900,fontSize:26,color:"var(--text-primary,#0f172a)",margin:"0 0 4px",letterSpacing:-0.5}}>Accounting</h2>
+          <p style={{fontSize:13,color:"#94a3b8",margin:0}}>{MONTH_NAMES[month-1]} {year} — income, expenses & daily report</p>
         </div>
+        <MonthYearPicker month={month} year={year} onChange={(m,y)=>{ setMonth(m); setYear(y); }} />
       </div>
 
       {/* ── 3 SUMMARY CARDS ── */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14,marginBottom:20}}>
         {[
-          {label:"Total Income",  value:income,          icon:<TrendingUp size={20}/>,   color:"#059669",valColor:"#059669",bg:"linear-gradient(135deg,#f0fdf4,#dcfce7)",border:"#a7f3d0"},
-          {label:"Total Expense", value:totalExp,        icon:<TrendingDown size={20}/>, color:"#dc2626",valColor:"#dc2626",bg:"linear-gradient(135deg,#fef2f2,#fee2e2)",border:"#fca5a5"},
-          {label:profit>=0?"Net Profit":"Net Loss",value:Math.abs(profit),icon:<IndianRupee size={20}/>,color:profit>=0?"#1d4ed8":"#dc2626",valColor:profit>=0?"#1d4ed8":"#dc2626",bg:profit>=0?"linear-gradient(135deg,#eff6ff,#dbeafe)":"linear-gradient(135deg,#fef2f2,#fee2e2)",border:profit>=0?"#93c5fd":"#fca5a5"},
+          {label:"Total income",  value:income,       icon:<TrendingUp size={18}/>,   accent:"#22c55e", sub:`${MONTH_SHORT[month-1]} ${year}`},
+          {label:"Total expense", value:totalExp,     icon:<TrendingDown size={18}/>, accent:"#ef4444", sub:`${expenses.length} record${expenses.length!==1?"s":""}`},
+          {label:profit>=0?"Net profit":"Net loss",value:Math.abs(profit),icon:<TrendingUp size={18}/>,accent:profit>=0?"#3b82f6":"#ef4444", sub:income>0?`${Math.round((profit/income)*100)}% margin`:"—"},
         ].map((c,i)=>(
-          <div key={i} style={{animation:`fadeUp 0.3s ease ${i*0.07}s both`,background:c.bg,border:`1.5px solid ${c.border}`,borderRadius:16,padding:"20px",boxShadow:"0 2px 12px rgba(0,0,0,0.05)"}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-              <span style={{fontSize:13,fontWeight:600,color:"#475569"}}>{c.label}</span>
-              <div style={{width:36,height:36,borderRadius:10,background:"rgba(255,255,255,0.8)",display:"flex",alignItems:"center",justifyContent:"center",color:c.color}}>
-                {c.icon}
-              </div>
+          <div key={i} style={{animation:`fadeUp 0.3s ease ${i*0.07}s both`,background:"var(--bg-card,#fff)",borderLeft:`3.5px solid ${c.accent}`,borderTop:"1px solid var(--border-hard)",borderRight:"1px solid var(--border-hard)",borderBottom:"1px solid var(--border-hard)",borderRadius:14,padding:"18px 20px",boxShadow:"0 2px 10px rgba(0,0,0,0.05)"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+              <span style={{fontSize:12,fontWeight:600,color:"#94a3b8"}}>{c.label}</span>
+              <div style={{color:c.accent,opacity:0.8}}>{c.icon}</div>
             </div>
-            <div style={{fontSize:28,fontWeight:900,color:c.valColor,letterSpacing:-0.5}}>₹{c.value.toLocaleString("en-IN")}</div>
-            <div style={{fontSize:11,color:"#94a3b8",marginTop:4,fontWeight:500}}>{MONTH_SHORT[month-1]} {year}</div>
+            <div style={{fontSize:26,fontWeight:900,color:c.accent,letterSpacing:-0.5}}>₹{c.value.toLocaleString("en-IN")}</div>
+            <div style={{fontSize:11,color:"#94a3b8",marginTop:5,fontWeight:500}}>{c.sub}</div>
           </div>
         ))}
       </div>
 
       {/* ── TABS ── */}
-      <div style={{display:"flex",background:"#e2e8f0",borderRadius:14,padding:4,marginBottom:20,gap:4}}>
+      <div style={{display:"flex",gap:8,marginBottom:20}}>
         {([
-          {key:"expenses",label:"Expenses",         icon:<TrendingDown size={16}/>},
-          {key:"daywise", label:"Day Wise Report",  icon:<CalendarDays size={16}/>},
+          {key:"expenses",label:"Expenses"},
+          {key:"daywise", label:"Day-wise report"},
         ] as const).map(t=>(
           <button key={t.key} className="acc-tab" onClick={()=>setTab(t.key)}
-            style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"12px 20px",borderRadius:11,border:"none",cursor:"pointer",fontWeight:700,fontSize:14,
-              background:tab===t.key?"#fff":"transparent",
-              color:tab===t.key?"#1d4ed8":"#64748b",
-              boxShadow:tab===t.key?"0 2px 12px rgba(0,0,0,0.10)":"none",
+            style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"9px 20px",borderRadius:20,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,
+              background:tab===t.key?"#2563eb":"var(--bg-input,#f1f5f9)",
+              color:tab===t.key?"#fff":"var(--text-secondary)",
+              transition:"all 0.15s",
             }}>
-            <span style={{color:tab===t.key?"#1d4ed8":"#94a3b8",display:"flex"}}>{t.icon}</span>
             {t.label}
           </button>
         ))}
@@ -277,7 +268,7 @@ export default function AccountingPage() {
       {/* toast */}
       {msg&&(
         <div style={{animation:"slideIn 0.2s ease both",padding:"12px 18px",borderRadius:12,marginBottom:16,fontSize:14,fontWeight:600,
-          background:msg.ok?"#f0fdf4":"#fef2f2",color:msg.ok?"#16a34a":"#dc2626",border:`1.5px solid ${msg.ok?"#86efac":"#fca5a5"}`}}>
+          background:msg.ok?"rgba(5,150,105,0.1)":"rgba(239,68,68,0.1)",color:msg.ok?"#10b981":"#ef4444",border:`1px solid ${msg.ok?"rgba(5,150,105,0.25)":"rgba(239,68,68,0.25)"}`}}>
           {msg.ok?"✓ ":"✕ "}{msg.text}
         </div>
       )}
@@ -287,8 +278,8 @@ export default function AccountingPage() {
         <div style={{animation:"fadeUp 0.25s ease both"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div>
-              <div style={{fontWeight:800,fontSize:16,color:"#0f172a"}}>Expenses</div>
-              <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>{expenses.length} record{expenses.length!==1?"s":""} this month</div>
+              <div style={{fontWeight:800,fontSize:16,color:"var(--text-primary)"}}>Expenses</div>
+              <div style={{fontSize:12,color:"var(--text-muted)",marginTop:2}}>{expenses.length} record{expenses.length!==1?"s":""} this month</div>
             </div>
             <button onClick={()=>{setShowForm(v=>!v);setEditId(null);setForm(emptyForm);}}
               style={{display:"flex",alignItems:"center",gap:8,padding:"10px 20px",background:"linear-gradient(135deg,#1e3a8a,#2563eb)",color:"#fff",border:"none",borderRadius:12,fontWeight:700,fontSize:14,cursor:"pointer",boxShadow:"0 4px 14px rgba(29,78,216,0.28)"}}>
@@ -298,48 +289,49 @@ export default function AccountingPage() {
 
           {/* Add/Edit Form */}
           {showForm&&(
-            <div style={{animation:"slideIn 0.2s ease both",background:"#fff",borderRadius:16,padding:22,marginBottom:18,boxShadow:"0 8px 30px rgba(0,0,0,0.10)",border:"1.5px solid #e2e8f0"}}>
+            <div style={{animation:"slideIn 0.2s ease both",background:"var(--bg-card)",borderRadius:16,padding:22,marginBottom:18,boxShadow:"0 8px 30px rgba(0,0,0,0.10)",border:"1.5px solid var(--border-hard)"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
                 <div>
-                  <div style={{fontWeight:800,fontSize:16,color:"#0f172a"}}>{editId?"Edit Expense":"New Expense"}</div>
-                  <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>Fill in the expense details below</div>
+                  <div style={{fontWeight:800,fontSize:16,color:"var(--text-primary)"}}>{editId?"Edit Expense":"New Expense"}</div>
+                  <div style={{fontSize:12,color:"var(--text-muted)",marginTop:2}}>Fill in the expense details below</div>
                 </div>
                 <button onClick={()=>{setShowForm(false);setEditId(null);setForm(emptyForm);}}
-                  style={{width:34,height:34,background:"#f1f5f9",border:"none",borderRadius:9,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                  <X size={16} color="#64748b"/>
+                  style={{width:34,height:34,background:"var(--bg-input)",border:"none",borderRadius:9,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  <X size={16} color="var(--text-secondary)"/>
                 </button>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
                 <div>
-                  <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>Date *</div>
+                  <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>Date *</div>
                   <input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}
-                    style={{width:"100%",padding:"11px 14px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:14,outline:"none",boxSizing:"border-box",background:"#f8fafc"}}/>
+                    style={{width:"100%",padding:"11px 14px",border:"1.5px solid var(--border-hard)",borderRadius:10,fontSize:14,outline:"none",boxSizing:"border-box",background:"var(--bg-input)",color:"var(--text-primary)"}}/>
                 </div>
                 <div>
-                  <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>Amount (₹) *</div>
+                  <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>Amount (₹) *</div>
                   <input type="number" placeholder="0" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}
-                    style={{width:"100%",padding:"11px 14px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:14,outline:"none",boxSizing:"border-box",background:"#f8fafc"}}/>
+                    style={{width:"100%",padding:"11px 14px",border:"1.5px solid var(--border-hard)",borderRadius:10,fontSize:14,outline:"none",boxSizing:"border-box",background:"var(--bg-input)",color:"var(--text-primary)"}}/>
                 </div>
                 <div>
-                  <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>Category *</div>
+                  <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>Category *</div>
                   <select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}
-                    style={{width:"100%",padding:"11px 14px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:14,outline:"none",boxSizing:"border-box",background:"#f8fafc"}}>
+                    style={{width:"100%",padding:"11px 14px",border:"1.5px solid var(--border-hard)",borderRadius:10,fontSize:14,outline:"none",boxSizing:"border-box",background:"var(--bg-input)",color:"var(--text-primary)"}}>
                     {CATEGORIES.map(c=><option key={c}>{c}</option>)}
                   </select>
                 </div>
                 <div>
-                  <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>Description</div>
+                  <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>Description</div>
                   <input type="text" placeholder="Optional note" value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))}
-                    style={{width:"100%",padding:"11px 14px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:14,outline:"none",boxSizing:"border-box",background:"#f8fafc"}}/>
+                    style={{width:"100%",padding:"11px 14px",border:"1.5px solid var(--border-hard)",borderRadius:10,fontSize:14,outline:"none",boxSizing:"border-box",background:"var(--bg-input)",color:"var(--text-primary)"}}/>
                 </div>
               </div>
-              <div style={{display:"flex",gap:10,marginTop:18}}>
+              {/* Action buttons — right-aligned row */}
+              <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:18}}>
                 <button onClick={()=>{setShowForm(false);setEditId(null);setForm(emptyForm);}}
-                  style={{flex:1,padding:"11px",border:"1.5px solid #e2e8f0",borderRadius:10,background:"#f8fafc",fontWeight:600,fontSize:14,cursor:"pointer",color:"#64748b"}}>
+                  style={{padding:"10px 22px",border:"1.5px solid var(--border-hard)",borderRadius:9,background:"var(--bg-input)",fontWeight:600,fontSize:14,cursor:"pointer",color:"var(--text-secondary)"}}>
                   Cancel
                 </button>
                 <button onClick={save} disabled={saving}
-                  style={{flex:2,padding:"11px",border:"none",borderRadius:10,background:"linear-gradient(135deg,#1e3a8a,#2563eb)",color:"#fff",fontWeight:700,fontSize:14,cursor:saving?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:saving?0.7:1,boxShadow:"0 4px 14px rgba(29,78,216,0.28)"}}>
+                  style={{padding:"10px 28px",border:"none",borderRadius:9,fontWeight:700,fontSize:14,cursor:saving?"not-allowed":"pointer",display:"flex",alignItems:"center",gap:8,background:saving?"var(--bg-elevated)":"#2563eb",color:saving?"var(--text-muted)":"#fff",boxShadow:saving?"none":"0 4px 14px rgba(37,99,235,0.32)",opacity:saving?0.55:1}}>
                   <Check size={16}/> {saving?"Saving…":editId?"Update Expense":"Add Expense"}
                 </button>
               </div>
@@ -347,42 +339,41 @@ export default function AccountingPage() {
           )}
 
           {/* List + Breakdown */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 280px",gap:18,alignItems:"start"}}>
+          <div className="acct-expense-grid" style={{display:"grid",gridTemplateColumns:"1fr 280px",gap:18,alignItems:"start"}}>
             <div>
               {loading?(
-                <div style={{background:"#fff",borderRadius:16,padding:60,textAlign:"center",color:"#94a3b8",border:"1.5px solid #e2e8f0"}}>Loading…</div>
+                <div style={{background:"var(--bg-card)",borderRadius:16,padding:60,textAlign:"center",color:"var(--text-muted)",border:"1.5px solid var(--border-hard)"}}>Loading…</div>
               ):expenses.length===0?(
-                <div style={{background:"#fff",borderRadius:16,padding:"60px 20px",textAlign:"center",border:"1.5px dashed #e2e8f0"}}>
-                  <div style={{width:56,height:56,borderRadius:16,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
-                    <Wallet size={26} color="#cbd5e1"/>
+                <div style={{background:"var(--bg-card)",borderRadius:16,padding:"60px 20px",textAlign:"center",border:"1.5px dashed var(--border-hard)"}}>
+                  <div style={{width:56,height:56,borderRadius:16,background:"var(--bg-elevated)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
+                    <Wallet size={26} color="var(--text-muted)"/>
                   </div>
-                  <div style={{fontWeight:700,fontSize:15,color:"#94a3b8",marginBottom:6}}>No expenses this month</div>
-                  <div style={{fontSize:13,color:"#cbd5e1"}}>Click &ldquo;Add Expense&rdquo; to record one</div>
+                  <div style={{fontWeight:700,fontSize:15,color:"var(--text-muted)",marginBottom:6}}>No expenses this month</div>
+                  <div style={{fontSize:13,color:"var(--text-muted)"}}>Click &ldquo;Add Expense&rdquo; to record one</div>
                 </div>
               ):(
-                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
                   {expenses.map((exp,i)=>(
                     <div key={exp.id} className="exp-row"
-                      style={{animation:`fadeUp 0.25s ease ${i*0.04}s both`,background:"#fff",borderRadius:14,padding:"14px 18px",boxShadow:"0 2px 8px rgba(0,0,0,0.04)",border:"1.5px solid #f1f5f9",display:"flex",alignItems:"center",gap:14}}>
-                      <div style={{width:40,height:40,borderRadius:12,background:(CAT_COLORS[exp.category]||"#64748b")+"18",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                        <div style={{width:10,height:10,borderRadius:"50%",background:CAT_COLORS[exp.category]||"#64748b"}}/>
+                      style={{animation:`fadeUp 0.25s ease ${i*0.04}s both`,background:"var(--bg-card,#fff)",borderRadius:12,padding:"13px 16px",boxShadow:"0 1px 6px rgba(0,0,0,0.04)",border:"1px solid var(--border-hard)",display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{width:42,height:42,borderRadius:12,background:"rgba(239,68,68,0.12)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#ef4444"}}>
+                        <TrendingDown size={18}/>
                       </div>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{display:"flex",alignItems:"center",gap:8}}>
-                          <span style={{fontWeight:700,fontSize:14,color:"#0f172a"}}>{exp.category}</span>
-                          {exp.description&&<span style={{fontSize:12,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>— {exp.description}</span>}
+                        <div style={{fontWeight:700,fontSize:14,color:"var(--text-primary,#0f172a)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                          {exp.description||exp.category}
                         </div>
-                        <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>{fmt(exp.date)}</div>
+                        <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>{new Date(exp.date+"T00:00:00").toLocaleDateString("en-IN",{day:"2-digit",month:"short"})}</div>
                       </div>
-                      <div style={{fontWeight:800,fontSize:16,color:"#dc2626",flexShrink:0}}>₹{Number(exp.amount).toLocaleString("en-IN")}</div>
-                      <div style={{display:"flex",gap:6,flexShrink:0}}>
+                      <div style={{fontWeight:800,fontSize:15,color:"#ef4444",flexShrink:0}}>₹{Number(exp.amount).toLocaleString("en-IN")}</div>
+                      <div style={{display:"flex",gap:5,flexShrink:0}}>
                         <button onClick={()=>openEdit(exp)}
-                          style={{width:34,height:34,background:"#eff6ff",border:"1.5px solid #bfdbfe",borderRadius:9,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#1d4ed8"}}>
-                          <Pencil size={14}/>
+                          style={{width:30,height:30,background:"transparent",border:"1px solid var(--border-hard)",borderRadius:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#94a3b8"}}>
+                          <Pencil size={13}/>
                         </button>
                         <button onClick={()=>setDeleteId(exp.id)}
-                          style={{width:34,height:34,background:"#fef2f2",border:"1.5px solid #fecaca",borderRadius:9,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#dc2626"}}>
-                          <Trash2 size={14}/>
+                          style={{width:30,height:30,background:"transparent",border:"1px solid var(--border-hard)",borderRadius:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#94a3b8"}}>
+                          <Trash2 size={13}/>
                         </button>
                       </div>
                     </div>
@@ -392,10 +383,10 @@ export default function AccountingPage() {
             </div>
 
             {/* Category Breakdown */}
-            <div style={{background:"#fff",borderRadius:16,border:"1.5px solid #e2e8f0",overflow:"hidden",position:"sticky",top:20}}>
-              <div style={{padding:"16px 18px",borderBottom:"1px solid #f1f5f9",background:"linear-gradient(135deg,#f8fafc,#f1f5f9)"}}>
-                <div style={{fontWeight:800,fontSize:15,color:"#0f172a"}}>By Category</div>
-                <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>{byCategory.length} used this month</div>
+            <div style={{background:"var(--bg-card,#fff)",borderRadius:14,border:"1px solid var(--border-hard)",overflow:"hidden",position:"sticky",top:20,boxShadow:"0 2px 10px rgba(0,0,0,0.05)"}}>
+              <div style={{padding:"14px 18px",borderBottom:"1px solid var(--border-hard)"}}>
+                <div style={{fontWeight:800,fontSize:14,color:"var(--text-primary,#0f172a)"}}>By category</div>
+                <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>{byCategory.length} categories used</div>
               </div>
               {byCategory.length===0?(
                 <div style={{padding:"36px 20px",textAlign:"center",color:"#cbd5e1",fontSize:13,fontWeight:500}}>No expense data yet</div>
@@ -404,16 +395,12 @@ export default function AccountingPage() {
                   {byCategory.map(({cat,total})=>(
                     <div key={cat} style={{padding:"10px 18px"}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                        <div style={{display:"flex",alignItems:"center",gap:8}}>
-                          <div style={{width:9,height:9,borderRadius:"50%",background:CAT_COLORS[cat]||"#64748b",flexShrink:0}}/>
-                          <span style={{fontWeight:600,fontSize:13,color:"#0f172a"}}>{cat}</span>
-                        </div>
-                        <span style={{fontWeight:700,fontSize:13,color:"#dc2626"}}>₹{total.toLocaleString("en-IN")}</span>
+                        <span style={{fontWeight:600,fontSize:13,color:"var(--text-primary,#0f172a)"}}>{cat}</span>
+                        <span style={{fontWeight:700,fontSize:13,color:"var(--text-primary,#0f172a)"}}>₹{total.toLocaleString("en-IN")}</span>
                       </div>
-                      <div style={{background:"#f1f5f9",borderRadius:6,height:5,overflow:"hidden"}}>
-                        <div style={{width:`${Math.min(100,(total/totalExp)*100)}%`,height:"100%",background:CAT_COLORS[cat]||"#64748b",borderRadius:6,transition:"width 0.6s ease"}}/>
+                      <div style={{background:"var(--bg-input,#f1f5f9)",borderRadius:6,height:5,overflow:"hidden"}}>
+                        <div style={{width:`${Math.min(100,(total/totalExp)*100)}%`,height:"100%",background:"#3b82f6",borderRadius:6,transition:"width 0.6s ease"}}/>
                       </div>
-                      <div style={{fontSize:11,color:"#94a3b8",marginTop:3}}>{((total/totalExp)*100).toFixed(1)}%</div>
                     </div>
                   ))}
                 </div>
@@ -428,27 +415,27 @@ export default function AccountingPage() {
         <div style={{animation:"fadeUp 0.25s ease both"}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14,marginBottom:20}}>
             {[
-              {label:"Total Revenue", value:`₹${income.toLocaleString("en-IN")}`,          sub:`${entries.length} entries`,             color:"#059669",bg:"linear-gradient(135deg,#f0fdf4,#dcfce7)",border:"#a7f3d0"},
-              {label:"Total Entries", value:String(entries.length),                          sub:`${MONTH_SHORT[month-1]} ${year}`,        color:"#1d4ed8",bg:"linear-gradient(135deg,#eff6ff,#dbeafe)",border:"#93c5fd"},
-              {label:"Best Day",      value:bestDay.rev?`₹${bestDay.rev.toLocaleString("en-IN")}`:"—", sub:bestDay.date?fmtLong(bestDay.date):"No data yet", color:"#d97706",bg:"linear-gradient(135deg,#fffbeb,#fef3c7)",border:"#fcd34d"},
+              {label:"Total Revenue", value:`₹${income.toLocaleString("en-IN")}`,          sub:`${entries.length} entries`,             iconColor:"#10b981", iconBg:"rgba(5,150,105,0.15)"},
+              {label:"Total Entries", value:String(entries.length),                          sub:`${MONTH_SHORT[month-1]} ${year}`,        iconColor:"#3b82f6", iconBg:"rgba(37,99,235,0.15)"},
+              {label:"Best Day",      value:bestDay.rev?`₹${bestDay.rev.toLocaleString("en-IN")}`:"—", sub:bestDay.date?fmtLong(bestDay.date):"No data yet", iconColor:"#f59e0b", iconBg:"rgba(245,158,11,0.15)"},
             ].map((c,i)=>(
-              <div key={i} style={{background:c.bg,border:`1.5px solid ${c.border}`,borderRadius:16,padding:"18px 20px"}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.05em"}}>{c.label}</div>
-                <div style={{fontSize:26,fontWeight:900,color:c.color,letterSpacing:-0.5}}>{c.value}</div>
-                <div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>{c.sub}</div>
+              <div key={i} style={{background:"var(--bg-card)",border:"1px solid var(--border-hard)",borderRadius:14,padding:"18px 20px"}}>
+                <div style={{fontSize:12,fontWeight:600,color:"var(--text-secondary)",marginBottom:10}}>{c.label}</div>
+                <div style={{fontSize:26,fontWeight:900,color:c.iconColor,letterSpacing:-0.5}}>{c.value}</div>
+                <div style={{fontSize:11,color:"var(--text-muted)",marginTop:4}}>{c.sub}</div>
               </div>
             ))}
           </div>
 
           {loading?(
-            <div style={{background:"#fff",borderRadius:16,padding:60,textAlign:"center",color:"#94a3b8",border:"1.5px solid #e2e8f0"}}>Loading…</div>
+            <div style={{background:"var(--bg-card)",borderRadius:16,padding:60,textAlign:"center",color:"var(--text-muted)",border:"1.5px solid var(--border-hard)"}}>Loading…</div>
           ):sortedDates.length===0?(
-            <div style={{background:"#fff",borderRadius:16,padding:"60px 20px",textAlign:"center",border:"1.5px dashed #e2e8f0"}}>
-              <div style={{width:56,height:56,borderRadius:16,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
-                <CalendarDays size={26} color="#cbd5e1"/>
+            <div style={{background:"var(--bg-card)",borderRadius:16,padding:"60px 20px",textAlign:"center",border:"1.5px dashed var(--border-hard)"}}>
+              <div style={{width:56,height:56,borderRadius:16,background:"var(--bg-elevated)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
+                <CalendarDays size={26} color="var(--text-muted)"/>
               </div>
-              <div style={{fontWeight:700,fontSize:15,color:"#94a3b8",marginBottom:6}}>No entries this month</div>
-              <div style={{fontSize:13,color:"#cbd5e1"}}>Entries for {MONTH_NAMES[month-1]} {year} will appear here</div>
+              <div style={{fontWeight:700,fontSize:15,color:"var(--text-muted)",marginBottom:6}}>No entries this month</div>
+              <div style={{fontSize:13,color:"var(--text-muted)"}}>Entries for {MONTH_NAMES[month-1]} {year} will appear here</div>
             </div>
           ):(
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -460,51 +447,51 @@ export default function AccountingPage() {
                 const delivered=dayEntries.filter(e=>e.delivery_status==="delivered").length;
                 const pending=dayEntries.filter(e=>e.delivery_status!=="delivered").length;
                 return(
-                  <div key={date} style={{animation:`fadeUp 0.28s ease ${idx*0.04}s both`,background:"#fff",borderRadius:16,border:`1.5px solid ${isBest?"#fcd34d":"#e2e8f0"}`,boxShadow:"0 2px 10px rgba(0,0,0,0.05)",overflow:"hidden"}}>
+                  <div key={date} style={{animation:`fadeUp 0.28s ease ${idx*0.04}s both`,background:"var(--bg-card)",borderRadius:16,border:`1.5px solid ${isBest?"#fcd34d":"var(--border-hard)"}`,boxShadow:"0 2px 10px rgba(0,0,0,0.05)",overflow:"hidden"}}>
                     <div className="day-row" onClick={()=>toggle(date)}
-                      style={{display:"flex",alignItems:"center",padding:"16px 20px",background:isBest?"linear-gradient(135deg,#fffbeb,#fef3c7)":"#fff"}}>
+                      style={{display:"flex",alignItems:"center",padding:"16px 20px",background:isBest?"rgba(252,211,77,0.08)":"transparent"}}>
                       <div style={{flex:1}}>
                         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
-                          <span style={{fontWeight:800,fontSize:15,color:"#0f172a"}}>{fmtLong(date)}</span>
-                          {isBest&&<span style={{fontSize:10,fontWeight:800,background:"linear-gradient(135deg,#f59e0b,#d97706)",color:"#fff",padding:"2px 8px",borderRadius:6}}>★ BEST DAY</span>}
+                          <span style={{fontWeight:800,fontSize:15,color:"var(--text-primary)"}}>{fmtLong(date)}</span>
+                          {isBest&&<span style={{fontSize:10,fontWeight:800,background:"rgba(245,158,11,0.2)",color:"#f59e0b",padding:"2px 8px",borderRadius:6,border:"1px solid rgba(245,158,11,0.3)"}}>★ BEST DAY</span>}
                         </div>
                         <div style={{display:"flex",gap:14,fontSize:12}}>
-                          <span style={{color:"#64748b"}}>{dayEntries.length} entr{dayEntries.length===1?"y":"ies"}</span>
+                          <span style={{color:"var(--text-muted)"}}>{dayEntries.length} entr{dayEntries.length===1?"y":"ies"}</span>
                           <span style={{color:"#10b981",fontWeight:600}}>✓ {delivered} delivered</span>
-                          {pending>0&&<span style={{color:"#f59e0b",fontWeight:600}}>⏳ {pending} pending</span>}
+                          {pending>0&&<span style={{color:"#f59e0b",fontWeight:600}}>{pending} pending</span>}
                         </div>
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:12}}>
-                        <div style={{fontWeight:900,fontSize:20,color:"#059669"}}>₹{dayRev.toLocaleString("en-IN")}</div>
-                        <div style={{width:30,height:30,borderRadius:8,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                          {isOpen?<ChevronDown size={16} color="#64748b"/>:<ChevronRight size={16} color="#64748b"/>}
+                        <div style={{fontWeight:900,fontSize:20,color:"#10b981"}}>₹{dayRev.toLocaleString("en-IN")}</div>
+                        <div style={{width:30,height:30,borderRadius:8,background:"var(--bg-elevated)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                          {isOpen?<ChevronDown size={16} color="var(--text-secondary)"/>:<ChevronRight size={16} color="var(--text-secondary)"/>}
                         </div>
                       </div>
                     </div>
 
                     {isOpen&&(
-                      <div style={{borderTop:"1.5px solid #f1f5f9"}}>
+                      <div style={{borderTop:"1px solid var(--border-hard)"}}>
                         {dayEntries.map((entry,ei)=>(
                           <div key={entry.id}
-                            style={{padding:"14px 20px",borderBottom:ei<dayEntries.length-1?"1px solid #f8fafc":"none",display:"flex",alignItems:"center",gap:14}}>
-                            <div style={{width:38,height:38,borderRadius:11,background:"linear-gradient(135deg,#1e3a8a,#2563eb)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:800,fontSize:16,flexShrink:0}}>
+                            style={{padding:"14px 20px",borderBottom:ei<dayEntries.length-1?"1px solid var(--border-hard)":"none",display:"flex",alignItems:"center",gap:14}}>
+                            <div style={{width:38,height:38,borderRadius:11,background:"rgba(37,99,235,0.15)",display:"flex",alignItems:"center",justifyContent:"center",color:"#3b82f6",fontWeight:800,fontSize:16,flexShrink:0}}>
                               {entry.customer?.name?.charAt(0).toUpperCase()}
                             </div>
                             <div style={{flex:1,minWidth:0}}>
-                              <div style={{fontWeight:700,fontSize:14,color:"#0f172a"}}>{entry.customer?.name}</div>
+                              <div style={{fontWeight:700,fontSize:14,color:"var(--text-primary)"}}>{entry.customer?.name}</div>
                               <div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:5}}>
                                 {entry.items.map((it,ii)=>(
-                                  <span key={ii} style={{fontSize:11,background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:6,padding:"2px 8px",color:"#475569"}}>
+                                  <span key={ii} style={{fontSize:11,background:"var(--bg-elevated)",border:"1px solid var(--border-hard)",borderRadius:6,padding:"2px 8px",color:"var(--text-secondary)"}}>
                                     {it.service_name} ×{it.quantity}
                                   </span>
                                 ))}
                               </div>
                             </div>
                             <div style={{textAlign:"right",flexShrink:0}}>
-                              <div style={{fontWeight:800,fontSize:15,color:"#0f172a"}}>₹{Number(entry.total_amount).toLocaleString("en-IN")}</div>
+                              <div style={{fontWeight:800,fontSize:15,color:"var(--text-primary)"}}>₹{Number(entry.total_amount).toLocaleString("en-IN")}</div>
                               <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:6,marginTop:4,display:"inline-block",
-                                background:entry.delivery_status==="delivered"?"#f0fdf4":"#fffbeb",
-                                color:entry.delivery_status==="delivered"?"#16a34a":"#d97706"}}>
+                                background:entry.delivery_status==="delivered"?"rgba(5,150,105,0.12)":"rgba(245,158,11,0.12)",
+                                color:entry.delivery_status==="delivered"?"#10b981":"#f59e0b"}}>
                                 {entry.delivery_status==="delivered"?"Delivered":"Pending"}
                               </span>
                             </div>
@@ -524,22 +511,23 @@ export default function AccountingPage() {
       {deleteId&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}
           onClick={()=>setDeleteId(null)}>
-          <div style={{background:"#fff",borderRadius:20,padding:28,maxWidth:320,width:"100%",boxShadow:"0 24px 60px rgba(0,0,0,0.2)",animation:"slideIn 0.2s ease both"}}
+          <div style={{background:"var(--bg-card)",borderRadius:20,padding:28,maxWidth:320,width:"100%",boxShadow:"0 24px 60px rgba(0,0,0,0.2)",animation:"slideIn 0.2s ease both"}}
             onClick={e=>e.stopPropagation()}>
             <div style={{textAlign:"center",marginBottom:22}}>
-              <div style={{width:54,height:54,borderRadius:16,background:"#fef2f2",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
-                <Trash2 size={24} color="#dc2626"/>
+              <div style={{width:54,height:54,borderRadius:16,background:"rgba(239,68,68,0.1)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
+                <Trash2 size={24} color="#ef4444"/>
               </div>
-              <div style={{fontWeight:800,fontSize:17,color:"#0f172a",marginBottom:6}}>Delete Expense?</div>
-              <div style={{fontSize:13,color:"#94a3b8"}}>This action cannot be undone.</div>
+              <div style={{fontWeight:800,fontSize:17,color:"var(--text-primary)",marginBottom:6}}>Delete Expense?</div>
+              <div style={{fontSize:13,color:"var(--text-muted)"}}>This action cannot be undone.</div>
             </div>
-            <div style={{display:"flex",gap:10}}>
+            {/* Delete confirm buttons — right-aligned row */}
+            <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
               <button onClick={()=>setDeleteId(null)}
-                style={{flex:1,padding:"11px",border:"1.5px solid #e2e8f0",borderRadius:10,background:"#f8fafc",fontWeight:600,fontSize:14,cursor:"pointer",color:"#475569"}}>
+                style={{padding:"10px 22px",border:"1px solid var(--border-hard)",borderRadius:9,background:"transparent",fontWeight:600,fontSize:14,cursor:"pointer",color:"var(--text-secondary)"}}>
                 Cancel
               </button>
               <button onClick={()=>doDelete(deleteId)}
-                style={{flex:1,padding:"11px",border:"none",borderRadius:10,background:"linear-gradient(135deg,#ef4444,#dc2626)",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",boxShadow:"0 4px 12px rgba(239,68,68,0.3)"}}>
+                style={{padding:"10px 28px",border:"none",borderRadius:9,background:"#ef4444",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer"}}>
                 Delete
               </button>
             </div>

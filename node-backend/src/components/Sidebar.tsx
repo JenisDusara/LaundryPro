@@ -1,42 +1,49 @@
 "use client";
 import { useRouter, usePathname } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard, PlusCircle, Users, ClipboardList, Truck,
-  BarChart3, Wrench, Hammer, LogOut, X, MoreHorizontal, User, Key, Eye, EyeOff, Building2,
-  Wallet, Activity, ShieldCheck, Menu, ChevronRight, UserCog
+  BarChart3, Wrench, Hammer, LogOut, X, Key, Eye, EyeOff,
+  Building2, Wallet, Activity, ShieldCheck, ChevronRight, ChevronDown,
+  UserCog, MoreHorizontal, Sun, Moon, Monitor, Check, Search,
 } from "lucide-react";
 import api from "@/lib/api";
 
-// Decode JWT role immediately (no API call needed for nav rendering)
+type Theme = "light" | "dark" | "system";
+
+function applyTheme(theme: Theme) {
+  const root = document.documentElement;
+  if (theme === "system") {
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    root.setAttribute("data-theme", isDark ? "dark" : "light");
+  } else {
+    root.setAttribute("data-theme", theme);
+  }
+}
+
 function getTokenRole(): string | null {
   if (typeof window === "undefined") return null;
   try {
     const token = localStorage.getItem("token");
     if (!token) return null;
     const payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-    const decoded = JSON.parse(atob(payload));
-    return decoded.role || null;
-  } catch {
-    return null;
-  }
+    return JSON.parse(atob(payload)).role || null;
+  } catch { return null; }
 }
 
-// All nav items for admin role
 const adminNavItems = [
-  { path: "/dashboard",  label: "Dashboard",      icon: LayoutDashboard },
-  { path: "/new-entry",  label: "New Entry",       icon: PlusCircle },
-  { path: "/customers",  label: "Customers",       icon: Users },
-  { path: "/entries",    label: "Entries",         icon: ClipboardList },
-  { path: "/deliveries", label: "Deliveries",      icon: Truck },
-  { path: "/accounting", label: "Accounting",      icon: Wallet },
-  { path: "/reports",    label: "Reports",         icon: BarChart3 },
-  { path: "/services",   label: "Services",        icon: Wrench },
-  { path: "/labour",     label: "Labour",          icon: Hammer },
-  { path: "/staff",      label: "Staff",           icon: UserCog },
+  { path: "/dashboard",  label: "Dashboard",  icon: LayoutDashboard },
+  { path: "/new-entry",  label: "New Entry",  icon: PlusCircle },
+  { path: "/customers",  label: "Customers",  icon: Users },
+  { path: "/entries",    label: "Entries",    icon: ClipboardList },
+  { path: "/deliveries", label: "Deliveries", icon: Truck },
+  { path: "/accounting", label: "Accounting", icon: Wallet },
+  { path: "/reports",    label: "Reports",    icon: BarChart3 },
+  { path: "/services",   label: "Services",   icon: Wrench },
+  { path: "/labour",     label: "Labour",     icon: Hammer },
+  { path: "/staff",      label: "Staff",      icon: UserCog },
 ];
 
-// Limited nav for staff role
 const staffNavItems = [
   { path: "/dashboard",  label: "Dashboard",  icon: LayoutDashboard },
   { path: "/new-entry",  label: "New Entry",  icon: PlusCircle },
@@ -59,323 +66,329 @@ const moreItems = [
   { path: "/services",   label: "Services",   icon: Wrench },
 ];
 
+type Profile = { name: string; username: string; role?: string; read_only?: boolean; expires_at?: string | null };
+
 export default function Sidebar({ children }: { children: React.ReactNode }) {
   const router   = useRouter();
   const pathname = usePathname();
-  const [showMore,     setShowMore]     = useState(false);
-  const [showProfile,  setShowProfile]  = useState(false);
-  const [showSwitcher, setShowSwitcher] = useState(false);
-  const [switcherTop,  setSwitcherTop]  = useState(0);
+
+  const [showMore,       setShowMore]       = useState(false);
+  const [showProfile,    setShowProfile]    = useState(false);
   const [showShopPicker, setShowShopPicker] = useState(false);
-  const [shops,          setShops]          = useState<{shop_id:string;shop_name:string;name:string}[]>([]);
+  const [shops,          setShops]          = useState<{ shop_id: string; shop_name: string; name: string }[]>([]);
   const [selectedShopId, setSelectedShopId] = useState("");
-  const hamburgerRef = useRef<HTMLButtonElement>(null);
-  const [profile, setProfile] = useState<{name:string;username:string;role?:string;read_only?:boolean;expires_at?:string|null}|null>(() => {
+  const [profile,        setProfile]        = useState<Profile | null>(() => {
     const role = getTokenRole();
     return role ? { name: "", username: "", role } : null;
   });
-  const [oldPass, setOldPass] = useState(""); const [newPass, setNewPass] = useState(""); const [confirmPass, setConfirmPass] = useState("");
-  const [showOld, setShowOld] = useState(false); const [showNew, setShowNew] = useState(false);
-  const [passMsg, setPassMsg] = useState<{text:string;ok:boolean}|null>(null); const [passLoading, setPassLoading] = useState(false);
+
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === "undefined") return "system";
+    return (localStorage.getItem("lp_theme") as Theme) || "system";
+  });
+
+  useEffect(() => {
+    applyTheme(theme);
+    localStorage.setItem("lp_theme", theme);
+  }, [theme]);
+
+  useEffect(() => {
+    if (theme !== "system") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = () => applyTheme("system");
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [theme]);
+
+  const cycleTheme = () => {
+    const order: Theme[] = ["light", "dark", "system"];
+    setTheme(prev => order[(order.indexOf(prev) + 1) % 3]);
+  };
+
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const [showPassForm,  setShowPassForm]  = useState(false);
+  const [oldPass,       setOldPass]       = useState("");
+  const [newPass,       setNewPass]       = useState("");
+  const [confirmPass,   setConfirmPass]   = useState("");
+  const [showOld,       setShowOld]       = useState(false);
+  const [showNew,       setShowNew]       = useState(false);
+  const [passMsg,       setPassMsg]       = useState<{ text: string; ok: boolean } | null>(null);
+  const [passLoading,   setPassLoading]   = useState(false);
 
   useEffect(() => {
     api.get("/auth/me").then(r => setProfile(r.data)).catch(() => {});
-    if (typeof window !== "undefined") {
-      setSelectedShopId(localStorage.getItem("sa_shop_id") || "");
-    }
+    if (typeof window !== "undefined") setSelectedShopId(localStorage.getItem("sa_shop_id") || "");
   }, []);
 
   useEffect(() => {
-    if (profile?.role === "superadmin") {
-      api.get("/admin/shops").then(r => setShops(r.data)).catch(() => {});
-    }
+    if (profile?.role === "superadmin") api.get("/admin/shops").then(r => setShops(r.data)).catch(() => {});
   }, [profile?.role]);
 
   useEffect(() => {
-    setShowProfile(false);
-    setShowMore(false);
-    setShowSwitcher(false);
-    setShowShopPicker(false);
+    setShowProfile(false); setShowMore(false); setShowShopPicker(false);
+    setShowPassForm(false); setShowThemeMenu(false);
   }, [pathname]);
 
-  const logout = () => { localStorage.removeItem("token"); localStorage.removeItem("sa_shop_id"); router.push("/login"); };
-  const goTo   = (path: string) => { router.push(path); setShowMore(false); };
-
+  const logout = () => {
+    localStorage.removeItem("token"); localStorage.removeItem("sa_shop_id");
+    router.push("/login");
+  };
+  const goTo = (path: string) => { router.push(path); setShowMore(false); };
   const selectShop = (shopId: string) => {
-    if (shopId) localStorage.setItem("sa_shop_id", shopId);
-    else localStorage.removeItem("sa_shop_id");
-    setSelectedShopId(shopId);
-    setShowShopPicker(false);
-    window.location.reload();
+    if (shopId) localStorage.setItem("sa_shop_id", shopId); else localStorage.removeItem("sa_shop_id");
+    setSelectedShopId(shopId); setShowShopPicker(false); window.location.reload();
   };
 
   const changePassword = async () => {
-    if (!oldPass || !newPass || !confirmPass) { setPassMsg({text:"Please fill all fields",ok:false}); return; }
-    if (newPass !== confirmPass) { setPassMsg({text:"New passwords do not match",ok:false}); return; }
-    if (newPass.length < 6) { setPassMsg({text:"Password must be at least 6 characters",ok:false}); return; }
+    if (!oldPass || !newPass || !confirmPass) { setPassMsg({ text: "Please fill all fields", ok: false }); return; }
+    if (newPass !== confirmPass) { setPassMsg({ text: "Passwords do not match", ok: false }); return; }
+    if (newPass.length < 6) { setPassMsg({ text: "Min 6 characters required", ok: false }); return; }
     setPassLoading(true);
     try {
-      await api.post("/admin/change-password", {old_password:oldPass, new_password:newPass});
-      setPassMsg({text:"Password changed successfully!",ok:true});
+      await api.post("/admin/change-password", { old_password: oldPass, new_password: newPass });
+      setPassMsg({ text: "Password changed!", ok: true });
       setOldPass(""); setNewPass(""); setConfirmPass("");
-    } catch(e:any) { setPassMsg({text:e.response?.data?.detail||"Something went wrong",ok:false}); }
-    finally { setPassLoading(false); setTimeout(()=>setPassMsg(null), 4000); }
+    } catch (e: any) { setPassMsg({ text: e.response?.data?.detail || "Failed", ok: false }); }
+    finally { setPassLoading(false); setTimeout(() => setPassMsg(null), 4000); }
+  };
+
+  const isAdminSection = pathname === "/superadmin" || pathname === "/login-activity";
+
+  const navItems = isAdminSection && profile?.role === "superadmin"
+    ? [{ path: "/superadmin", label: "Clients", icon: Building2 }, { path: "/login-activity", label: "Login Activity", icon: Activity }]
+    : profile?.role === "staff" ? staffNavItems : adminNavItems;
+
+  const themeIcon = theme === "light" ? <Sun size={14} /> : theme === "dark" ? <Moon size={14} /> : <Monitor size={14} />;
+
+  const inp: React.CSSProperties = {
+    width: "100%", padding: "9px 12px",
+    border: "1px solid var(--border)",
+    borderRadius: 8, fontSize: 13, outline: "none",
+    boxSizing: "border-box",
+    background: "var(--bg-input)",
+    color: "var(--text-primary)",
   };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#f0f4f8" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-page)" }}>
 
       {/* ── Desktop Sidebar ── */}
       <aside className="sidebar" style={{
-        width: 230, position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 50,
-        background: "linear-gradient(180deg, #0f172a 0%, #1e3a8a 60%, #1d4ed8 100%)",
-        display: "flex", flexDirection: "column", boxShadow: "4px 0 24px rgba(0,0,0,0.18)"
+        width: 224, position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 50,
+        background: "var(--bg-sidebar)",
+        borderRight: "1px solid var(--border-default)",
+        display: "flex", flexDirection: "column",
       }}>
-        {/* Brand + Switcher Button */}
-        <div style={{ padding: "16px 14px 14px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{
-              width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-              background: "linear-gradient(135deg,#3b82f6,#60a5fa)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 20, boxShadow: "0 4px 12px rgba(59,130,246,0.4)"
-            }}>👔</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ color: "#fff", fontWeight: 800, fontSize: 16, letterSpacing: -0.3 }}>LaundryPro</div>
-              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>Management System</div>
-            </div>
-            <button
-              ref={hamburgerRef}
-              onClick={() => {
-                if (hamburgerRef.current) {
-                  setSwitcherTop(hamburgerRef.current.getBoundingClientRect().bottom + 8);
-                }
-                setShowSwitcher(v => !v);
-              }}
-              style={{
-                width: 34, height: 34, borderRadius: 9, flexShrink: 0,
-                background: showSwitcher ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.08)",
-                border: "1px solid rgba(255,255,255,0.2)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", transition: "all 0.15s",
-              }}
-            >
-              {showSwitcher ? <X size={15} color="#fff" /> : <Menu size={15} color="rgba(255,255,255,0.8)" />}
-            </button>
-          </div>
+
+        {/* Brand */}
+        <div style={{ padding: "18px 16px 14px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 11 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+            background: "linear-gradient(135deg,#6EA8FF,#3f7fe0)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontWeight: 800, fontSize: 14, color: "#0b1830",
+            boxShadow: "0 6px 16px -6px rgba(110,168,255,.7)",
+          }}>LP</div>
+          <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: "-.01em", color: "var(--text-primary)" }}>LaundryPro</div>
         </div>
+
+        {/* Shop picker (superadmin only) */}
+        {profile?.role === "superadmin" && !isAdminSection && (
+          <div style={{ margin: "12px 14px 0" }}>
+            <div onClick={() => setShowShopPicker(v => !v)}
+              style={{ padding: "11px 13px", background: "var(--bg-input)", border: "1px solid var(--border-default)", borderRadius: 12, display: "flex", alignItems: "center", gap: 10, cursor: "pointer", transition: "border-color .15s" }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = "var(--border-active)"}
+              onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border-default)"}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--text-muted)", fontWeight: 700 }}>Shop</div>
+                <div style={{ fontWeight: 600, fontSize: 14, marginTop: 3, color: "var(--text-primary)" }}>
+                  {selectedShopId ? (shops.find(s => s.shop_id === selectedShopId)?.shop_name || selectedShopId) : "All Shops"}
+                </div>
+              </div>
+              <ChevronDown size={14} color="var(--text-muted)"
+                style={{ transform: showShopPicker ? "rotate(180deg)" : "none", transition: "transform .15s", flexShrink: 0 }} />
+            </div>
+            {showShopPicker && (
+              <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8, marginTop: 4, overflow: "hidden", boxShadow: "0 6px 18px rgba(0,0,0,.15)", zIndex: 60, position: "relative" }}>
+                {[{ shop_id: "", shop_name: "All Shops" }, ...shops].map(s => (
+                  <div key={s.shop_id} onClick={() => selectShop(s.shop_id)}
+                    style={{
+                      padding: "9px 13px", fontSize: 13, cursor: "pointer", fontWeight: 500,
+                      background: selectedShopId === s.shop_id ? "var(--grade-b-bg)" : "transparent",
+                      color: selectedShopId === s.shop_id ? "var(--grade-b-text)" : "var(--text-primary)",
+                      borderLeft: `2px solid ${selectedShopId === s.shop_id ? "var(--accent-primary)" : "transparent"}`,
+                      transition: "background .1s",
+                    }}
+                    onMouseEnter={e => { if (selectedShopId !== s.shop_id) e.currentTarget.style.background = "var(--pressed)"; }}
+                    onMouseLeave={e => { if (selectedShopId !== s.shop_id) e.currentTarget.style.background = "transparent"; }}>
+                    {s.shop_id ? s.shop_name : "All Shops"}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Nav */}
-        <nav style={{ flex: 1, padding: "12px 10px", overflowY: "auto" }}>
-          {(() => {
-            const isAdminSection = pathname === "/superadmin" || pathname === "/login-activity";
-
-            /* ── ADMINISTRATION SECTION ── */
-            if (isAdminSection && profile?.role === "superadmin") {
-              const superItems = [
-                { path: "/superadmin",     label: "Clients",        icon: Building2 },
-                { path: "/login-activity", label: "Login Activity", icon: Activity  },
-              ];
-              return (
-                <>
-                  {/* Section label */}
-                  <div style={{ padding: "8px 14px 10px", marginBottom: 4 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                      <ShieldCheck size={13} color="rgba(251,191,36,0.7)" />
-                      <span style={{ fontSize: 10, fontWeight: 800, color: "rgba(251,191,36,0.7)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Administration</span>
-                    </div>
-                  </div>
-                  {superItems.map(item => {
-                    const active = pathname === item.path;
-                    return (
-                      <div key={item.path}
-                        onClick={() => router.push(item.path)}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 12,
-                          padding: "11px 14px", borderRadius: 10, marginBottom: 2,
-                          cursor: "pointer", transition: "all 0.15s",
-                          background: active ? "rgba(251,191,36,0.18)" : "transparent",
-                          color: active ? "#fbbf24" : "rgba(255,255,255,0.6)",
-                          fontWeight: active ? 700 : 500, fontSize: 14,
-                          borderLeft: active ? "3px solid #fbbf24" : "3px solid transparent",
-                        }}
-                        onMouseEnter={e => { if(!active){e.currentTarget.style.background="rgba(255,255,255,0.07)";e.currentTarget.style.color="#fff";} }}
-                        onMouseLeave={e => { if(!active){e.currentTarget.style.background="transparent";e.currentTarget.style.color="rgba(255,255,255,0.6)";} }}
-                      >
-                        <item.icon size={17} />
-                        <span>{item.label}</span>
-                      </div>
-                    );
-                  })}
-                </>
-              );
-            }
-
-            /* ── LAUNDRYPRO SECTION (default) ── */
+        <nav style={{ flex: 1, padding: "8px 10px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
+          {navItems.map(item => {
+            const active = pathname === item.path;
             return (
-              <>
-                {/* Shop selector — visible to superadmin only */}
-                {profile?.role === "superadmin" && (
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.3)", letterSpacing: "0.1em", textTransform: "uppercase", padding: "0 14px 5px" }}>Viewing Data For</div>
-                    <div
-                      onClick={() => setShowShopPicker(v => !v)}
-                      style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 14px", borderRadius: 10, cursor: "pointer", transition: "all 0.15s",
-                        background: selectedShopId ? "rgba(99,102,241,0.22)" : "rgba(255,255,255,0.07)",
-                        border: `1px solid ${selectedShopId ? "rgba(99,102,241,0.45)" : "rgba(255,255,255,0.1)"}` }}
-                    >
-                      <Building2 size={14} color={selectedShopId ? "#a5b4fc" : "rgba(255,255,255,0.5)"} />
-                      <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: selectedShopId ? "#c7d2fe" : "rgba(255,255,255,0.65)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {selectedShopId ? (shops.find(s => s.shop_id === selectedShopId)?.shop_name || selectedShopId) : "All Shops"}
-                      </span>
-                      <ChevronRight size={12} color="rgba(255,255,255,0.35)" style={{ transform: showShopPicker ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
-                    </div>
-                    {showShopPicker && (
-                      <div style={{ background: "rgba(0,0,0,0.28)", borderRadius: "0 0 10px 10px", maxHeight: 190, overflowY: "auto", border: "1px solid rgba(255,255,255,0.08)", borderTop: "none" }}>
-                        <div
-                          onClick={() => selectShop("")}
-                          style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600,
-                            background: !selectedShopId ? "rgba(255,255,255,0.13)" : "transparent",
-                            color: !selectedShopId ? "#fff" : "rgba(255,255,255,0.55)" }}
-                          onMouseEnter={e => { if (selectedShopId) e.currentTarget.style.background = "rgba(255,255,255,0.07)"; }}
-                          onMouseLeave={e => { if (selectedShopId) e.currentTarget.style.background = "transparent"; }}
-                        >
-                          🌐 All Shops
-                        </div>
-                        {shops.map(s => (
-                          <div key={s.shop_id}
-                            onClick={() => selectShop(s.shop_id)}
-                            style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600,
-                              background: selectedShopId === s.shop_id ? "rgba(99,102,241,0.28)" : "transparent",
-                              color: selectedShopId === s.shop_id ? "#c7d2fe" : "rgba(255,255,255,0.55)" }}
-                            onMouseEnter={e => { if (selectedShopId !== s.shop_id) e.currentTarget.style.background = "rgba(255,255,255,0.07)"; }}
-                            onMouseLeave={e => { if (selectedShopId !== s.shop_id) e.currentTarget.style.background = "transparent"; }}
-                          >
-                            🏪 {s.shop_name}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {(profile?.role === "staff" ? staffNavItems : adminNavItems).map(item => {
-                  const active = pathname === item.path;
-                  return (
-                    <div key={item.path}
-                      onClick={() => router.push(item.path)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 12,
-                        padding: "11px 14px", borderRadius: 10, marginBottom: 2,
-                        cursor: "pointer", transition: "all 0.15s",
-                        background: active ? "rgba(255,255,255,0.15)" : "transparent",
-                        color: active ? "#fff" : "rgba(255,255,255,0.55)",
-                        fontWeight: active ? 700 : 500, fontSize: 14,
-                        boxShadow: active ? "0 2px 8px rgba(0,0,0,0.2)" : "none",
-                      }}
-                      onMouseEnter={e => { if(!active){e.currentTarget.style.background="rgba(255,255,255,0.08)";e.currentTarget.style.color="#fff";} }}
-                      onMouseLeave={e => { if(!active){e.currentTarget.style.background="transparent";e.currentTarget.style.color="rgba(255,255,255,0.55)";} }}
-                    >
-                      {active && <div style={{ position:"absolute", left:0, width:3, height:32, borderRadius:"0 4px 4px 0", background:"#60a5fa" }}/>}
-                      <item.icon size={18} />
-                      <span>{item.label}</span>
-                    </div>
-                  );
-                })}
-              </>
+              <div key={item.path} onClick={() => router.push(item.path)}
+                className="lp-nav"
+                style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "8px 12px", borderRadius: 8,
+                  cursor: "pointer", transition: "all .15s",
+                  background: active ? "var(--grade-b-bg)" : "transparent",
+                  color: active ? "var(--grade-b-text)" : "var(--text-secondary)",
+                  fontWeight: active ? 700 : 500, fontSize: 13.5,
+                  borderLeft: `2px solid ${active ? "var(--accent-primary)" : "transparent"}`,
+                }}>
+                <item.icon size={15} />
+                <span>{item.label}</span>
+              </div>
             );
-          })()}
-        </nav>
+          })}
 
-        {/* Profile Card (clickable) */}
-        <div style={{ padding: "12px 10px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-          {profile && (
-            <div
-              onClick={() => setShowProfile(true)}
-              style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 12px", borderRadius: 12,
-                background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)",
-                cursor: "pointer", transition: "all 0.15s"
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background="rgba(255,255,255,0.13)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background="rgba(255,255,255,0.07)"; }}
-            >
-              <div style={{
-                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                background: "linear-gradient(135deg,#3b82f6,#60a5fa)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontWeight: 800, fontSize: 15, color: "#fff",
-                boxShadow: "0 2px 8px rgba(59,130,246,0.4)"
-              }}>
-                {profile.name.charAt(0).toUpperCase()}
+          {profile?.role === "superadmin" && (
+            <div style={{ marginTop: 6, borderTop: "1px solid var(--border-subtle)", paddingTop: 6 }}>
+              <div onClick={() => router.push(isAdminSection ? "/dashboard" : "/superadmin")}
+                className="lp-nav"
+                style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "8px 12px", borderRadius: 8,
+                  cursor: "pointer", transition: "all .15s",
+                  background: isAdminSection ? "var(--grade-b-bg)" : "transparent",
+                  color: isAdminSection ? "var(--grade-b-text)" : "var(--text-secondary)",
+                  fontWeight: isAdminSection ? 700 : 500, fontSize: 13.5,
+                }}>
+                <ShieldCheck size={15} />
+                <span>{isAdminSection ? "← Back to App" : "Admin Panel"}</span>
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: "#fff", fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {profile.name}
-                </div>
-                <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>@{profile.username}</div>
-              </div>
-              <User size={14} color="rgba(255,255,255,0.35)" />
             </div>
           )}
-        </div>
-      </aside>
+        </nav>
 
-      {/* ── Main Content ── */}
-      <main className="main-content" style={{
-        flex: 1, marginLeft: 230, padding: 28, paddingBottom: 90,
-        width: "calc(100% - 230px)", minHeight: "100vh"
-      }}>
-        {/* Read-only warning banner */}
-        {profile?.read_only && (
-          <div style={{
-            background:"linear-gradient(135deg,#7c2d12,#9a3412)", color:"#fff",
-            borderRadius:14, padding:"12px 18px", marginBottom:20,
-            display:"flex", alignItems:"center", gap:12,
-            boxShadow:"0 4px 16px rgba(154,52,18,0.35)",
-            animation:"fadeUp 0.3s ease both"
-          }}>
-            <span style={{fontSize:20}}>⚠️</span>
-            <div style={{flex:1}}>
-              <div style={{fontWeight:800,fontSize:14}}>Subscription Expired — Read-Only Mode</div>
-              <div style={{fontSize:12,opacity:0.8,marginTop:2}}>
-                Aap data dekh sakte hain lekin naya entry, billing ya changes nahi kar sakte.
-                {profile.expires_at && (() => {
-                  const days = Math.abs(Math.ceil((Date.now() - new Date(profile.expires_at!).getTime()) / 86400000));
-                  return ` ${days} din${days===1?"":" "} pehle expire hua — 3 din baad complete block ho jayega.`;
-                })()}
+        {/* Profile (sidebar bottom) */}
+        {profile && (
+          <div style={{ padding: "14px 16px", borderTop: "1px solid var(--border-subtle)" }}>
+            <div onClick={() => setShowProfile(true)}
+              className="lp-nav"
+              style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 9, cursor: "pointer", transition: "background .15s" }}>
+              <div style={{
+                width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
+                background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)",
+                color: "var(--grade-b-text)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontWeight: 800, fontSize: 14,
+              }}>
+                {(profile.name || "?").charAt(0).toUpperCase()}
               </div>
-            </div>
-            <div style={{fontSize:12,fontWeight:700,background:"rgba(255,255,255,0.15)",padding:"6px 14px",borderRadius:8,whiteSpace:"nowrap"}}>
-              Contact Admin
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{profile.name}</div>
+                <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>@{profile.username}</div>
+              </div>
             </div>
           </div>
         )}
-        {children}
-      </main>
+      </aside>
+
+      {/* ── Main area (header + content) ── */}
+      <div className="main-content" style={{ flex: 1, marginLeft: 224, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+
+        {/* Top header bar */}
+        <header style={{
+          height: 62, flexShrink: 0,
+          padding: "0 28px",
+          background: "var(--bg-elevated)",
+          borderBottom: "1px solid var(--border-subtle)",
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+          position: "sticky", top: 0, zIndex: 40,
+        }}>
+          {/* Search */}
+          <div className="mob-hide" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "var(--bg-input)", border: "1px solid var(--border-default)", borderRadius: 8, padding: "8px 12px", minWidth: 280 }}>
+            <Search size={14} color="var(--text-muted)" />
+            <input
+              placeholder="Search customers, entries, flats…"
+              style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--text-primary)", fontSize: 13 }}
+            />
+          </div>
+          {/* Mobile: LP brand shown when search is hidden */}
+          <div style={{ display: "none" }} className="mob-brand">
+            <div style={{ fontWeight: 800, fontSize: 16, color: "var(--text-primary)", letterSpacing: "-.01em" }}>LaundryPro</div>
+          </div>
+
+          {/* Right actions */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div className="mob-hide" style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 500, color: "var(--text-secondary)" }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent-success)", display: "inline-block", flexShrink: 0 }} />
+              Synced
+            </div>
+
+            {/* Theme cycle button */}
+            <button onClick={cycleTheme}
+              style={{ display: "inline-flex", alignItems: "center", gap: 7, border: "1px solid var(--border-default)", background: "var(--bg-input)", color: "var(--text-secondary)", fontWeight: 600, fontSize: 12, borderRadius: 8, padding: "7px 12px", cursor: "pointer", transition: "border-color .15s, color .15s" }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--border-active)"; e.currentTarget.style.color = "var(--text-primary)"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border-default)"; e.currentTarget.style.color = "var(--text-secondary)"; }}>
+              {themeIcon}
+              <span>{theme.charAt(0).toUpperCase() + theme.slice(1)}</span>
+            </button>
+
+            {/* Avatar → opens profile modal */}
+            <div onClick={() => setShowProfile(true)}
+              style={{
+                width: 34, height: 34, borderRadius: "50%", cursor: "pointer",
+                background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)",
+                color: "var(--grade-b-text)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontWeight: 800, fontSize: 13,
+              }}>
+              {(profile?.name || "A").charAt(0).toUpperCase()}
+            </div>
+          </div>
+        </header>
+
+        {/* Page content */}
+        <main style={{ flex: 1, padding: "28px 32px 60px" }}>
+          {profile?.read_only && (
+            <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 10, padding: "11px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 16 }}>⚠️</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: "#92400E" }}>Subscription Expired — Read-Only Mode</div>
+                <div style={{ fontSize: 12, color: "#A16207", marginTop: 2 }}>
+                  You can view data but cannot make changes.
+                  {profile.expires_at && (() => {
+                    const days = Math.abs(Math.ceil((Date.now() - new Date(profile.expires_at!).getTime()) / 86400000));
+                    return ` Expired ${days} day${days !== 1 ? "s" : ""} ago.`;
+                  })()}
+                </div>
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#D97706" }}>Contact Admin</span>
+            </div>
+          )}
+          {children}
+        </main>
+      </div>
 
       {/* ── Mobile Bottom Bar ── */}
       <nav className="bottom-bar" style={{
         display: "none", position: "fixed", bottom: 0, left: 0, right: 0,
-        background: "#fff", borderTop: "1px solid #e2e8f0",
+        background: "var(--bg-card)", borderTop: "1px solid var(--border)",
         justifyContent: "space-around", padding: "8px 0 14px", zIndex: 100,
-        boxShadow: "0 -4px 16px rgba(0,0,0,0.06)"
       }}>
         {mobileNav.map(item => {
           const active = pathname === item.path;
           return (
-            <div key={item.path}
-              onClick={() => goTo(item.path)}
-              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer", color: active ? "#1d4ed8" : "#94a3b8" }}>
+            <div key={item.path} onClick={() => goTo(item.path)}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer", color: active ? "var(--accent-primary)" : "var(--text-muted)" }}>
               <item.icon size={22} />
-              <span style={{ fontSize: 10, fontWeight: active ? 700 : 500 }}>{item.label}</span>
+              <span style={{ fontSize: 10, fontWeight: active ? 600 : 400 }}>{item.label}</span>
             </div>
           );
         })}
-        <div
-          onClick={() => setShowMore(v => !v)}
-          style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer", color: showMore ? "#1d4ed8" : "#94a3b8" }}>
+        <div onClick={() => setShowMore(v => !v)}
+          style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer", color: showMore ? "var(--accent-primary)" : "var(--text-muted)" }}>
           <MoreHorizontal size={22} />
           <span style={{ fontSize: 10 }}>More</span>
         </div>
@@ -383,196 +396,156 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
 
       {/* ── Profile Modal ── */}
       {showProfile && profile && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
-          onClick={() => setShowProfile(false)}>
-          <div style={{ background:"#fff", borderRadius:20, width:"100%", maxWidth:360, boxShadow:"0 20px 60px rgba(0,0,0,0.25)", maxHeight:"90vh", overflowY:"auto" }}
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          onClick={() => { setShowProfile(false); setShowThemeMenu(false); }}>
+          <div style={{ background: "var(--bg-card)", borderRadius: 18, width: "100%", maxWidth: 360, boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}
             onClick={e => e.stopPropagation()}>
 
-            {/* Header */}
-            <div style={{ background:"linear-gradient(135deg,#0f172a,#1e3a8a)", padding:"28px 24px 24px", position:"relative" }}>
-              <button onClick={() => setShowProfile(false)} style={{ position:"absolute", top:14, right:14, background:"rgba(255,255,255,0.1)", border:"none", borderRadius:8, padding:6, cursor:"pointer", display:"flex" }}>
-                <X size={16} color="#fff" />
-              </button>
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:12 }}>
-                <div style={{ width:70, height:70, borderRadius:20, background:"linear-gradient(135deg,#3b82f6,#60a5fa)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, fontSize:30, color:"#fff", boxShadow:"0 4px 16px rgba(59,130,246,0.5)" }}>
-                  {profile.name.charAt(0).toUpperCase()}
-                </div>
-                <div style={{ textAlign:"center" }}>
-                  <div style={{ color:"#fff", fontWeight:800, fontSize:18 }}>{profile.name}</div>
-                  <div style={{ color:"rgba(255,255,255,0.5)", fontSize:13, marginTop:2 }}>@{profile.username}</div>
-                </div>
+            {/* Modal header */}
+            <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12, borderRadius: "18px 18px 0 0" }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: "50%", flexShrink: 0,
+                background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)",
+                color: "var(--grade-b-text)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontWeight: 800, fontSize: 18,
+              }}>
+                {(profile.name || "?").charAt(0).toUpperCase()}
               </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text-primary)" }}>{profile.name}</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>@{profile.username}</div>
+                <div style={{ display: "inline-block", marginTop: 4, fontSize: 10, fontWeight: 700, color: "var(--grade-b-text)", background: "var(--grade-b-bg)", borderRadius: 4, padding: "2px 7px", textTransform: "capitalize" }}>{profile.role}</div>
+              </div>
+              <button onClick={() => setShowProfile(false)}
+                style={{ width: 28, height: 28, borderRadius: 7, background: "var(--bg-input)", border: "1px solid var(--border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <X size={13} color="var(--text-secondary)" />
+              </button>
             </div>
 
-            <div style={{ padding:"20px" }}>
-              {/* Change Password Section */}
-              <div style={{ marginBottom:18 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
-                  <div style={{ width:32, height:32, borderRadius:8, background:"#eff6ff", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                    <Key size={15} color="#1d4ed8" />
+            {/* Modal body */}
+            <div style={{ padding: "18px 20px 16px", borderRadius: "0 0 18px 18px" }}>
+
+              {/* Theme switcher dropdown */}
+              <div style={{ position: "relative", marginBottom: 10 }}>
+                <button onClick={() => setShowThemeMenu(v => !v)}
+                  style={{ width: "100%", padding: "11px", border: "1.5px solid var(--border)", borderRadius: 9, background: "var(--bg-input)", color: "var(--text-primary)", fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {theme === "light"  && <><Sun     size={14} color="var(--accent-primary)" /> Appearance — Light</>}
+                    {theme === "dark"   && <><Moon    size={14} color="var(--accent-primary)" /> Appearance — Dark</>}
+                    {theme === "system" && <><Monitor size={14} color="var(--accent-primary)" /> Appearance — System</>}
                   </div>
-                  <span style={{ fontWeight:700, fontSize:14, color:"#1e293b" }}>Change Password</span>
-                </div>
-
-                {/* Old Password */}
-                <div style={{ position:"relative", marginBottom:10 }}>
-                  <input
-                    type={showOld?"text":"password"}
-                    placeholder="Current Password"
-                    value={oldPass}
-                    onChange={e=>setOldPass(e.target.value)}
-                    style={{ width:"100%", padding:"10px 40px 10px 12px", border:"1.5px solid #e2e8f0", borderRadius:10, fontSize:14, outline:"none", boxSizing:"border-box", background:"#f8fafc" }}
-                  />
-                  <button onClick={()=>setShowOld(v=>!v)} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", display:"flex", padding:2 }}>
-                    {showOld?<EyeOff size={16} color="#94a3b8"/>:<Eye size={16} color="#94a3b8"/>}
-                  </button>
-                </div>
-
-                {/* New Password */}
-                <div style={{ position:"relative", marginBottom:10 }}>
-                  <input
-                    type={showNew?"text":"password"}
-                    placeholder="New Password"
-                    value={newPass}
-                    onChange={e=>setNewPass(e.target.value)}
-                    style={{ width:"100%", padding:"10px 40px 10px 12px", border:"1.5px solid #e2e8f0", borderRadius:10, fontSize:14, outline:"none", boxSizing:"border-box", background:"#f8fafc" }}
-                  />
-                  <button onClick={()=>setShowNew(v=>!v)} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", display:"flex", padding:2 }}>
-                    {showNew?<EyeOff size={16} color="#94a3b8"/>:<Eye size={16} color="#94a3b8"/>}
-                  </button>
-                </div>
-
-                {/* Confirm Password */}
-                <div style={{ marginBottom:12 }}>
-                  <input
-                    type="password"
-                    placeholder="Confirm New Password"
-                    value={confirmPass}
-                    onChange={e=>setConfirmPass(e.target.value)}
-                    style={{ width:"100%", padding:"10px 12px", border:`1.5px solid ${confirmPass && confirmPass!==newPass?"#fca5a5":"#e2e8f0"}`, borderRadius:10, fontSize:14, outline:"none", boxSizing:"border-box", background:"#f8fafc" }}
-                  />
-                </div>
-
-                {passMsg && (
-                  <div style={{ padding:"9px 12px", borderRadius:8, marginBottom:12, fontSize:13, fontWeight:600, background:passMsg.ok?"#f0fdf4":"#fef2f2", color:passMsg.ok?"#16a34a":"#dc2626", border:`1px solid ${passMsg.ok?"#bbf7d0":"#fecaca"}` }}>
-                    {passMsg.text}
+                  <ChevronRight size={14} color="var(--text-muted)" style={{ transform: showThemeMenu ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
+                </button>
+                {showThemeMenu && (
+                  <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 9, zIndex: 10, overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,.12)" }}>
+                    {([
+                      { value: "light",  label: "Light",  icon: <Sun     size={14} /> },
+                      { value: "dark",   label: "Dark",   icon: <Moon    size={14} /> },
+                      { value: "system", label: "System", icon: <Monitor size={14} /> },
+                    ] as { value: Theme; label: string; icon: React.ReactNode }[]).map(t => (
+                      <div key={t.value} onClick={() => { setTheme(t.value); setShowThemeMenu(false); }}
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", fontSize: 13, fontWeight: theme === t.value ? 600 : 400, color: theme === t.value ? "var(--grade-b-text)" : "var(--text-primary)", background: theme === t.value ? "var(--grade-b-bg)" : "transparent" }}
+                        onMouseEnter={e => { if (theme !== t.value) e.currentTarget.style.background = "var(--pressed)"; }}
+                        onMouseLeave={e => { if (theme !== t.value) e.currentTarget.style.background = "transparent"; }}>
+                        {t.icon} {t.label}
+                        {theme === t.value && <Check size={13} style={{ marginLeft: "auto" }} />}
+                      </div>
+                    ))}
                   </div>
                 )}
-
-                <button
-                  onClick={changePassword}
-                  disabled={passLoading}
-                  style={{ width:"100%", padding:"11px", border:"none", borderRadius:10, cursor:passLoading?"not-allowed":"pointer", background:"linear-gradient(135deg,#1e3a8a,#1d4ed8)", color:"#fff", fontWeight:700, fontSize:14, display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:passLoading?0.7:1 }}>
-                  <Key size={15}/> {passLoading?"Saving...":"Change Password"}
-                </button>
               </div>
 
-              {/* Divider */}
-              <div style={{ borderTop:"1px solid #f1f5f9", marginBottom:16 }}/>
+              {!showPassForm ? (
+                <>
+                  <button onClick={() => setShowPassForm(true)}
+                    style={{ width: "100%", padding: "11px", border: "1.5px solid var(--border)", borderRadius: 9, background: "var(--bg-input)", color: "var(--text-primary)", fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 }}>
+                    <Key size={14} color="var(--accent-primary)" /> Change Password
+                  </button>
+                  <button onClick={() => { setShowProfile(false); logout(); }}
+                    style={{ width: "100%", padding: "11px", border: "1.5px solid var(--grade-f-border)", borderRadius: 9, background: "var(--grade-f-bg)", color: "var(--grade-f-text)", fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                    <LogOut size={14} /> Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                    <button onClick={() => { setShowPassForm(false); setPassMsg(null); setOldPass(""); setNewPass(""); setConfirmPass(""); }}
+                      style={{ background: "var(--bg-input)", border: "1px solid var(--border)", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontSize: 12, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 4 }}>
+                      ← Back
+                    </button>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase" }}>Change Password</span>
+                  </div>
 
-              {/* Logout */}
-              <button
-                onClick={() => { setShowProfile(false); logout(); }}
-                style={{ width:"100%", padding:"11px", border:"none", borderRadius:10, cursor:"pointer", background:"linear-gradient(135deg,#ef4444,#dc2626)", color:"#fff", fontWeight:700, fontSize:14, display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:"0 4px 12px rgba(239,68,68,0.3)" }}>
-                <LogOut size={15}/> Logout
-              </button>
+                  {[
+                    { label: "Current Password", val: oldPass, set: setOldPass, show: showOld, toggle: () => setShowOld(v => !v) },
+                    { label: "New Password",     val: newPass, set: setNewPass, show: showNew, toggle: () => setShowNew(v => !v) },
+                  ].map((f, i) => (
+                    <div key={i} style={{ position: "relative", marginBottom: 10 }}>
+                      <input type={f.show ? "text" : "password"} placeholder={f.label} value={f.val}
+                        onChange={e => f.set(e.target.value)}
+                        style={{ ...inp, paddingRight: 38 }} />
+                      <button onClick={f.toggle} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}>
+                        {f.show ? <EyeOff size={15} color="var(--text-muted)" /> : <Eye size={15} color="var(--text-muted)" />}
+                      </button>
+                    </div>
+                  ))}
+
+                  <input type="password" placeholder="Confirm New Password" value={confirmPass}
+                    onChange={e => setConfirmPass(e.target.value)}
+                    style={{ ...inp, borderColor: confirmPass && confirmPass !== newPass ? "var(--grade-f-border)" : "var(--border)" }} />
+
+                  <div style={{ textAlign: "right", marginTop: 6, marginBottom: 12 }}>
+                    <span style={{ fontSize: 12, color: "var(--accent-primary)", cursor: "pointer", fontWeight: 500 }}
+                      onClick={() => setPassMsg({ text: "Contact your administrator to reset password.", ok: false })}>
+                      Forgot Password?
+                    </span>
+                  </div>
+
+                  {passMsg && (
+                    <div style={{ padding: "8px 12px", borderRadius: 7, marginBottom: 10, fontSize: 12, fontWeight: 500, background: passMsg.ok ? "var(--grade-a-bg)" : "var(--grade-f-bg)", color: passMsg.ok ? "var(--grade-a-text)" : "var(--grade-f-text)" }}>
+                      {passMsg.text}
+                    </div>
+                  )}
+
+                  <button onClick={changePassword} disabled={passLoading}
+                    style={{ width: "100%", padding: "11px", border: "none", borderRadius: 9, background: passLoading ? "var(--border-active)" : "var(--accent-primary)", color: "#0b1830", fontWeight: 700, fontSize: 13, cursor: passLoading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, boxShadow: "var(--shadow-glow-blue)" }}>
+                    <Key size={14} /> {passLoading ? "Saving…" : "Save Password"}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Section Switcher Overlay ── */}
-      {showSwitcher && (
-        <>
-          {/* Backdrop — click anywhere outside to close */}
-          <div
-            style={{ position: "fixed", inset: 0, zIndex: 998 }}
-            onClick={() => setShowSwitcher(false)}
-          />
-          {/* Dropdown panel */}
-          <div style={{
-            position: "fixed",
-            top: switcherTop,
-            left: 14,
-            width: 210,
-            background: "#fff",
-            borderRadius: 16,
-            boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
-            zIndex: 999,
-            overflow: "hidden",
-            border: "1.5px solid #e2e8f0",
-          }}>
-            <div style={{ padding: "10px 14px 8px", background: "linear-gradient(135deg,#0f172a,#1e3a8a)" }}>
-              <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Switch Section</div>
-            </div>
-            {[
-              { label: "LaundryPro",     sub: "Main application",        emoji: "👔", path: "/dashboard",  always: true  },
-              { label: "Administration", sub: "Manage clients & logs",   emoji: "🛡️", path: "/superadmin", always: false },
-            ].filter(s => s.always || profile?.role === "superadmin").map(s => {
-              const isActive = s.path === "/dashboard"
-                ? !["/superadmin", "/login-activity"].includes(pathname)
-                : pathname === s.path || pathname === "/login-activity";
-              return (
-                <div key={s.path}
-                  onClick={() => { router.push(s.path); setShowSwitcher(false); }}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 12, padding: "13px 14px",
-                    cursor: "pointer", transition: "background 0.12s",
-                    background: isActive ? "#eff6ff" : "#fff",
-                    borderLeft: `3px solid ${isActive ? "#1d4ed8" : "transparent"}`,
-                  }}
-                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#f8fafc"; }}
-                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "#fff"; }}
-                >
-                  <div style={{
-                    width: 38, height: 38, borderRadius: 11, flexShrink: 0, fontSize: 18,
-                    background: isActive ? "linear-gradient(135deg,#1e3a8a,#2563eb)" : "#f1f5f9",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>{s.emoji}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: isActive ? "#1d4ed8" : "#0f172a" }}>{s.label}</div>
-                    <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>{s.sub}</div>
-                  </div>
-                  {isActive && <ChevronRight size={13} color="#1d4ed8" />}
-                </div>
-              );
-            })}
-          </div>
-        </>
-      )}
-
-      {/* ── More Overlay ── */}
+      {/* ── Mobile More Sheet ── */}
       {showMore && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 200, display: "flex", alignItems: "flex-end" }}
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 200, display: "flex", alignItems: "flex-end" }}
           onClick={() => setShowMore(false)}>
-          <div style={{ background: "#fff", width: "100%", borderRadius: "20px 20px 0 0", padding: "20px 16px 36px" }}
+          <div style={{ background: "var(--bg-card)", width: "100%", borderRadius: "16px 16px 0 0", padding: "18px 16px 32px" }}
             onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-              <span style={{ fontWeight: 700, fontSize: 16, color: "#0f172a" }}>More Options</span>
-              <button onClick={() => setShowMore(false)} style={{ background: "#f1f5f9", border: "none", borderRadius: 8, padding: 6, cursor: "pointer", display: "flex" }}>
-                <X size={18} color="#64748b" />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <span style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>More</span>
+              <button onClick={() => setShowMore(false)} style={{ background: "var(--bg-input)", border: "1px solid var(--border)", borderRadius: 7, padding: 6, cursor: "pointer", display: "flex" }}>
+                <X size={16} color="var(--text-secondary)" />
               </button>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
               {moreItems.map(item => (
-                <div key={item.path}
-                  onClick={() => goTo(item.path)}
-                  style={{
-                    display: "flex", flexDirection: "column", alignItems: "center",
-                    padding: "14px 8px", borderRadius: 14, cursor: "pointer",
-                    background: pathname === item.path ? "#eff6ff" : "#f8fafc",
-                    color: pathname === item.path ? "#1d4ed8" : "#475569",
-                    border: pathname === item.path ? "1.5px solid #bfdbfe" : "1.5px solid transparent"
-                  }}>
-                  <item.icon size={22} />
-                  <span style={{ fontSize: 11, fontWeight: 600, marginTop: 5 }}>{item.label}</span>
+                <div key={item.path} onClick={() => goTo(item.path)}
+                  style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "13px 8px", borderRadius: 12, cursor: "pointer",
+                    background: pathname === item.path ? "var(--grade-b-bg)" : "var(--bg-input)",
+                    color: pathname === item.path ? "var(--grade-b-text)" : "var(--text-secondary)",
+                    border: `1px solid ${pathname === item.path ? "var(--grade-b-border)" : "var(--border)"}` }}>
+                  <item.icon size={20} />
+                  <span style={{ fontSize: 11, fontWeight: 500, marginTop: 5 }}>{item.label}</span>
                 </div>
               ))}
-              <div
-                onClick={logout}
-                style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "14px 8px", borderRadius: 14, cursor: "pointer", background: "#fff5f5", color: "#ef4444", border: "1.5px solid #fecaca" }}>
-                <LogOut size={22} />
-                <span style={{ fontSize: 11, fontWeight: 600, marginTop: 5 }}>Logout</span>
+              <div onClick={logout}
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "13px 8px", borderRadius: 12, cursor: "pointer", background: "var(--grade-f-bg)", color: "var(--grade-f-text)", border: "1px solid var(--grade-f-border)" }}>
+                <LogOut size={20} />
+                <span style={{ fontSize: 11, fontWeight: 500, marginTop: 5 }}>Logout</span>
               </div>
             </div>
           </div>

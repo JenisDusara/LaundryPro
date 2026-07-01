@@ -1,13 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Calendar, Filter, Trash2, ChevronDown, ChevronUp, Pencil, X, Plus, FileText, Search } from "lucide-react";
+import { Calendar, Filter, Trash2, ChevronDown, ChevronUp, ChevronRight, Pencil, X, Plus, FileText, Search } from "lucide-react";
 import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import type { LaundryEntry, Service } from "@/types";
 
 interface EditItem { localId:string; service_id:string; service_name:string; price_per_unit:number; quantity:number; item_status:string; }
 const COLORS=[{bg:"#eff6ff",border:"#bfdbfe",text:"#1e40af"},{bg:"#f0fdf4",border:"#bbf7d0",text:"#166534"},{bg:"#fdf4ff",border:"#e9d5ff",text:"#7e22ce"},{bg:"#fff7ed",border:"#fed7aa",text:"#9a3412"},{bg:"#f0fdfa",border:"#99f6e4",text:"#134e4a"},{bg:"#fefce8",border:"#fef08a",text:"#854d0e"}];
-const WA_ICON = <svg width="13" height="13" viewBox="0 0 24 24" fill="#16a34a"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>;
+const WA_ICON_WHITE = <svg width="15" height="15" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>;
 const openWA = (phone: string) => {
   const a = document.createElement("a");
   a.href = `whatsapp://send?phone=91${phone.replace(/\D/g,"").slice(-10)}`;
@@ -120,40 +120,47 @@ export default function Entries() {
     <ProtectedLayout>
       <style>{`
         .cust-card:hover { box-shadow: 0 6px 24px rgba(0,0,0,0.12) !important; }
-        .date-row:hover { background: #f0f9ff !important; }
-        .item-row:hover { background: #f8fafc !important; }
+        .date-row:hover { background: var(--pressed) !important; }
+        .item-row:hover { background: var(--pressed) !important; }
+        @media (max-width: 768px) {
+          .entry-invoice-btn { display: none !important; }
+          .entry-amount { font-size: 14px !important; min-width: 36px !important; }
+          .date-row-actions { gap: 4px !important; }
+          .date-row-inv { display: none !important; }
+        }
       `}</style>
 
       {/* ── Header ── */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:10}}>
         <div>
-          <h2 style={{color:"#0f172a",margin:"0 0 2px",fontSize:22,fontWeight:800}}>Entries</h2>
-          <p style={{color:"#94a3b8",fontSize:12,margin:0}}>{monthLabel}</p>
+          <h2 style={{color:"var(--text-primary)",margin:"0 0 2px",fontSize:22,fontWeight:800}}>Entries</h2>
+          <p style={{color:"var(--text-muted)",fontSize:12,margin:0}}>{monthLabel}</p>
         </div>
         {/* Filter bar */}
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-          <div style={{display:"flex",background:"#f1f5f9",borderRadius:10,padding:3,gap:2}}>
+          <div style={{display:"inline-flex",background:"var(--bg-input,#f1f5f9)",border:"1px solid var(--border-hard,#e2e8f0)",borderRadius:8,padding:"3px",gap:2}}>
             {(["date","month"] as const).map(t=>(
               <button key={t} onClick={()=>setFilterType(t)}
-                style={{display:"flex",alignItems:"center",gap:4,padding:"7px 14px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,
-                  background:filterType===t?"#1e40af":"transparent",color:filterType===t?"#fff":"#64748b",
-                  boxShadow:filterType===t?"0 2px 6px rgba(30,64,175,0.3)":"none"}}>
+                style={{display:"flex",alignItems:"center",gap:4,padding:"6px 14px",borderRadius:6,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,
+                  background:filterType===t?"var(--accent-primary,#1e40af)":"transparent",
+                  color:filterType===t?"#fff":"var(--text-secondary)",
+                  transition:"all 0.15s"}}>
                 {t==="date"?<><Calendar size={12}/>Date</>:<><Filter size={12}/>Month</>}
               </button>
             ))}
           </div>
           {filterType==="date"
-            ? <input type="date" value={dateVal} onChange={e=>setDateVal(e.target.value)} style={{padding:"8px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,outline:"none",background:"#fff"}}/>
-            : <input type="month" value={monthVal} onChange={e=>setMonthVal(e.target.value)} style={{padding:"8px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,outline:"none",background:"#fff"}}/>
+            ? <input type="date" value={dateVal} onChange={e=>setDateVal(e.target.value)} style={{padding:"8px 12px",border:"1.5px solid var(--border-hard)",borderRadius:10,fontSize:13,outline:"none",background:"var(--bg-card)",color:"var(--text-primary)"}}/>
+            : <input type="month" value={monthVal} onChange={e=>setMonthVal(e.target.value)} style={{padding:"8px 12px",border:"1.5px solid var(--border-hard)",borderRadius:10,fontSize:13,outline:"none",background:"var(--bg-card)",color:"var(--text-primary)"}}/>
           }
         </div>
       </div>
 
       {/* ── Search ── */}
-      <div style={{display:"flex",alignItems:"center",gap:8,background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,padding:"9px 14px",marginBottom:14}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--bg-card)",border:"1.5px solid var(--border-hard)",borderRadius:10,padding:"9px 14px",marginBottom:14}}>
         <Search size={14} color="#94a3b8"/>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name, phone or flat..."
-          style={{flex:1,border:"none",outline:"none",fontSize:13,background:"transparent",color:"#1e293b"}}/>
+          style={{flex:1,border:"none",outline:"none",fontSize:13,background:"transparent",color:"var(--text-primary)"}}/>
         {search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:16}}>×</button>}
       </div>
 
@@ -179,42 +186,47 @@ export default function Entries() {
           cust.entries.forEach(e=>{ if(!dateMap.has(e.entry_date)) dateMap.set(e.entry_date,[]); dateMap.get(e.entry_date)!.push(e); });
           const dates      = [...dateMap.entries()].sort((a,b)=>b[0].localeCompare(a[0]));
           const avatarColor= AVATAR_COLORS[ci%AVATAR_COLORS.length];
+          const latestDate = dates.length>0 ? new Date(dates[0][0]+"T00:00:00").toLocaleDateString("en-IN",{day:"2-digit",month:"short"}) : "";
+          const oldestPending = cust.entries.filter(e=>e.items.some(i=>i.item_status!=="delivered")).map(e=>e.entry_date).sort()[0];
+          const isOverdue = !custAllDel && !!oldestPending && (Date.now()-new Date(oldestPending+"T00:00:00").getTime())>30*24*60*60*1000;
 
           return (
-            <div key={cid} className="cust-card" style={{background:"#fff",borderRadius:16,overflow:"hidden",boxShadow:"0 2px 10px rgba(0,0,0,0.07)",border:"1px solid #f1f5f9",transition:"box-shadow 0.2s"}}>
+            <div key={cid} className="cust-card" style={{background:"var(--bg-card,#fff)",borderRadius:14,overflow:"hidden",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",border:"1px solid var(--border-hard)",transition:"box-shadow 0.2s"}}>
               {/* Customer header */}
-              <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",cursor:"pointer"}} onClick={()=>{setExpandedCustomer(custOpen?null:cid);setExpandedDate(null);}}>
-                {/* Avatar */}
-                <div style={{width:46,height:46,borderRadius:13,background:avatarColor,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:19,flexShrink:0}}>
-                  {cust.name[0].toUpperCase()}
+              <div style={{display:"flex",alignItems:"stretch",cursor:"pointer"}} onClick={()=>{setExpandedCustomer(custOpen?null:cid);setExpandedDate(null);}}>
+                {/* Avatar peek strip */}
+                <div style={{width:58,flexShrink:0,background:avatarColor,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+                  <span style={{color:"rgba(255,255,255,0.9)",fontSize:28,fontWeight:900,userSelect:"none",lineHeight:1}}>
+                    {cust.name.charAt(0).toUpperCase()}
+                  </span>
                 </div>
-                {/* Info */}
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:700,fontSize:15,color:"#1e293b",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{cust.name}</div>
-                  <div style={{fontSize:12,color:"#94a3b8",marginTop:2,display:"flex",gap:10,flexWrap:"wrap"}}>
-                    {cust.phone&&<span>📞 {cust.phone}</span>}
-                    {(cust.flat||cust.society)&&<span>🏠 {cust.flat}{cust.society&&` · ${cust.society}`}</span>}
+                {/* Content */}
+                <div style={{flex:1,display:"flex",alignItems:"center",gap:10,padding:"14px 14px"}}>
+                  {/* Info */}
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:700,fontSize:15,color:"var(--text-primary,#1e293b)"}}>{cust.name}</div>
+                    <div style={{fontSize:12,color:"var(--text-secondary,#94a3b8)",marginTop:2}}>
+                      {[cust.flat,cust.society,latestDate].filter(Boolean).join(" · ")}
+                    </div>
                   </div>
-                </div>
-                {/* Right side */}
-                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:5,flexShrink:0}}>
-                  <div style={{fontWeight:800,fontSize:18,color:"#0f172a"}}>₹{custTotal.toLocaleString("en-IN")}</div>
-                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                    <span style={{fontSize:11,fontWeight:700,padding:"2px 9px",borderRadius:20,
-                      background:custAllDel?"#dcfce7":"#fef3c7",
-                      color:custAllDel?"#16a34a":"#d97706"}}>
-                      {custAllDel?"✓ Delivered":`${pendingCnt} pending`}
+                  {/* Right side */}
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+                    <span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,
+                      background:isOverdue?"#fef2f2":custAllDel?"#dcfce7":"#fef3c7",
+                      color:isOverdue?"#dc2626":custAllDel?"#16a34a":"#d97706"}}>
+                      {isOverdue?"Overdue":custAllDel?"Delivered":`${pendingCnt} pending`}
                     </span>
-                    <button style={{display:"flex",alignItems:"center",gap:3,padding:"4px 9px",background:"#f0fdf4",color:"#16a34a",border:"1px solid #86efac",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:600}}
-                      onClick={e=>{e.stopPropagation();if(cust.phone)openWA(cust.phone);}} title="Open WhatsApp">
-                      {WA_ICON}
+                    <button style={{display:"flex",alignItems:"center",justifyContent:"center",width:34,height:34,background:"#22c55e",borderRadius:8,border:"none",cursor:"pointer",flexShrink:0}}
+                      onClick={e=>{e.stopPropagation();if(cust.phone)openWA(cust.phone);}}>
+                      {WA_ICON_WHITE}
                     </button>
-                    <button style={{display:"flex",alignItems:"center",gap:3,padding:"4px 9px",background:invoiceLoading?"#f1f5f9":"#f8fafc",color:"#1e40af",border:"1px solid #e2e8f0",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:600}}
+                    <button className="entry-invoice-btn" style={{display:"flex",alignItems:"center",gap:4,padding:"6px 10px",background:"transparent",color:"var(--text-secondary,#64748b)",border:"1px solid var(--border-soft,#e2e8f0)",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:600}}
                       onClick={e=>{e.stopPropagation();const now=new Date();openInvoice(cid,cust.name,{month:now.getMonth()+1,year:now.getFullYear()});}}>
-                      <FileText size={11}/>{invoiceLoading?"...":"Invoice"}
+                      <FileText size={12}/>{invoiceLoading?"...":"Invoice"}
                     </button>
+                    <span className="entry-amount" style={{fontWeight:800,fontSize:17,color:"var(--text-primary,#0f172a)",minWidth:48,textAlign:"right"}}>₹{custTotal.toLocaleString("en-IN")}</span>
+                    {custOpen?<ChevronUp size={15} color="#94a3b8"/>:<ChevronRight size={15} color="#94a3b8"/>}
                   </div>
-                  {custOpen?<ChevronUp size={15} color="#cbd5e1"/>:<ChevronDown size={15} color="#cbd5e1"/>}
                 </div>
               </div>
 
@@ -231,7 +243,7 @@ export default function Entries() {
 
                     return (
                       <div key={dateStr}>
-                        <div className="date-row" style={{display:"flex",alignItems:"center",padding:"10px 16px",cursor:"pointer",background:"#fafafa",transition:"background 0.1s"}} onClick={()=>setExpandedDate(dateOpen?null:dateKey)}>
+                        <div className="date-row" style={{display:"flex",alignItems:"center",padding:"10px 16px",cursor:"pointer",background:"var(--bg-elevated)",transition:"background 0.1s"}} onClick={()=>setExpandedDate(dateOpen?null:dateKey)}>
                           {/* Date info */}
                           <div style={{flex:1}}>
                             <div style={{fontWeight:600,fontSize:13,color:"#334155"}}>
@@ -240,14 +252,14 @@ export default function Entries() {
                             <div style={{fontSize:11,color:"#94a3b8",marginTop:1}}>{allDateItems.length} items</div>
                           </div>
                           {/* Actions */}
-                          <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+                          <div className="date-row-actions" style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
                             <span style={{fontWeight:700,fontSize:14,color:"#1e40af"}}>₹{dateTotal}</span>
                             <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:20,
                               background:dateAllDel?"#dcfce7":"#fef3c7",
                               color:dateAllDel?"#16a34a":"#d97706"}}>
                               {dateAllDel?"Done":`${datePending} left`}
                             </span>
-                            <button style={{padding:"3px 8px",background:"#f8fafc",color:"#64748b",border:"1px solid #e2e8f0",borderRadius:7,cursor:"pointer",fontSize:11}} onClick={e=>{e.stopPropagation();const [y,m]=dateStr.split("-");openInvoice(cid,cust.name,{month:parseInt(m),year:parseInt(y),entry_date:dateStr});}}>📄</button>
+                            <button className="date-row-inv" style={{padding:"3px 8px",background:"#f8fafc",color:"#64748b",border:"1px solid #e2e8f0",borderRadius:7,cursor:"pointer",fontSize:11}} onClick={e=>{e.stopPropagation();const [y,m]=dateStr.split("-");openInvoice(cid,cust.name,{month:parseInt(m),year:parseInt(y),entry_date:dateStr});}}>📄</button>
                             <button style={{display:"flex",alignItems:"center",gap:3,padding:"3px 8px",background:"#eff6ff",color:"#1e40af",border:"1px solid #bfdbfe",borderRadius:7,cursor:"pointer",fontSize:11,fontWeight:600}}
                               onClick={e=>{e.stopPropagation();openEdit(dateEntries[0]);}}>
                               <Pencil size={10}/>Edit
@@ -261,7 +273,7 @@ export default function Entries() {
 
                         {/* Items */}
                         {dateOpen&&(
-                          <div style={{padding:"8px 12px 12px 12px",background:"#f8fafc",borderTop:"1px solid #f1f5f9"}}>
+                          <div style={{padding:"8px 12px 12px 12px",background:"var(--bg-elevated)",borderTop:"1px solid var(--border-hard)"}}>
                             {dateEntries.map(entry=>(
                               <div key={entry.id}>
                                 {entry.notes&&<div style={{fontSize:12,color:"#64748b",padding:"4px 4px 8px",display:"flex",alignItems:"center",gap:4}}>📝 <span>{entry.notes}</span></div>}
@@ -269,7 +281,7 @@ export default function Entries() {
                                   {entry.items.map(item=>{
                                     const isDel=item.item_status==="delivered";
                                     return (
-                                      <div key={item.id} className="item-row" style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderRadius:10,background:isDel?"#f0fdf4":"#fff",border:`1px solid ${isDel?"#bbf7d0":"#e8ecf0"}`,transition:"background 0.1s"}}>
+                                      <div key={item.id} className="item-row" style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderRadius:10,background:isDel?"rgba(34,197,94,0.08)":"var(--bg-card)",border:`1px solid ${isDel?"rgba(34,197,94,0.3)":"var(--border-hard)"}`,transition:"background 0.1s"}}>
                                         <div style={{width:8,height:8,borderRadius:"50%",background:isDel?"#22c55e":"#fbbf24",flexShrink:0}}/>
                                         <div style={{flex:1}}>
                                           <span style={{fontWeight:600,fontSize:13,color:"#1e293b"}}>{item.service_name}</span>
@@ -303,7 +315,7 @@ export default function Entries() {
       {/* ── Edit Modal ── */}
       {editEntry&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:300}} onClick={()=>setEditEntry(null)}>
-          <div style={{background:"#fff",borderRadius:"20px 20px 0 0",width:"100%",maxWidth:600,maxHeight:"90vh",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={e=>e.stopPropagation()}>
+          <div style={{background:"var(--bg-card)",borderRadius:"20px 20px 0 0",width:"100%",maxWidth:600,maxHeight:"90vh",display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={e=>e.stopPropagation()}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 20px",borderBottom:"1px solid #f1f5f9",flexShrink:0}}>
               <div>
                 <div style={{fontWeight:800,fontSize:16,color:"#1e293b"}}>✏️ Edit Entry</div>
@@ -311,7 +323,7 @@ export default function Entries() {
               </div>
               <button onClick={()=>setEditEntry(null)} style={{background:"#f1f5f9",border:"none",borderRadius:"50%",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><X size={16} color="#64748b"/></button>
             </div>
-            <div style={{overflowY:"auto",flex:1,padding:"16px 20px"}}>
+            <div style={{overflowY:"auto",flex:1,padding:"16px 20px",background:"var(--bg-card)"}}>
               <div style={{marginBottom:16}}>
                 <div style={{fontWeight:700,fontSize:12,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:10}}>Add Service</div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:8}}>
@@ -372,7 +384,7 @@ export default function Entries() {
                 <textarea value={editNotes} onChange={e=>setEditNotes(e.target.value)} rows={2} placeholder="Any special instructions..." style={{width:"100%",padding:"10px 12px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,outline:"none",resize:"vertical",boxSizing:"border-box",fontFamily:"inherit"}}/>
               </div>
             </div>
-            <div style={{padding:"14px 20px",borderTop:"1px solid #f1f5f9",display:"flex",alignItems:"center",gap:12,flexShrink:0,background:"#fff"}}>
+            <div style={{padding:"14px 20px",borderTop:"1px solid var(--border-hard)",display:"flex",alignItems:"center",gap:12,flexShrink:0,background:"var(--bg-card)"}}>
               <div style={{flex:1}}><span style={{fontSize:12,color:"#64748b"}}>Total: </span><span style={{fontWeight:800,fontSize:18,color:"#1e40af"}}>₹{editTotal.toFixed(0)}</span></div>
               <button onClick={()=>setEditEntry(null)} style={{padding:"10px 20px",background:"#f1f5f9",color:"#64748b",border:"none",borderRadius:10,fontSize:14,fontWeight:600,cursor:"pointer"}}>Cancel</button>
               <button onClick={saveEdit} disabled={editSaving||editItems.length===0} style={{padding:"10px 24px",background:editItems.length===0?"#cbd5e1":"linear-gradient(135deg,#1e40af,#3b82f6)",color:"#fff",border:"none",borderRadius:10,fontSize:14,fontWeight:700,cursor:editItems.length===0?"not-allowed":"pointer"}}>

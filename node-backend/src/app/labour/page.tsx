@@ -129,8 +129,8 @@ export default function Labour() {
   });
 
   const monthHistory = groupByMonth(historyWorks, historyAdv);
-  const inp: React.CSSProperties = {width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:14,outline:"none",boxSizing:"border-box",background:"#f8fafc",color:"#1e293b"};
-  const lbl: React.CSSProperties = {display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.05em"};
+  const inp: React.CSSProperties = {width:"100%",padding:"10px 12px",border:"1px solid var(--border-hard)",borderRadius:10,fontSize:14,outline:"none",boxSizing:"border-box",background:"var(--bg-input)",color:"var(--text-primary)"};
+  const lbl: React.CSSProperties = {display:"block",fontSize:11,fontWeight:700,color:"var(--text-secondary)",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.05em"};
   const monthLabel = new Date(monthVal+"-01").toLocaleString("en-IN",{month:"long",year:"numeric"});
 
   // ── Labour History View ──────────────────────────────────────────────────
@@ -145,18 +145,18 @@ export default function Labour() {
 
     return (
       <ProtectedLayout>
-        <style>{`.mrow:hover{background:#f0f9ff!important;} .arow:hover{background:#fef9c3!important;}`}</style>
+        <style>{`.mrow:hover{background:var(--pressed)!important;} .arow:hover{background:var(--pressed)!important;}`}</style>
 
         {/* Back header */}
         <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
-          <button onClick={()=>setSelectedLabour(null)} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:"#f1f5f9",border:"none",borderRadius:10,cursor:"pointer",fontWeight:700,fontSize:13,color:"#475569"}}>
+          <button onClick={()=>setSelectedLabour(null)} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:"var(--bg-input)",border:"1px solid var(--border-hard)",borderRadius:10,cursor:"pointer",fontWeight:700,fontSize:13,color:"var(--text-secondary)"}}>
             <ArrowLeft size={15}/> Back
           </button>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <div style={{width:40,height:40,borderRadius:10,background:grad,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:18,color:"#fff"}}>{selectedLabour.name[0].toUpperCase()}</div>
             <div>
-              <div style={{fontWeight:800,fontSize:18,color:"#1e293b"}}>{selectedLabour.name}</div>
-              <div style={{fontSize:12,color:"#94a3b8"}}>Full payment history</div>
+              <div style={{fontWeight:800,fontSize:18,color:"var(--text-primary)"}}>{selectedLabour.name}</div>
+              <div style={{fontSize:12,color:"var(--text-muted)"}}>Full payment history</div>
             </div>
           </div>
         </div>
@@ -186,13 +186,13 @@ export default function Labour() {
             const isOpen = expandedMonth===month.key;
             const isPaid = month.netPayable<=0;
             return (
-              <div key={month.key} style={{background:"#fff",borderRadius:14,overflow:"hidden",boxShadow:"0 2px 8px rgba(0,0,0,0.07)",border:"1px solid #f1f5f9"}}>
+              <div key={month.key} style={{background:"var(--bg-card)",borderRadius:14,overflow:"hidden",border:"1px solid var(--border-hard)"}}>
 
                 {/* Month header row */}
-                <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 18px",cursor:"pointer",background:isOpen?"#fafcff":"#fff"}} onClick={()=>setExpandedMonth(isOpen?null:month.key)}>
+                <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 18px",cursor:"pointer",background:isOpen?"var(--bg-elevated)":"transparent"}} onClick={()=>setExpandedMonth(isOpen?null:month.key)}>
                   <div style={{flex:1}}>
-                    <div style={{fontWeight:800,fontSize:15,color:"#1e293b"}}>{month.label}</div>
-                    <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>{month.press} pieces • {month.works.length} work entries • {month.advances.length} advances</div>
+                    <div style={{fontWeight:800,fontSize:15,color:"var(--text-primary)"}}>{month.label}</div>
+                    <div style={{fontSize:12,color:"var(--text-muted)",marginTop:2}}>{month.press} pieces • {month.works.length} work entries • {month.advances.length} advances</div>
                   </div>
 
                   {/* Month stats */}
@@ -217,10 +217,10 @@ export default function Labour() {
                 </div>
 
                 {isOpen&&(
-                  <div style={{padding:"0 18px 18px",borderTop:"1px solid #f1f5f9"}}>
+                  <div style={{padding:"0 18px 18px",borderTop:"1px solid var(--border-hard)"}}>
 
                     {/* Calculation summary */}
-                    <div style={{background:month.netPayable>=0?"#f0fdf4":"#fef2f2",borderRadius:10,padding:"12px 16px",margin:"14px 0",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,border:`1px solid ${month.netPayable>=0?"#bbf7d0":"#fecaca"}`}}>
+                    <div style={{background:month.netPayable>=0?"rgba(5,150,105,0.08)":"rgba(220,38,38,0.08)",borderRadius:10,padding:"12px 16px",margin:"14px 0",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,border:`1px solid ${month.netPayable>=0?"rgba(5,150,105,0.2)":"rgba(220,38,38,0.2)"}`}}>
                       <span style={{fontSize:13,color:"#475569"}}>
                         <strong style={{color:"#059669"}}>₹{month.earned.toFixed(0)}</strong> earned
                         <span style={{margin:"0 8px",color:"#94a3b8"}}>−</span>
@@ -236,21 +236,21 @@ export default function Labour() {
                     {month.works.length>0&&(
                       <div style={{marginBottom:14}}>
                         <div style={{fontSize:11,fontWeight:700,color:dark,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>📋 Work Entries</div>
-                        <div style={{borderRadius:10,overflow:"hidden",border:"1px solid #f1f5f9"}}>
-                          <div style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 80px 30px",padding:"6px 12px",background:"#f8fafc",fontSize:11,fontWeight:700,color:"#94a3b8",gap:0}}>
+                        <div style={{borderRadius:10,overflow:"hidden",border:"1px solid var(--border-hard)"}}>
+                          <div style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 80px 30px",padding:"6px 12px",background:"var(--bg-elevated)",fontSize:11,fontWeight:700,color:"var(--text-muted)",gap:0}}>
                             <span>Date</span><span style={{textAlign:"center"}}>Count</span><span style={{textAlign:"center"}}>Rate</span><span style={{textAlign:"right"}}>Amount</span><span/>
                           </div>
                           {[...month.works].sort((a,b)=>a.work_date.localeCompare(b.work_date)).map((w,ri)=>(
-                            <div key={w.id} className="mrow" style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 80px 30px",padding:"9px 12px",fontSize:13,alignItems:"center",background:ri%2===0?"#fff":"#fafafa",transition:"background 0.1s",gap:0}}>
-                              <span style={{fontWeight:600,color:"#334155"}}>{new Date(w.work_date+"T00:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}</span>
+                            <div key={w.id} className="mrow" style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 80px 30px",padding:"9px 12px",fontSize:13,alignItems:"center",background:"var(--bg-card)",transition:"background 0.1s",gap:0,borderTop:"1px solid var(--border-subtle)"}}>
+                              <span style={{fontWeight:600,color:"var(--text-primary)"}}>{new Date(w.work_date+"T00:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}</span>
                               <span style={{textAlign:"center",fontWeight:700,color:"#1e293b"}}>{w.press_count}</span>
                               <span style={{textAlign:"center",color:"#64748b"}}>₹{w.rate_per_piece}</span>
                               <span style={{textAlign:"right",fontWeight:700,color:"#059669"}}>₹{w.total.toFixed(0)}</span>
                               <button onClick={()=>deleteWork(w.id)} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",justifyContent:"center"}}><Trash2 size={13} color="#ef4444"/></button>
                             </div>
                           ))}
-                          <div style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 80px 30px",padding:"8px 12px",background:"#f0fdf4",fontSize:13,fontWeight:700,gap:0}}>
-                            <span style={{color:"#475569"}}>Total</span>
+                          <div style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 80px 30px",padding:"8px 12px",background:"rgba(5,150,105,0.08)",fontSize:13,fontWeight:700,gap:0,borderTop:"1px solid var(--border-hard)"}}>
+                            <span style={{color:"var(--text-secondary)"}}>Total</span>
                             <span style={{textAlign:"center",color:"#1e293b"}}>{month.press}</span>
                             <span/>
                             <span style={{textAlign:"right",color:"#059669"}}>₹{month.earned.toFixed(0)}</span>
@@ -266,10 +266,10 @@ export default function Labour() {
                         <div style={{fontSize:11,fontWeight:700,color:"#d97706",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>💸 Advances Given</div>
                         <div style={{display:"flex",flexDirection:"column",gap:6}}>
                           {[...month.advances].sort((a,b)=>a.advance_date.localeCompare(b.advance_date)).map(a=>(
-                            <div key={a.id} className="arow" style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:"#fffbeb",border:"1px solid #fde68a",transition:"background 0.1s"}}>
+                            <div key={a.id} className="arow" style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:"rgba(217,119,6,0.08)",border:"1px solid rgba(217,119,6,0.2)",transition:"background 0.1s"}}>
                               <div style={{flex:1}}>
                                 <div style={{display:"flex",alignItems:"center",gap:10}}>
-                                  <span style={{fontSize:13,color:"#92400e",fontWeight:700}}>{new Date(a.advance_date+"T00:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}</span>
+                                  <span style={{fontSize:13,color:"#d97706",fontWeight:700}}>{new Date(a.advance_date+"T00:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}</span>
                                   <span style={{fontWeight:800,color:"#d97706",fontSize:15}}>₹{a.amount.toFixed(0)}</span>
                                 </div>
                                 {a.description&&<div style={{fontSize:12,color:"#78350f",marginTop:3}}>📝 {a.description}</div>}
@@ -277,8 +277,8 @@ export default function Labour() {
                               <button onClick={()=>deleteAdvance(a.id)} style={{background:"none",border:"none",cursor:"pointer",flexShrink:0}}><Trash2 size={13} color="#ef4444"/></button>
                             </div>
                           ))}
-                          <div style={{padding:"8px 12px",background:"#fef9c3",borderRadius:10,display:"flex",justifyContent:"space-between",fontWeight:700,fontSize:13,border:"1px solid #fde68a"}}>
-                            <span style={{color:"#92400e"}}>Total Advance</span>
+                          <div style={{padding:"8px 12px",background:"rgba(217,119,6,0.08)",borderRadius:10,display:"flex",justifyContent:"space-between",fontWeight:700,fontSize:13,border:"1px solid rgba(217,119,6,0.2)"}}>
+                            <span style={{color:"var(--text-secondary)"}}>Total Advance</span>
                             <span style={{color:"#d97706"}}>₹{month.advance.toFixed(0)}</span>
                           </div>
                         </div>
@@ -306,15 +306,16 @@ export default function Labour() {
       {/* Header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:22,flexWrap:"wrap",gap:12}}>
         <div>
-          <h2 style={{color:"#0f172a",margin:"0 0 4px",fontSize:22,fontWeight:800}}>Labour Management</h2>
-          <p style={{color:"#94a3b8",fontSize:13,margin:0}}>Track press work & advance payments</p>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:4}}>Workforce</div>
+          <h2 style={{color:"var(--text-primary)",margin:"0 0 4px",fontSize:26,fontWeight:900,letterSpacing:-0.5}}>Labour management</h2>
+          <p style={{color:"var(--text-muted)",fontSize:13,margin:0}}>Track press work & advance payments</p>
         </div>
         <div style={{display:"flex",gap:10,alignItems:"center"}}>
           <input type="month" value={monthVal} onChange={e=>setMonthVal(e.target.value)}
-            style={{padding:"8px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,outline:"none",background:"#fff",color:"#1e293b",cursor:"pointer"}}/>
+            style={{padding:"8px 12px",border:"1px solid var(--border-hard)",borderRadius:10,fontSize:13,outline:"none",background:"var(--bg-card)",color:"var(--text-primary)",cursor:"pointer"}}/>
           <button onClick={()=>{setShowLabourForm(true);setEditLabourId(null);setLabourName("");}}
-            style={{display:"flex",alignItems:"center",gap:6,background:"linear-gradient(135deg,#1e40af,#3b82f6)",color:"#fff",border:"none",borderRadius:10,padding:"9px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-            <Plus size={15}/> Add Labour
+            style={{display:"flex",alignItems:"center",gap:6,background:"#2563eb",color:"#fff",border:"none",borderRadius:10,padding:"9px 18px",fontSize:13,fontWeight:700,cursor:"pointer",boxShadow:"0 4px 14px rgba(37,99,235,0.28)"}}>
+            <Plus size={15}/> Add labour
           </button>
         </div>
       </div>
@@ -324,38 +325,38 @@ export default function Labour() {
         {labours.length===0&&<div style={{color:"#94a3b8",fontSize:14,padding:"20px 0"}}>No labour added yet</div>}
         {labours.map((l,i)=>{
           const s = summary.find(x=>x.id===l.id);
+          const accent = DARK[i%DARK.length];
           return (
-            <div key={l.id} style={{background:"#fff",borderRadius:14,overflow:"hidden",boxShadow:"0 2px 10px rgba(0,0,0,0.08)",flex:"1 1 220px",minWidth:220,border:"1px solid #f1f5f9"}}>
-              <div style={{height:5,background:GRADIENTS[i%GRADIENTS.length]}}/>
+            <div key={l.id} style={{background:"var(--bg-card)",borderRadius:14,overflow:"hidden",border:"1px solid var(--border-hard)",borderTop:`3px solid ${accent}`,flex:"1 1 260px",minWidth:240}}>
               <div style={{padding:"14px 16px"}}>
-                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-                  <div style={{width:40,height:40,borderRadius:10,background:GRADIENTS[i%GRADIENTS.length],display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:18,color:"#fff",flexShrink:0}}>{l.name[0].toUpperCase()}</div>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+                  <div style={{width:42,height:42,borderRadius:12,background:GRADIENTS[i%GRADIENTS.length],display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:18,color:"#fff",flexShrink:0}}>{l.name[0].toUpperCase()}</div>
                   <div style={{flex:1}}>
-                    <div style={{fontWeight:700,fontSize:15,color:"#1e293b"}}>{l.name}</div>
-                    <div style={{fontSize:11,color:"#94a3b8"}}>{monthLabel}</div>
+                    <div style={{fontWeight:700,fontSize:15,color:"var(--text-primary)"}}>{l.name}</div>
+                    <div style={{fontSize:11,color:"var(--text-muted)"}}>{monthLabel}</div>
                   </div>
                   <div style={{display:"flex",gap:5}}>
-                    <button style={{width:28,height:28,border:"none",borderRadius:7,background:LIGHT[i%LIGHT.length],cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>{setEditLabourId(l.id);setLabourName(l.name);setShowLabourForm(true);}}><Edit2 size={13} color={DARK[i%DARK.length]}/></button>
-                    <button style={{width:28,height:28,border:"none",borderRadius:7,background:"#fef2f2",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>deleteLabour(l.id)}><Trash2 size={13} color="#ef4444"/></button>
+                    <button style={{width:28,height:28,border:"1px solid var(--border-hard)",borderRadius:7,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>{setEditLabourId(l.id);setLabourName(l.name);setShowLabourForm(true);}}><Edit2 size={13} color="var(--text-secondary)"/></button>
+                    <button style={{width:28,height:28,border:"1px solid var(--border-hard)",borderRadius:7,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>deleteLabour(l.id)}><Trash2 size={13} color="#ef4444"/></button>
                   </div>
                 </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:10}}>
-                  <div style={{background:LIGHT[i%LIGHT.length],borderRadius:8,padding:"7px 8px",textAlign:"center"}}>
-                    <div style={{fontWeight:800,fontSize:15,color:DARK[i%DARK.length]}}>{s?.totalPress||0}</div>
-                    <div style={{fontSize:10,color:"#94a3b8"}}>Press</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
+                  <div style={{background:"var(--bg-elevated)",borderRadius:10,padding:"10px 8px",textAlign:"center"}}>
+                    <div style={{fontWeight:800,fontSize:18,color:"var(--text-primary)"}}>{s?.totalPress||0}</div>
+                    <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>Press</div>
                   </div>
-                  <div style={{background:"#f0fdf4",borderRadius:8,padding:"7px 8px",textAlign:"center"}}>
-                    <div style={{fontWeight:800,fontSize:15,color:"#059669"}}>₹{s?.totalPay.toFixed(0)||0}</div>
-                    <div style={{fontSize:10,color:"#94a3b8"}}>Earned</div>
+                  <div style={{background:"rgba(5,150,105,0.12)",borderRadius:10,padding:"10px 8px",textAlign:"center"}}>
+                    <div style={{fontWeight:800,fontSize:16,color:"#059669"}}>₹{s?.totalPay.toFixed(0)||0}</div>
+                    <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>Earned</div>
                   </div>
-                  <div style={{background:(s?.netPayable||0)>=0?"#f0f9ff":"#fef2f2",borderRadius:8,padding:"7px 8px",textAlign:"center"}}>
-                    <div style={{fontWeight:800,fontSize:15,color:(s?.netPayable||0)>=0?"#1e40af":"#dc2626"}}>₹{Math.abs(s?.netPayable||0).toFixed(0)}</div>
-                    <div style={{fontSize:10,color:"#94a3b8"}}>Net Pay</div>
+                  <div style={{background:(s?.netPayable||0)>=0?"rgba(29,78,216,0.1)":"rgba(220,38,38,0.1)",borderRadius:10,padding:"10px 8px",textAlign:"center"}}>
+                    <div style={{fontWeight:800,fontSize:16,color:(s?.netPayable||0)>=0?"#3b82f6":"#dc2626"}}>₹{Math.abs(s?.netPayable||0).toFixed(0)}</div>
+                    <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>Net pay</div>
                   </div>
                 </div>
                 <button onClick={()=>openHistory(l)} className="lab-btn"
-                  style={{width:"100%",padding:"8px",background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:9,cursor:"pointer",fontSize:12,fontWeight:700,color:"#475569",display:"flex",alignItems:"center",justifyContent:"center",gap:6,transition:"opacity 0.15s"}}>
-                  <History size={13}/> View Full History
+                  style={{width:"100%",padding:"8px",background:"transparent",border:"1px solid var(--border-hard)",borderRadius:9,cursor:"pointer",fontSize:12,fontWeight:600,color:"var(--text-secondary)",display:"flex",alignItems:"center",justifyContent:"center",gap:6,transition:"opacity 0.15s"}}>
+                  <History size={13}/> View full history
                 </button>
               </div>
             </div>
@@ -365,46 +366,52 @@ export default function Labour() {
 
       {/* Entry Forms */}
       <div style={{marginBottom:22}}>
-        <div style={{display:"flex",background:"#f1f5f9",borderRadius:12,padding:5,marginBottom:14,width:"fit-content",gap:4}}>
-          <button onClick={()=>setActiveTab("work")} style={{padding:"8px 22px",borderRadius:9,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,transition:"all 0.2s",background:activeTab==="work"?"#fff":"transparent",color:activeTab==="work"?"#1e40af":"#94a3b8",boxShadow:activeTab==="work"?"0 2px 8px rgba(0,0,0,0.1)":"none"}}>📋 Daily Work</button>
-          <button onClick={()=>setActiveTab("advance")} style={{padding:"8px 22px",borderRadius:9,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,transition:"all 0.2s",background:activeTab==="advance"?"#fff":"transparent",color:activeTab==="advance"?"#d97706":"#94a3b8",boxShadow:activeTab==="advance"?"0 2px 8px rgba(0,0,0,0.1)":"none"}}>💸 Advance</button>
+        <div style={{display:"flex",gap:8,marginBottom:14}}>
+          <button onClick={()=>setActiveTab("work")} style={{padding:"8px 20px",borderRadius:20,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,transition:"all 0.15s",background:activeTab==="work"?"#2563eb":"var(--bg-input)",color:activeTab==="work"?"#fff":"var(--text-secondary)"}}>Daily work</button>
+          <button onClick={()=>setActiveTab("advance")} style={{padding:"8px 20px",borderRadius:20,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,transition:"all 0.15s",background:activeTab==="advance"?"#2563eb":"var(--bg-input)",color:activeTab==="advance"?"#fff":"var(--text-secondary)"}}>Advance</button>
         </div>
 
         {activeTab==="work"&&(
-          <div style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,0.07)",border:"1px solid #f1f5f9"}}>
-            <div style={{fontWeight:700,fontSize:14,color:"#1e293b",marginBottom:14,display:"flex",alignItems:"center",gap:8}}><div style={{width:4,height:20,background:"linear-gradient(135deg,#1e40af,#3b82f6)",borderRadius:4}}/>Add Work Entry</div>
+          <div style={{background:"var(--bg-card)",borderRadius:14,padding:20,border:"1px solid var(--border-hard)"}}>
+            <div style={{fontWeight:800,fontSize:15,color:"var(--text-primary)",marginBottom:14}}>Add work entry</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:12}}>
               <div><label style={lbl}>Labour</label><select style={inp} value={workForm.labour_id} onChange={e=>setWorkForm(f=>({...f,labour_id:e.target.value}))}><option value="">Select...</option>{labours.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
               <div><label style={lbl}>Date</label><input type="date" style={inp} value={workForm.work_date} onChange={e=>setWorkForm(f=>({...f,work_date:e.target.value}))}/></div>
               <div><label style={lbl}>Press Count</label><input type="number" style={inp} placeholder="0" min={0} value={workForm.press_count} onChange={e=>setWorkForm(f=>({...f,press_count:e.target.value}))}/></div>
               <div><label style={lbl}>Rate (₹/piece)</label><input type="number" style={inp} value={workForm.rate_per_piece} onChange={e=>setWorkForm(f=>({...f,rate_per_piece:e.target.value}))}/></div>
             </div>
-            {workForm.press_count&&workForm.rate_per_piece&&<div style={{padding:"9px 14px",background:"#f0fdf4",borderRadius:10,fontSize:13,color:"#15803d",marginBottom:12,fontWeight:600,border:"1px solid #bbf7d0"}}>💰 {workForm.press_count} × ₹{workForm.rate_per_piece} = <strong style={{fontSize:15}}>₹{(parseInt(workForm.press_count)*parseFloat(workForm.rate_per_piece)).toFixed(0)}</strong></div>}
+            {workForm.press_count&&workForm.rate_per_piece&&<div style={{padding:"9px 14px",background:"rgba(5,150,105,0.1)",borderRadius:10,fontSize:13,color:"#059669",marginBottom:12,fontWeight:600,border:"1px solid rgba(5,150,105,0.2)"}}>Total: {workForm.press_count} × ₹{workForm.rate_per_piece} = <strong style={{fontSize:15}}>₹{(parseInt(workForm.press_count)*parseFloat(workForm.rate_per_piece)).toFixed(0)}</strong></div>}
             {workMsg==="saved"&&<div style={{padding:"8px 14px",background:"#f0fdf4",color:"#16a34a",borderRadius:8,fontSize:13,marginBottom:10,fontWeight:600}}>✅ Work entry saved!</div>}
             {workMsg.startsWith("err:")&&<div style={{padding:"8px 14px",background:"#fef2f2",color:"#dc2626",borderRadius:8,fontSize:13,marginBottom:10}}>❌ {workMsg.slice(4)}</div>}
-            <button onClick={saveWork} disabled={!workForm.labour_id||!workForm.press_count}
-              style={{padding:"11px 24px",background:(!workForm.labour_id||!workForm.press_count)?"#cbd5e1":"linear-gradient(135deg,#1e40af,#3b82f6)",color:"#fff",border:"none",borderRadius:10,fontSize:14,fontWeight:700,cursor:(!workForm.labour_id||!workForm.press_count)?"not-allowed":"pointer"}}>
-              💾 Save Work Entry
-            </button>
+            {/* Save Work Entry — right-aligned */}
+            <div style={{display:"flex",justifyContent:"flex-end"}}>
+              <button onClick={saveWork} disabled={!workForm.labour_id||!workForm.press_count}
+                style={{padding:"10px 28px",border:"none",borderRadius:9,fontSize:14,fontWeight:700,cursor:(!workForm.labour_id||!workForm.press_count)?"not-allowed":"pointer",background:(!workForm.labour_id||!workForm.press_count)?"var(--bg-elevated)":"#2563eb",color:(!workForm.labour_id||!workForm.press_count)?"var(--text-muted)":"#fff",opacity:(!workForm.labour_id||!workForm.press_count)?0.5:1}}>
+                Save work entry
+              </button>
+            </div>
           </div>
         )}
 
         {activeTab==="advance"&&(
-          <div style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 10px rgba(0,0,0,0.07)",border:"1.5px solid #fde68a"}}>
-            <div style={{fontWeight:700,fontSize:14,color:"#1e293b",marginBottom:14,display:"flex",alignItems:"center",gap:8}}><div style={{width:4,height:20,background:"linear-gradient(135deg,#d97706,#fbbf24)",borderRadius:4}}/>Add Advance Payment</div>
+          <div style={{background:"var(--bg-card)",borderRadius:14,padding:20,border:"1px solid var(--border-hard)"}}>
+            <div style={{fontWeight:800,fontSize:15,color:"var(--text-primary)",marginBottom:14}}>Add advance payment</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:12}}>
               <div><label style={lbl}>Labour</label><select style={inp} value={advForm.labour_id} onChange={e=>setAdvForm(f=>({...f,labour_id:e.target.value}))}><option value="">Select...</option>{labours.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
               <div><label style={lbl}>Date</label><input type="date" style={inp} value={advForm.advance_date} onChange={e=>setAdvForm(f=>({...f,advance_date:e.target.value}))}/></div>
               <div><label style={lbl}>Amount (₹)</label><input type="number" style={inp} placeholder="0" min={0} value={advForm.amount} onChange={e=>setAdvForm(f=>({...f,amount:e.target.value}))}/></div>
             </div>
             <div style={{marginBottom:12}}><label style={lbl}>Description</label><input style={inp} placeholder="e.g. Festival advance, Weekly advance..." value={advForm.description} onChange={e=>setAdvForm(f=>({...f,description:e.target.value}))}/></div>
-            {advForm.amount&&<div style={{padding:"9px 14px",background:"#fffbeb",borderRadius:10,fontSize:13,color:"#92400e",marginBottom:12,fontWeight:600,border:"1px solid #fde68a"}}>💸 Advance: <strong style={{fontSize:15}}>₹{parseFloat(advForm.amount||"0").toFixed(0)}</strong>{advForm.description&&<span style={{fontWeight:400,color:"#78350f"}}> — {advForm.description}</span>}</div>}
+            {advForm.amount&&<div style={{padding:"9px 14px",background:"rgba(217,119,6,0.1)",borderRadius:10,fontSize:13,color:"#d97706",marginBottom:12,fontWeight:600,border:"1px solid rgba(217,119,6,0.2)"}}>Advance: <strong style={{fontSize:15}}>₹{parseFloat(advForm.amount||"0").toFixed(0)}</strong>{advForm.description&&<span style={{fontWeight:400,color:"var(--text-secondary)"}}> — {advForm.description}</span>}</div>}
             {advMsg==="saved"&&<div style={{padding:"8px 14px",background:"#fffbeb",color:"#92400e",borderRadius:8,fontSize:13,marginBottom:10,fontWeight:600}}>✅ Advance saved!</div>}
             {advMsg.startsWith("err:")&&<div style={{padding:"8px 14px",background:"#fef2f2",color:"#dc2626",borderRadius:8,fontSize:13,marginBottom:10}}>❌ {advMsg.slice(4)}</div>}
-            <button onClick={saveAdvance} disabled={!advForm.labour_id||!advForm.amount}
-              style={{padding:"11px 24px",background:(!advForm.labour_id||!advForm.amount)?"#cbd5e1":"linear-gradient(135deg,#d97706,#f59e0b)",color:"#fff",border:"none",borderRadius:10,fontSize:14,fontWeight:700,cursor:(!advForm.labour_id||!advForm.amount)?"not-allowed":"pointer"}}>
-              <Wallet size={14} style={{display:"inline",marginRight:6}}/>Save Advance
-            </button>
+            {/* Save Advance — right-aligned */}
+            <div style={{display:"flex",justifyContent:"flex-end"}}>
+              <button onClick={saveAdvance} disabled={!advForm.labour_id||!advForm.amount}
+                style={{padding:"10px 28px",border:"none",borderRadius:9,fontSize:14,fontWeight:700,cursor:(!advForm.labour_id||!advForm.amount)?"not-allowed":"pointer",background:(!advForm.labour_id||!advForm.amount)?"var(--bg-elevated)":"#d97706",color:(!advForm.labour_id||!advForm.amount)?"var(--text-muted)":"#fff",opacity:(!advForm.labour_id||!advForm.amount)?0.5:1}}>
+                Save advance
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -412,16 +419,22 @@ export default function Labour() {
       {/* Add/Edit Labour Modal */}
       {showLabourForm&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:16}} onClick={()=>setShowLabourForm(false)}>
-          <div style={{background:"#fff",borderRadius:16,padding:28,width:"100%",maxWidth:380,boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}>
+          <div style={{background:"var(--bg-card)",borderRadius:16,padding:28,width:"100%",maxWidth:380,border:"1px solid var(--border-hard)",boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-              <h3 style={{margin:0,color:"#1e293b",fontSize:18,fontWeight:800}}>{editLabourId?"Edit":"Add"} Labour</h3>
-              <button onClick={()=>setShowLabourForm(false)} style={{background:"#f1f5f9",border:"none",borderRadius:"50%",width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><X size={16} color="#64748b"/></button>
+              <h3 style={{margin:0,color:"var(--text-primary)",fontSize:18,fontWeight:800}}>{editLabourId?"Edit":"Add"} Labour</h3>
+              <button onClick={()=>setShowLabourForm(false)} style={{background:"var(--bg-input)",border:"none",borderRadius:"50%",width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><X size={16} color="var(--text-secondary)"/></button>
             </div>
-            <label style={lbl}>Name</label>
-            <input style={{...inp,marginBottom:20}} placeholder="e.g. Ramesh, Suresh..." value={labourName} onChange={e=>setLabourName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&saveLabour()} autoFocus/>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setShowLabourForm(false)} style={{flex:1,padding:11,background:"#f1f5f9",color:"#64748b",border:"none",borderRadius:10,fontSize:14,fontWeight:600,cursor:"pointer"}}>Cancel</button>
-              <button onClick={saveLabour} disabled={!labourName.trim()} style={{flex:2,padding:11,background:!labourName.trim()?"#cbd5e1":"linear-gradient(135deg,#1e40af,#3b82f6)",color:"#fff",border:"none",borderRadius:10,fontSize:14,fontWeight:700,cursor:!labourName.trim()?"not-allowed":"pointer"}}>Save</button>
+            <label style={lbl}>Name <span style={{color:"#ef4444"}}>*</span></label>
+            <input style={{...inp,marginBottom:22}} placeholder="e.g. Ramesh, Suresh..." value={labourName} onChange={e=>setLabourName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&saveLabour()} autoFocus/>
+            <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
+              <button onClick={()=>setShowLabourForm(false)}
+                style={{padding:"10px 22px",border:"1px solid var(--border-hard)",borderRadius:9,background:"transparent",fontSize:14,fontWeight:600,cursor:"pointer",color:"var(--text-secondary)"}}>
+                Cancel
+              </button>
+              <button onClick={saveLabour} disabled={!labourName.trim()}
+                style={{padding:"10px 28px",border:"none",borderRadius:9,fontSize:14,fontWeight:700,cursor:!labourName.trim()?"not-allowed":"pointer",background:!labourName.trim()?"var(--bg-elevated)":"#2563eb",color:!labourName.trim()?"var(--text-muted)":"#fff",opacity:!labourName.trim()?0.5:1}}>
+                Save
+              </button>
             </div>
           </div>
         </div>

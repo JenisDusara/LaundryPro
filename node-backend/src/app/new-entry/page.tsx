@@ -1,17 +1,24 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Search, Trash2, Check, ChevronDown, ChevronUp, Clock, CheckCircle2, Truck, User, Phone } from "lucide-react";
+import { Search, Trash2, Check, ChevronDown, ChevronUp, Clock, CheckCircle2, Truck, Phone } from "lucide-react";
 import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import type { Customer, Service, LaundryEntry } from "@/types";
 
 interface ManualItem { id:string; service_id:string; service_name:string; item_name:string; price:number; quantity:number; }
-const COLORS=[{bg:"#eff6ff",border:"#bfdbfe",text:"#1e40af"},{bg:"#f0fdf4",border:"#bbf7d0",text:"#166534"},{bg:"#fdf4ff",border:"#e9d5ff",text:"#7e22ce"},{bg:"#fff7ed",border:"#fed7aa",text:"#9a3412"},{bg:"#f0fdfa",border:"#99f6e4",text:"#134e4a"},{bg:"#fefce8",border:"#fef08a",text:"#854d0e"}];
+const COLORS=[
+  {bg:"var(--grade-b-bg)",border:"var(--grade-b-border)",text:"var(--grade-b-text)"},
+  {bg:"var(--grade-a-bg)",border:"var(--grade-a-border)",text:"var(--grade-a-text)"},
+  {bg:"var(--grade-c-bg)",border:"var(--grade-c-border)",text:"var(--grade-c-text)"},
+  {bg:"var(--grade-d-bg)",border:"var(--grade-d-border)",text:"var(--grade-d-text)"},
+  {bg:"var(--grade-a-bg)",border:"var(--grade-a-border)",text:"var(--grade-a-text)"},
+  {bg:"var(--grade-c-bg)",border:"var(--grade-c-border)",text:"var(--grade-c-text)"},
+];
 
 const statusConfig: Record<string,{color:string;bg:string;border:string;label:string;icon:React.ReactNode}> = {
-  pending:     { color:"#d97706", bg:"#fffbeb", border:"#fde68a", label:"Pending",     icon:<Clock size={12}/> },
-  in_delivery: { color:"#2563eb", bg:"#eff6ff", border:"#bfdbfe", label:"In Delivery", icon:<Truck size={12}/> },
-  delivered:   { color:"#16a34a", bg:"#f0fdf4", border:"#bbf7d0", label:"Delivered",   icon:<CheckCircle2 size={12}/> },
+  pending:     { color:"var(--grade-c-text)", bg:"var(--grade-c-bg)", border:"var(--grade-c-border)", label:"Pending",     icon:<Clock size={12}/> },
+  in_delivery: { color:"var(--grade-b-text)", bg:"var(--grade-b-bg)", border:"var(--grade-b-border)", label:"In Delivery", icon:<Truck size={12}/> },
+  delivered:   { color:"var(--grade-a-text)", bg:"var(--grade-a-bg)", border:"var(--grade-a-border)", label:"Delivered",   icon:<CheckCircle2 size={12}/> },
 };
 
 export default function NewEntry() {
@@ -52,7 +59,6 @@ export default function NewEntry() {
     setSelectedCustomer(c);
     setSearch(`${c.name} — ${c.flat_number} — ${c.phone}`);
     setShowDropdown(false);
-    // Fetch past entries
     setPastLoading(true);
     try {
       const res = await api.get("/entries", { params: { customer_id: c.id } });
@@ -105,11 +111,9 @@ export default function NewEntry() {
     const savedItems = [...items];
     const savedCustomer = selectedCustomer;
     try {
-      // Mark all pending entries as delivered
       await Promise.all(pendingEntries.map(e=>
         api.patch(`/entries/${e.id}/status`,null,{params:{status:"delivered"}})
       ));
-      // Save new entry if any items
       if (items.length > 0) {
         await api.post("/entries",{customer_id:selectedCustomer.id,notes,items:items.map(i=>({service_id:i.service_id,service_name:i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name,quantity:Number(i.quantity),price_per_unit:Number(i.price)}))});
         setItems([]); setNotes("");
@@ -118,7 +122,6 @@ export default function NewEntry() {
       const res = await api.get("/entries",{params:{customer_id:selectedCustomer.id}});
       setPastEntries(res.data);
       setTimeout(()=>setSuccess(false),3000);
-      // Single combined WhatsApp message
       let msg = `Hi ${savedCustomer.name}! 🙏\n\n*${SHOP_NAME}*\n${today()}\n\n`;
       if (deliveredItems.length > 0) {
         msg += `✅ *Delivered:*\n${deliveredItems.map(i=>`• ${i.service_name} ×${i.quantity}`).join("\n")}\n\n`;
@@ -135,19 +138,16 @@ export default function NewEntry() {
     if(!selectedCustomer||items.length===0) return;
     setSaving(true);
     const savedItems = [...items];
-    const savedTotal = total;
     const savedCustomer = selectedCustomer;
     try {
       await api.post("/entries",{customer_id:selectedCustomer.id,notes,delivery_date:deliveryDate||null,items:items.map(i=>({service_id:i.service_id,service_name:i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name,quantity:Number(i.quantity),price_per_unit:Number(i.price)}))});
       setSuccess(true); setItems([]); setNotes(""); setDeliveryDate("");
-      // Refresh past entries
       const res = await api.get("/entries", { params: { customer_id: selectedCustomer.id } });
       setPastEntries(res.data);
       setTimeout(()=>setSuccess(false), 3000);
       if (withWA) {
         const jd = justDelivered;
         if (jd.length > 0) {
-          // Group delivered items by pickup date
           const byDate = new Map<string, string[]>();
           jd.forEach(i => {
             if (!byDate.has(i.pickup_date)) byDate.set(i.pickup_date, []);
@@ -180,7 +180,6 @@ export default function NewEntry() {
     setUpdatingId(entryId);
     try {
       await api.patch(`/entries/${entryId}/status`, null, { params: { status: "delivered" } });
-      // Get entry BEFORE updating state to avoid StrictMode double-call
       const entry = pastEntries.find(e => e.id === entryId);
       if (entry) {
         const newItems = entry.items
@@ -217,54 +216,64 @@ export default function NewEntry() {
     } finally { setUpdatingItemId(null); }
   };
 
+  const isDisabled = !selectedCustomer || items.length === 0 || saving;
+
   return (
     <ProtectedLayout>
-      <style>{`.svc-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.1);} .entry-row:hover{background:#f0f9ff!important;}`}</style>
+      <style>{`
+        .svc-btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-web-lift); }
+        .entry-row:hover { background: var(--bg-elevated) !important; }
+      `}</style>
 
-      <h2 style={{color:"#0f172a",marginBottom:4,fontSize:22,fontWeight:700}}>New Laundry Entry</h2>
-      <p style={{color:"#64748b",fontSize:13,marginBottom:20}}>Fill in customer and services below</p>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20}}>
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",textTransform:"uppercase",letterSpacing:"0.12em"}}>Entry</div>
+          <h2 style={{color:"var(--text-primary)",marginBottom:4,marginTop:"2px",fontSize:22,fontWeight:700}}>New entry</h2>
+          <p style={{color:"var(--text-secondary)",fontSize:13,margin:0}}>Add a customer and select services</p>
+        </div>
+      </div>
 
       {success && (
-        <div style={{background:"#f0fdf4",color:"#16a34a",padding:"12px 16px",borderRadius:10,marginBottom:16,fontWeight:600,display:"flex",alignItems:"center",gap:8,border:"1px solid #bbf7d0"}}>
+        <div style={{background:"var(--grade-a-bg)",color:"var(--grade-a-text)",padding:"12px 16px",borderRadius:10,marginBottom:16,fontWeight:600,display:"flex",alignItems:"center",gap:8,border:"1px solid var(--grade-a-border)"}}>
           <Check size={18}/> Entry saved successfully!
         </div>
       )}
 
       {/* ── Customer Search ── */}
-      <div style={{background:"#fff",borderRadius:14,padding:"18px 20px",marginBottom:14,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",border:"1px solid #f1f5f9"}}>
-        <div style={{fontWeight:700,fontSize:13,color:"#475569",marginBottom:12,textTransform:"uppercase",letterSpacing:"0.05em"}}>👤 Customer</div>
+      <div className="web-card" style={{background:"var(--bg-card-solid)",borderRadius:14,padding:"18px 20px",marginBottom:14,boxShadow:"var(--shadow-web-lift)",border:"1px solid var(--border-hard)"}}>
+        <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",marginBottom:12,textTransform:"uppercase",letterSpacing:"0.1em"}}>Customer</div>
         <div style={{position:"relative"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,border:"1.5px solid #e2e8f0",borderRadius:10,padding:"11px 14px",background:"#f8fafc"}}>
-            <Search size={15} color="#94a3b8"/>
+          <div style={{display:"flex",alignItems:"center",gap:8,border:"1.5px solid var(--border)",borderRadius:10,padding:"11px 14px",background:"var(--bg-input)"}}>
+            <Search size={15} style={{color:"var(--text-muted)"}}/>
             <input
-              style={{flex:1,border:"none",outline:"none",fontSize:14,background:"transparent",color:"#1e293b"}}
+              style={{flex:1,border:"none",outline:"none",fontSize:14,background:"transparent",color:"var(--text-primary)"}}
               placeholder="Search by Name, Phone, Flat or Society..."
               value={search}
               onChange={e=>{ setSearch(e.target.value); setSelectedCustomer(null); setPastEntries([]); setShowDropdown(true); }}
               onFocus={()=>search.length>0&&setShowDropdown(true)}
             />
             {search && (
-              <button onClick={clearCustomer} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",padding:2,display:"flex"}}>✕</button>
+              <button onClick={clearCustomer} style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-muted)",padding:2,display:"flex"}}>✕</button>
             )}
           </div>
 
           {/* Suggestions dropdown */}
           {showDropdown && filtered.length>0 && !selectedCustomer && (
-            <div style={{position:"absolute",top:"calc(100% + 6px)",left:0,right:0,background:"#fff",border:"1px solid #e2e8f0",borderRadius:12,zIndex:100,boxShadow:"0 12px 32px rgba(0,0,0,0.12)",maxHeight:260,overflowY:"auto"}}>
+            <div style={{position:"absolute",top:"calc(100% + 6px)",left:0,right:0,background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:12,zIndex:100,boxShadow:"var(--shadow-web-lift)",maxHeight:260,overflowY:"auto"}}>
               {filtered.map(c=>(
                 <div key={c.id}
-                  style={{padding:"12px 16px",cursor:"pointer",borderBottom:"1px solid #f8fafc",transition:"background 0.1s"}}
-                  onMouseEnter={e=>e.currentTarget.style.background="#f0f9ff"}
+                  style={{padding:"12px 16px",cursor:"pointer",borderBottom:"1px solid var(--web-bg-band)",transition:"background 0.1s"}}
+                  onMouseEnter={e=>e.currentTarget.style.background="var(--grade-b-bg)"}
                   onMouseLeave={e=>e.currentTarget.style.background="transparent"}
                   onClick={()=>selectCustomer(c)}
                 >
                   <div style={{display:"flex",alignItems:"center",gap:10}}>
-                    <div style={{width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,#1d4ed8,#3b82f6)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:14,flexShrink:0}}>
+                    <div style={{width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,#6EA8FF,#3f7fe0)",display:"flex",alignItems:"center",justifyContent:"center",color:"#0b1830",fontWeight:700,fontSize:14,flexShrink:0}}>
                       {c.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>{c.name}</div>
-                      <div style={{fontSize:12,color:"#64748b",display:"flex",gap:10,marginTop:2,flexWrap:"wrap"}}>
+                      <div style={{fontWeight:700,fontSize:14,color:"var(--text-primary)"}}>{c.name}</div>
+                      <div style={{fontSize:12,color:"var(--text-muted)",display:"flex",gap:10,marginTop:2,flexWrap:"wrap"}}>
                         <span style={{display:"flex",alignItems:"center",gap:3}}><Phone size={10}/> {c.phone}</span>
                         {c.flat_number&&<span>🏠 {c.flat_number}</span>}
                         {c.society_name&&<span>🏘️ {c.society_name}</span>}
@@ -279,64 +288,66 @@ export default function NewEntry() {
 
         {/* Selected customer chip */}
         {selectedCustomer && (
-          <div style={{marginTop:12,padding:"10px 14px",background:"#f0fdf4",borderRadius:10,border:"1px solid #bbf7d0",display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:34,height:34,borderRadius:9,background:"linear-gradient(135deg,#059669,#10b981)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:14}}>
+          <div style={{marginTop:12,padding:"10px 14px",background:"var(--grade-a-bg)",borderRadius:10,border:"1px solid var(--grade-a-border)",display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:34,height:34,borderRadius:9,background:"linear-gradient(135deg,#6EA8FF,#3f7fe0)",display:"flex",alignItems:"center",justifyContent:"center",color:"#0b1830",fontWeight:700,fontSize:14}}>
               {selectedCustomer.name.charAt(0).toUpperCase()}
             </div>
             <div style={{flex:1}}>
-              <div style={{fontWeight:700,fontSize:14,color:"#15803d"}}>{selectedCustomer.name}</div>
-              <div style={{fontSize:12,color:"#16a34a",display:"flex",gap:8,marginTop:1}}>
+              <div style={{fontWeight:700,fontSize:14,color:"var(--grade-a-text)"}}>{selectedCustomer.name}</div>
+              <div style={{fontSize:12,color:"var(--grade-a-text)",display:"flex",gap:8,marginTop:1,opacity:0.8}}>
                 <span><Phone size={10}/> {selectedCustomer.phone}</span>
                 {selectedCustomer.flat_number&&<span>🏠 {selectedCustomer.flat_number}, {selectedCustomer.society_name}</span>}
               </div>
             </div>
-            <Check size={18} color="#16a34a"/>
+            <Check size={18} style={{color:"var(--grade-a-text)"}}/>
           </div>
         )}
       </div>
 
       {/* ── Past History ── */}
       {selectedCustomer && (
-        <div style={{background:"#fff",borderRadius:14,padding:"18px 20px",marginBottom:14,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",border:"1px solid #f1f5f9"}}>
-          <div style={{fontWeight:700,fontSize:13,color:"#475569",marginBottom:14,textTransform:"uppercase",letterSpacing:"0.05em"}}>
-            📋 Past History — {selectedCustomer.name}
+        <div className="web-card" style={{background:"var(--bg-card-solid)",borderRadius:14,padding:"18px 20px",marginBottom:14,boxShadow:"var(--shadow-web-lift)",border:"1px solid var(--border-hard)"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--grade-c-text)",marginBottom:14,textTransform:"uppercase",letterSpacing:"0.1em"}}>
+            Past Entries — {selectedCustomer.name}
           </div>
 
           {pastLoading ? (
-            <p style={{color:"#94a3b8",fontSize:13,textAlign:"center",padding:"12px 0"}}>Loading history...</p>
+            <p style={{color:"var(--text-muted)",fontSize:13,textAlign:"center",padding:"12px 0"}}>Loading history...</p>
           ) : pendingEntries.length === 0 ? (
-            <div style={{textAlign:"center",padding:"16px 0",color:"#94a3b8",fontSize:13}}>
+            <div style={{textAlign:"center",padding:"16px 0",color:"var(--text-muted)",fontSize:13}}>
               <div style={{fontSize:28,marginBottom:6}}>✅</div>
               {pastEntries.length === 0 ? "New customer — no past entries" : "All deliveries completed!"}
             </div>
           ) : (
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {/* Pending notice */}
+              <div style={{padding:"10px 14px",background:"var(--grade-c-bg)",border:"1px solid var(--grade-c-border)",borderRadius:8,marginBottom:4}}>
+                <span style={{fontSize:12,fontWeight:700,color:"var(--grade-c-text)"}}>{pendingEntries.length} pending {pendingEntries.length===1?"entry":"entries"} — mark as delivered before saving new pickup</span>
+              </div>
               {pendingEntries.map(e => {
                 const allDel = e.items.every(i => i.item_status === "delivered");
                 const isUpdating = updatingId === e.id;
                 const delCount = e.items.filter(i=>i.item_status==="delivered").length;
                 return (
-                  <div key={e.id} style={{background:"#fffbeb",borderRadius:12,padding:"10px 14px",border:"1px solid #fde68a"}}>
-                    {/* Header */}
+                  <div key={e.id} style={{background:"var(--grade-c-bg)",borderRadius:12,padding:"10px 14px",border:"1px solid var(--grade-c-border)"}}>
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <span style={{fontWeight:700,fontSize:13,color:"#92400e"}}>📅 {new Date(e.entry_date+"T00:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short"})}</span>
-                        <span style={{fontSize:11,color:"#d97706"}}>{delCount}/{e.items.length} done</span>
+                        <span style={{fontWeight:700,fontSize:13,color:"var(--grade-c-text)"}}>📅 {new Date(e.entry_date+"T00:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short"})}</span>
+                        <span style={{fontSize:11,color:"var(--grade-c-text)",opacity:0.8}}>{delCount}/{e.items.length} done</span>
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <span style={{fontWeight:700,fontSize:13,color:"#1e40af"}}>₹{Number(e.total_amount)}</span>
+                        <span style={{fontWeight:700,fontSize:13,color:"var(--text-primary)"}}>₹{Number(e.total_amount)}</span>
                         {!allDel&&<button onClick={()=>markDelivered(e.id)} disabled={isUpdating}
-                          style={{padding:"3px 10px",background:"#059669",color:"#fff",border:"none",borderRadius:20,fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                          style={{padding:"3px 10px",background:"var(--accent-success)",color:"#0b1830",border:"none",borderRadius:20,fontSize:11,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-glow-green)"}}>
                           {isUpdating?"...":"All ✓"}
                         </button>}
                         <button onClick={()=>openDeliveryWhatsApp(e.items)}
                           title="Send delivery WhatsApp"
-                          style={{width:26,height:26,borderRadius:"50%",background:"#dcfce7",border:"1px solid #86efac",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="#16a34a"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                          style={{width:26,height:26,borderRadius:"50%",background:"var(--grade-a-bg)",border:"1px solid var(--grade-a-border)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="var(--grade-a-text)"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
                         </button>
                       </div>
                     </div>
-                    {/* Items as chips */}
                     <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
                       {e.items.map(item => {
                         const isDel = item.item_status === "delivered";
@@ -345,9 +356,9 @@ export default function NewEntry() {
                           <button key={item.id} onClick={()=>markItemStatus(e.id,item.id,item.item_status)} disabled={isItemUpdating}
                             title={isDel?"Click to undo":"Click to mark delivered"}
                             style={{display:"flex",alignItems:"center",gap:5,padding:"5px 10px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",border:"none",transition:"all 0.15s",
-                              background:isDel?"#dcfce7":"#fff",
-                              color:isDel?"#16a34a":"#92400e",
-                              boxShadow:isDel?"0 0 0 1.5px #86efac":"0 0 0 1.5px #fde68a"
+                              background:isDel?"var(--grade-a-bg)":"var(--bg-card-solid)",
+                              color:isDel?"var(--grade-a-text)":"var(--grade-c-text)",
+                              boxShadow:isDel?"0 0 0 1.5px var(--grade-a-border)":"0 0 0 1.5px var(--grade-c-border)"
                             }}>
                             {isItemUpdating ? "..." : isDel ? "✓" : "○"}
                             <span>{item.service_name}</span>
@@ -366,43 +377,39 @@ export default function NewEntry() {
       )}
 
       {/* ── Select Services ── */}
-      <div style={{background:"#fff",borderRadius:14,padding:"18px 20px",marginBottom:14,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",border:"1px solid #f1f5f9"}}>
-        <div style={{fontWeight:700,fontSize:13,color:"#475569",marginBottom:14,textTransform:"uppercase",letterSpacing:"0.05em"}}>🧺 Select Services</div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12}}>
-          {topServices.map((svc,idx)=>{
-            const color=COLORS[idx%COLORS.length];
+      <div className="web-card" style={{background:"var(--bg-card-solid)",borderRadius:14,padding:"18px 20px",marginBottom:14,boxShadow:"var(--shadow-web-lift)",border:"1px solid var(--border-hard)"}}>
+        <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",marginBottom:14,textTransform:"uppercase",letterSpacing:"0.1em"}}>Services</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+          {topServices.map((svc)=>{
             const children = svc.children || [];
             const isOpen = openServices.has(svc.id);
             const toggle = () => setOpenServices(prev=>{ const s=new Set(prev); s.has(svc.id)?s.delete(svc.id):s.add(svc.id); return s; });
 
-            // No children → plain button
             if(children.length === 0) return (
               <button key={svc.id} className="svc-btn" onClick={()=>addItem(svc)}
-                style={{padding:"14px 12px",background:color.bg,color:color.text,border:`2px solid ${color.border}`,borderRadius:14,cursor:"pointer",fontSize:14,fontWeight:700,transition:"all 0.15s",textAlign:"center",width:"100%"}}>
+                style={{padding:"7px 14px",background:"var(--bg-input)",color:"var(--text-secondary)",border:"1px solid var(--border-hard)",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:500,transition:"all 0.15s"}}
+                onMouseEnter={e=>{e.currentTarget.style.background="var(--grade-b-bg)";e.currentTarget.style.borderColor="var(--grade-b-border)";e.currentTarget.style.color="var(--grade-b-text)";}}
+                onMouseLeave={e=>{e.currentTarget.style.background="var(--bg-input)";e.currentTarget.style.borderColor="var(--border-hard)";e.currentTarget.style.color="var(--text-secondary)";}}>
                 + {svc.name}
               </button>
             );
 
-            // Has children → click to expand/collapse
             return (
-              <div key={svc.id} style={{background:color.bg,border:`2px solid ${isOpen?color.border:color.border}`,borderRadius:14,overflow:"hidden"}}>
-                {/* Header button */}
+              <div key={svc.id} style={{position:"relative"}}>
                 <button onClick={toggle}
-                  style={{width:"100%",padding:"13px 14px",background:"transparent",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",fontWeight:700,fontSize:14,color:color.text,textAlign:"left"}}>
-                  <span>{svc.name}</span>
-                  <span style={{fontSize:18,fontWeight:400,lineHeight:1,color:color.text,opacity:0.7}}>{isOpen?"−":"+"}</span>
+                  style={{padding:"7px 14px",background:isOpen?"var(--grade-b-bg)":"var(--bg-input)",color:isOpen?"var(--grade-b-text)":"var(--text-secondary)",border:`1px solid ${isOpen?"var(--grade-b-border)":"var(--border-hard)"}`,borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:5,transition:"all 0.15s"}}>
+                  {svc.name} {isOpen ? <ChevronUp size={13}/> : <ChevronDown size={13}/>}
                 </button>
-
-                {/* Sub-items — visible only when open */}
                 {isOpen&&(
-                  <div style={{display:"flex",flexDirection:"column",gap:4,padding:"0 10px 10px",borderTop:`1px solid ${color.border}`}}>
-                    <div style={{height:6}}/>
+                  <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,zIndex:50,minWidth:160,boxShadow:"var(--shadow-web-lift)",overflow:"hidden"}}>
                     {children.map(child=>(
-                      <button key={child.id} className="svc-btn" onClick={()=>{ addItem(child); }}
-                        style={{padding:"8px 10px",background:"#fff",color:color.text,border:`1.5px solid ${color.border}`,borderRadius:10,cursor:"pointer",fontSize:12,fontWeight:600,display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",transition:"all 0.15s"}}>
-                        <span>+ {child.name}</span>
-                        <span style={{opacity:0.7,fontSize:11}}>₹{child.price}</span>
-                      </button>
+                      <div key={child.id} onClick={()=>{ addItem(child); toggle(); }}
+                        style={{padding:"8px 14px",fontSize:13,cursor:"pointer",display:"flex",justifyContent:"space-between",gap:12,color:"var(--text-primary)"}}
+                        onMouseEnter={e=>e.currentTarget.style.background="var(--bg-input)"}
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                        <span>{child.name}</span>
+                        <span style={{color:"var(--text-muted)",fontSize:12}}>₹{child.price}</span>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -414,82 +421,96 @@ export default function NewEntry() {
 
       {/* ── Items ── */}
       {items.length>0&&(
-        <div style={{background:"#fff",borderRadius:14,padding:"18px 20px",marginBottom:14,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",border:"1px solid #f1f5f9"}}>
-          <div style={{fontWeight:700,fontSize:13,color:"#475569",marginBottom:12,textTransform:"uppercase",letterSpacing:"0.05em"}}>📦 Items ({items.length})</div>
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        <div className="web-card" style={{background:"var(--bg-card-solid)",borderRadius:14,padding:"18px 20px",marginBottom:14,boxShadow:"var(--shadow-web-lift)",border:"1px solid var(--border-hard)"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",marginBottom:12,textTransform:"uppercase",letterSpacing:"0.1em"}}>Items ({items.length})</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {items.map(item=>(
-              <div key={item.id} style={{background:"#f8fafc",borderRadius:10,padding:"12px 14px",border:"1px solid #e2e8f0"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <span style={{fontWeight:700,fontSize:13,color:"#1e40af",background:"#eff6ff",padding:"3px 10px",borderRadius:12}}>{item.service_name}</span>
-                  <button onClick={()=>removeItem(item.id)} style={{background:"#fef2f2",border:"none",borderRadius:6,padding:"4px 8px",cursor:"pointer"}}><Trash2 size={14} color="#ef4444"/></button>
+              <div key={item.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"var(--web-bg-band)",borderRadius:8,border:"1px solid var(--border-hard)"}}>
+                <span style={{fontWeight:600,fontSize:13,color:"var(--text-primary)",flex:1}}>{item.service_name}</span>
+                <div style={{display:"flex",alignItems:"center",gap:6,background:"var(--bg-input)",border:"1px solid var(--border)",borderRadius:6,padding:"4px 8px"}}>
+                  <span style={{fontSize:11,color:"var(--text-muted)"}}>Qty</span>
+                  <input type="number" style={{width:44,border:"none",outline:"none",fontSize:14,fontWeight:600,textAlign:"center",background:"transparent",color:"var(--text-primary)"}} value={item.quantity} min={1} onChange={e=>updateItem(item.id,"quantity",e.target.value)}/>
                 </div>
-                <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6,background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,padding:"4px 8px"}}>
-                    <span style={{fontSize:12,color:"#94a3b8",fontWeight:600}}>Qty</span>
-                    <input type="number" style={{width:60,border:"none",outline:"none",fontSize:16,fontWeight:600,textAlign:"right"}} value={item.quantity} min={1} onChange={e=>updateItem(item.id,"quantity",e.target.value)}/>
-                  </div>
-                  <div style={{display:"flex",alignItems:"center",gap:6,background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,padding:"4px 8px"}}>
-                    <span style={{fontSize:12,color:"#94a3b8",fontWeight:600}}>Rs.</span>
-                    <input type="number" style={{width:64,border:"none",outline:"none",fontSize:14,fontWeight:600,textAlign:"right"}} value={item.price} min={0} onChange={e=>updateItem(item.id,"price",e.target.value)}/>
-                  </div>
-                  <div style={{fontWeight:800,fontSize:15,color:"#059669",minWidth:70,textAlign:"right"}}>₹{(Number(item.price)*Number(item.quantity)).toFixed(0)}</div>
-                  <input style={{flex:1,minWidth:120,padding:"6px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,outline:"none",background:"#fff",color:"#64748b"}} placeholder="Description (optional)" value={item.item_name} onChange={e=>updateItem(item.id,"item_name",e.target.value)}/>
+                <div style={{display:"flex",alignItems:"center",gap:4,background:"var(--bg-input)",border:"1px solid var(--border)",borderRadius:6,padding:"4px 8px"}}>
+                  <span style={{fontSize:11,color:"var(--text-muted)"}}>₹</span>
+                  <input type="number" style={{width:52,border:"none",outline:"none",fontSize:13,fontWeight:600,textAlign:"right",background:"transparent",color:"var(--text-primary)"}} value={item.price} min={0} onChange={e=>updateItem(item.id,"price",e.target.value)}/>
                 </div>
+                <span style={{fontWeight:700,fontSize:13,color:"var(--accent-success)",minWidth:48,textAlign:"right"}}>₹{(Number(item.price)*Number(item.quantity)).toFixed(0)}</span>
+                <input style={{width:110,padding:"5px 8px",border:"1.5px solid var(--border)",borderRadius:6,fontSize:12,outline:"none",color:"var(--text-primary)",background:"var(--bg-input)"}} placeholder="Note..." value={item.item_name} onChange={e=>updateItem(item.id,"item_name",e.target.value)}/>
+                <button onClick={()=>removeItem(item.id)} style={{background:"var(--grade-f-bg)",border:"1px solid var(--grade-f-border)",borderRadius:6,cursor:"pointer",padding:"4px 6px",display:"flex",flexShrink:0}}><Trash2 size={14} style={{color:"var(--grade-f-text)"}}/></button>
               </div>
             ))}
           </div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 4px 0",borderTop:"2px dashed #e2e8f0",marginTop:12}}>
-            <span style={{color:"#64748b",fontWeight:600}}>Total Amount</span>
-            <span style={{fontWeight:800,fontSize:22,color:"#1e40af"}}>₹{total.toFixed(0)}</span>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:12,marginTop:8,borderTop:"1px solid var(--border-hard)"}}>
+            <span style={{color:"var(--text-secondary)",fontSize:13,fontWeight:500}}>Total</span>
+            <span style={{fontWeight:700,fontSize:18,color:"var(--accent-success)"}}>₹{total.toFixed(0)}</span>
           </div>
         </div>
       )}
 
-      {/* ── Delivery Date ── */}
-      <div style={{background:"#fff",borderRadius:14,padding:"18px 20px",marginBottom:14,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",border:"1px solid #f1f5f9"}}>
-        <div style={{fontWeight:700,fontSize:13,color:"#475569",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.05em"}}>🚚 Expected Delivery Date <span style={{fontSize:11,fontWeight:400,textTransform:"none",color:"#94a3b8"}}>(optional)</span></div>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <input
-            type="date"
-            value={deliveryDate}
-            min={new Date().toISOString().slice(0,10)}
-            onChange={e=>setDeliveryDate(e.target.value)}
-            style={{flex:1,padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:14,outline:"none",background:"#f8fafc",color:"#1e293b"}}
-          />
+      {/* ── Delivery Date + Notes — 2 column like MCP ── */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+        <div className="web-card" style={{background:"var(--bg-card-solid)",borderRadius:14,padding:"18px 20px",boxShadow:"var(--shadow-web-lift)",border:"1px solid var(--border-hard)"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.1em"}}>
+            Expected Delivery <span style={{fontSize:10,fontWeight:400,textTransform:"none",color:"var(--text-muted)"}}>(optional)</span>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <input type="date" value={deliveryDate} min={new Date().toISOString().slice(0,10)} onChange={e=>setDeliveryDate(e.target.value)}
+              style={{flex:1,padding:"9px 12px",border:"1.5px solid var(--border)",borderRadius:8,fontSize:13,outline:"none",background:"var(--bg-input)",color:"var(--text-primary)"}}/>
+            {deliveryDate&&(
+              <button onClick={()=>setDeliveryDate("")} style={{padding:"7px 10px",background:"var(--grade-f-bg)",border:"1px solid var(--grade-f-border)",borderRadius:7,fontSize:11,fontWeight:500,color:"var(--grade-f-text)",cursor:"pointer"}}>Clear</button>
+            )}
+          </div>
           {deliveryDate&&(
-            <button onClick={()=>setDeliveryDate("")} style={{padding:"10px 14px",background:"#fef2f2",border:"1.5px solid #fecaca",borderRadius:10,fontSize:12,fontWeight:600,color:"#dc2626",cursor:"pointer"}}>Clear</button>
+            <div style={{marginTop:6,fontSize:11,color:"var(--grade-c-text)",fontWeight:500}}>
+              {new Date(deliveryDate+"T00:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"})}
+            </div>
           )}
         </div>
-        {deliveryDate&&(
-          <div style={{marginTop:8,fontSize:12,color:"#d97706",fontWeight:600,display:"flex",alignItems:"center",gap:4}}>
-            🔔 Delivery reminder set for {new Date(deliveryDate+"T00:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"})}
+
+        <div className="web-card" style={{background:"var(--bg-card-solid)",borderRadius:14,padding:"18px 20px",boxShadow:"var(--shadow-web-lift)",border:"1px solid var(--border-hard)"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.1em"}}>
+            Notes <span style={{fontSize:10,fontWeight:400,textTransform:"none",color:"var(--text-muted)"}}>(optional)</span>
           </div>
-        )}
+          <textarea style={{width:"100%",padding:"9px 12px",border:"1.5px solid var(--border)",borderRadius:8,fontSize:13,outline:"none",resize:"none",boxSizing:"border-box",fontFamily:"inherit",color:"var(--text-primary)",background:"var(--bg-input)",height:72}} placeholder="Any special instructions..." value={notes} onChange={e=>setNotes(e.target.value)}/>
+        </div>
       </div>
 
-      {/* ── Notes ── */}
-      <div style={{background:"#fff",borderRadius:14,padding:"18px 20px",marginBottom:14,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",border:"1px solid #f1f5f9"}}>
-        <div style={{fontWeight:700,fontSize:13,color:"#475569",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.05em"}}>📝 Notes (optional)</div>
-        <textarea style={{width:"100%",padding:"10px 12px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:14,outline:"none",resize:"vertical",boxSizing:"border-box",fontFamily:"inherit"}} placeholder="Any special instructions..." value={notes} onChange={e=>setNotes(e.target.value)} rows={2}/>
-      </div>
-
-      {/* ── Save Buttons ── */}
-      <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:8}}>
+      {/* ── Action Buttons — MCP style: right-aligned row ── */}
+      <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:10,paddingTop:4,marginBottom:16}}>
         <button
-          style={{width:"100%",padding:"15px",background:!selectedCustomer||items.length===0?"#cbd5e1":"linear-gradient(135deg,#1e40af,#3b82f6)",color:"#fff",border:"none",borderRadius:12,fontSize:16,fontWeight:700,cursor:!selectedCustomer||items.length===0?"not-allowed":"pointer",boxShadow:!selectedCustomer||items.length===0?"none":"0 4px 16px rgba(59,130,246,0.35)"}}
-          onClick={()=>save(false)}
-          disabled={!selectedCustomer||items.length===0||saving}
+          onClick={()=>{ setItems([]); setSelectedCustomer(null); setSearch(""); setNotes(""); setDeliveryDate(""); setPastEntries([]); }}
+          style={{padding:"10px 22px",borderRadius:9,border:"1.5px solid var(--border)",background:"var(--bg-input)",color:"var(--text-secondary)",cursor:"pointer",fontSize:13,fontWeight:600,transition:"all 0.15s"}}
         >
-          {saving ? "Saving..." : "💾 Save Entry"}
+          Cancel
         </button>
-
         <button
-          style={{width:"100%",padding:"15px",background:!selectedCustomer||items.length===0?"#d1fae5":"linear-gradient(135deg,#15803d,#22c55e)",color:!selectedCustomer||items.length===0?"#94a3b8":"#fff",border:"none",borderRadius:12,fontSize:16,fontWeight:700,cursor:!selectedCustomer||items.length===0?"not-allowed":"pointer",boxShadow:!selectedCustomer||items.length===0?"none":"0 4px 16px rgba(34,197,94,0.35)",display:"flex",alignItems:"center",justifyContent:"center",gap:10}}
           onClick={()=>save(true)}
-          disabled={!selectedCustomer||items.length===0||saving}
+          disabled={isDisabled}
+          title="Save & Send WhatsApp"
+          style={{
+            padding:"10px 14px",borderRadius:9,fontSize:13,fontWeight:600,
+            cursor:isDisabled?"not-allowed":"pointer",display:"flex",alignItems:"center",gap:6,transition:"all 0.15s",
+            ...(isDisabled
+              ? {background:"var(--bg-input)",border:"1.5px solid var(--border)",color:"var(--text-secondary)",opacity:0.55}
+              : {background:"var(--accent-success)",border:"none",color:"#0b1830",boxShadow:"var(--shadow-glow-green)"})
+          }}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
-          Save & Send WhatsApp
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+          WA
+        </button>
+        <button
+          onClick={()=>save(false)}
+          disabled={isDisabled}
+          style={{
+            padding:"10px 28px",borderRadius:9,fontSize:14,fontWeight:700,
+            cursor:isDisabled?"not-allowed":"pointer",transition:"all 0.15s",
+            ...(isDisabled
+              ? {background:"var(--bg-input)",border:"1.5px solid var(--border)",color:"var(--text-secondary)",opacity:0.55}
+              : {background:"var(--accent-primary)",border:"none",color:"#0b1830",boxShadow:"var(--shadow-glow-blue)"})
+          }}
+        >
+          {saving ? "Saving..." : total > 0 ? `Save entry · ₹${total}` : "Save entry"}
         </button>
       </div>
     </ProtectedLayout>
