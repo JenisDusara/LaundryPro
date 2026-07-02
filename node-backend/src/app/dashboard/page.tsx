@@ -32,6 +32,7 @@ export default function Dashboard() {
   const [notifPerm,     setNotifPerm]     = useState<NotificationPermission>("default");
   const [notifSent,     setNotifSent]     = useState(false);
   const [profile,       setProfile]       = useState<{ name: string; shop_name: string } | null>(null);
+  const [showNotifSheet, setShowNotifSheet] = useState(false);
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -49,7 +50,11 @@ export default function Dashboard() {
       setMonthEntries(m.data);
       setCustomers(c.data);
       setProfile(me.data);
-      setAllPending(all.data.filter((e: LaundryEntry) => e.delivery_status !== "delivered" && e.delivery_date));
+      setAllPending(all.data.filter((e: LaundryEntry) =>
+        e.delivery_status !== "delivered" &&
+        e.delivery_date &&
+        !e.items?.every((i: { item_status: string }) => i.item_status === "delivered")
+      ));
     }).finally(() => setLoading(false));
   }, [today]);
 
@@ -108,19 +113,19 @@ export default function Dashboard() {
       `}</style>
 
       {/* ── Header ── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-        <div>
+      <div className="dash-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <p className="mob-hide" style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.12em" }}>{dateStr}</p>
-          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-.01em" }}>
+          <h1 className="dash-greeting-h1" style={{ margin: 0, fontSize: 28, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {greeting}{profile?.name ? `, ${profile.name.split(" ")[0]}` : ""}
           </h1>
           {profile?.shop_name && <p style={{ margin: "4px 0 0", fontSize: 13.75, color: "var(--text-secondary)" }}>{profile.shop_name}</p>}
         </div>
         <button className="dash-bell-btn"
-          onClick={notifPerm === "granted" ? () => router.push("/deliveries") : requestNotif}
-          style={{ position: "relative", background: "var(--bg-input)", border: "1px solid var(--border-default)", borderRadius: 10, padding: "9px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, color: "var(--text-secondary)", fontSize: 13, fontWeight: 500 }}>
-          {notifPerm === "granted" ? <Bell size={16} color="var(--accent-success)" /> : <BellOff size={16} />}
-          <span className="mob-hide">{notifPerm !== "granted" && "Enable alerts"}</span>
+          onClick={() => setShowNotifSheet(true)}
+          style={{ position: "relative", background: "var(--bg-input)", border: "1px solid var(--border-default)", borderRadius: 10, padding: "9px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, color: "var(--text-secondary)", fontSize: 13, fontWeight: 500, flexShrink: 0 }}>
+          <Bell size={16} color={(overdueEntries.length + dueTodayEntries.length) > 0 ? "var(--accent-error)" : "var(--accent-success)"} />
+          <span className="mob-hide">Alerts</span>
           {(overdueEntries.length + dueTodayEntries.length) > 0 && (
             <span style={{ position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: "50%", background: "var(--accent-error)", color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {overdueEntries.length + dueTodayEntries.length}
@@ -279,6 +284,136 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* ── Notification Popup ── */}
+      {showNotifSheet && (
+        <>
+          {/* Invisible backdrop to close on outside tap */}
+          <div style={{ position: "fixed", inset: 0, zIndex: 299 }} onClick={() => setShowNotifSheet(false)} />
+
+          {/* Floating popup card */}
+          <div style={{
+            position: "fixed", top: 68, right: 14, zIndex: 300,
+            background: "var(--bg-card)",
+            borderRadius: 16,
+            border: "1px solid var(--border-hard)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+            width: "min(340px, calc(100vw - 28px))",
+            maxHeight: "70vh",
+            overflowY: "auto",
+            animation: "notifPop .15s ease-out",
+          }}>
+            <style>{`
+              @keyframes notifPop {
+                from { opacity: 0; transform: scale(0.93) translateY(-6px); }
+                to   { opacity: 1; transform: scale(1)    translateY(0);    }
+              }
+            `}</style>
+
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px 12px", borderBottom: "1px solid var(--border-hard)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Bell size={16} color="var(--text-primary)" />
+                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--text-primary)" }}>Alerts</span>
+                {(overdueEntries.length + dueTodayEntries.length) > 0 && (
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 20, background: "var(--grade-f-bg)", color: "var(--grade-f-text)", border: "1px solid var(--grade-f-border)" }}>
+                    {overdueEntries.length + dueTodayEntries.length}
+                  </span>
+                )}
+              </div>
+              <button onClick={() => setShowNotifSheet(false)}
+                style={{ width: 28, height: 28, borderRadius: 8, background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ fontSize: 15, color: "var(--text-secondary)", lineHeight: 1 }}>×</span>
+              </button>
+            </div>
+
+            {/* No alerts */}
+            {overdueEntries.length === 0 && dueTodayEntries.length === 0 && upcomingEntries.length === 0 && (
+              <div style={{ padding: "28px 16px", textAlign: "center" }}>
+                <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
+                <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>All deliveries on track!</p>
+              </div>
+            )}
+
+            {/* Overdue */}
+            {overdueEntries.length > 0 && (
+              <div style={{ padding: "12px 14px 4px" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--grade-f-text)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
+                  Overdue · {overdueEntries.length}
+                </div>
+                {overdueEntries.map(e => {
+                  const days = Math.floor((new Date(today).getTime() - new Date(e.delivery_date! + "T00:00:00").getTime()) / 86400000);
+                  return (
+                    <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push("/deliveries"); }}
+                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", background: "var(--grade-f-bg)", border: "1px solid var(--grade-f-border)", borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(239,68,68,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <Truck size={13} color="var(--grade-f-text)" />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.customer?.name}</div>
+                        <div style={{ fontSize: 11, color: "var(--grade-f-text)", marginTop: 1 }}>{days}d overdue · ₹{Number(e.total_amount).toLocaleString("en-IN")}</div>
+                      </div>
+                      <ChevronRight size={12} color="var(--grade-f-text)" style={{ flexShrink: 0 }} />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Due Today */}
+            {dueTodayEntries.length > 0 && (
+              <div style={{ padding: "12px 14px 4px" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--grade-c-text)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
+                  Due Today · {dueTodayEntries.length}
+                </div>
+                {dueTodayEntries.map(e => (
+                  <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push("/deliveries"); }}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", background: "var(--grade-c-bg)", border: "1px solid var(--grade-c-border)", borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(245,158,11,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Truck size={13} color="var(--grade-c-text)" />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.customer?.name}</div>
+                      <div style={{ fontSize: 11, color: "var(--grade-c-text)", marginTop: 1 }}>Due today · ₹{Number(e.total_amount).toLocaleString("en-IN")}</div>
+                    </div>
+                    <ChevronRight size={12} color="var(--grade-c-text)" style={{ flexShrink: 0 }} />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Upcoming */}
+            {upcomingEntries.length > 0 && (
+              <div style={{ padding: "12px 14px 4px" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--grade-b-text)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
+                  Upcoming · {upcomingEntries.length}
+                </div>
+                {upcomingEntries.slice(0, 3).map(e => (
+                  <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push("/deliveries"); }}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Truck size={13} color="var(--grade-b-text)" />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.customer?.name}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>Due {fmtDate(e.delivery_date!)} · ₹{Number(e.total_amount).toLocaleString("en-IN")}</div>
+                    </div>
+                    <ChevronRight size={12} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* View all */}
+            <div style={{ padding: "10px 14px 14px" }}>
+              <button onClick={() => { setShowNotifSheet(false); router.push("/deliveries"); }}
+                style={{ width: "100%", padding: "10px", borderRadius: 10, background: "var(--accent-primary)", border: "none", color: "#0b1830", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                View all deliveries
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </ProtectedLayout>
   );
 }

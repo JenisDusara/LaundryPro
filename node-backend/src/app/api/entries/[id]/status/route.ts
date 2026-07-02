@@ -14,6 +14,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     data: { delivery_status: status },
   }));
   if (rows.count === 0) return NextResponse.json({ detail: "Not found" }, { status: 404 });
+  // Sync all items to delivered so item-level recompute never reverts the status
+  if (status === "delivered") {
+    await withRetry(() => prisma.entryItem.updateMany({
+      where: { entry_id: params.id },
+      data: { item_status: "delivered" },
+    }));
+  }
   const entry = await withRetry(() => prisma.laundryEntry.findFirst({
     where: { id: params.id },
     include: { customer: true },

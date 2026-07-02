@@ -235,8 +235,10 @@ input, textarea, button { font-family: var(--font-sans); }
   .dash-stat-val  { font-size: 22px !important; margin-top: 8px !important; }
   .dash-stat-lbl  { font-size: 11px !important; }
 
-  /* Dashboard header: compact bell button */
-  .dash-bell-btn  { padding: 8px !important; border-radius: 50% !important; }
+  /* Dashboard header: no wrapping, compact bell button */
+  .dash-header      { flex-wrap: nowrap !important; align-items: center !important; }
+  .dash-greeting-h1 { font-size: 22px !important; }
+  .dash-bell-btn    { width: 40px !important; height: 40px !important; padding: 0 !important; border-radius: 50% !important; justify-content: center !important; gap: 0 !important; }
 
   /* Accounting: expenses list + breakdown side-by-side → stack */
   .acct-expense-grid { grid-template-columns: 1fr !important; }
