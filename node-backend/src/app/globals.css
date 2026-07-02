@@ -223,9 +223,20 @@ input, textarea, button { font-family: var(--font-sans); }
   .mob-scroll > * { min-width: 580px; }
 
   /* Dashboard responsive grids */
-  .dash-rev-grid    { grid-template-columns: 1fr !important; }
+  .dash-rev-grid    { grid-template-columns: repeat(2,1fr) !important; }
   .dash-stat-grid   { grid-template-columns: repeat(2,1fr) !important; }
   .dash-action-grid { grid-template-columns: repeat(3,1fr) !important; }
+
+  /* Dashboard cards: compact on mobile */
+  .dash-rev-card  { padding: 13px 12px !important; }
+  .dash-rev-amount { font-size: 22px !important; margin-top: 8px !important; }
+  .dash-rev-sub   { font-size: 11px !important; margin-top: 4px !important; }
+  .dash-stat-card { padding: 14px 10px !important; }
+  .dash-stat-val  { font-size: 22px !important; margin-top: 8px !important; }
+  .dash-stat-lbl  { font-size: 11px !important; }
+
+  /* Dashboard header: compact bell button */
+  .dash-bell-btn  { padding: 8px !important; border-radius: 50% !important; }
 
   /* Accounting: expenses list + breakdown side-by-side → stack */
   .acct-expense-grid { grid-template-columns: 1fr !important; }

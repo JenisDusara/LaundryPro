@@ -108,19 +108,19 @@ export default function Dashboard() {
       `}</style>
 
       {/* ── Header ── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.12em" }}>{dateStr}</p>
+          <p className="mob-hide" style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.12em" }}>{dateStr}</p>
           <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-.01em" }}>
             {greeting}{profile?.name ? `, ${profile.name.split(" ")[0]}` : ""}
           </h1>
           {profile?.shop_name && <p style={{ margin: "4px 0 0", fontSize: 13.75, color: "var(--text-secondary)" }}>{profile.shop_name}</p>}
         </div>
-        <button
+        <button className="dash-bell-btn"
           onClick={notifPerm === "granted" ? () => router.push("/deliveries") : requestNotif}
           style={{ position: "relative", background: "var(--bg-input)", border: "1px solid var(--border-default)", borderRadius: 10, padding: "9px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, color: "var(--text-secondary)", fontSize: 13, fontWeight: 500 }}>
           {notifPerm === "granted" ? <Bell size={16} color="var(--accent-success)" /> : <BellOff size={16} />}
-          {notifPerm !== "granted" && "Enable alerts"}
+          <span className="mob-hide">{notifPerm !== "granted" && "Enable alerts"}</span>
           {(overdueEntries.length + dueTodayEntries.length) > 0 && (
             <span style={{ position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: "50%", background: "var(--accent-error)", color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {overdueEntries.length + dueTodayEntries.length}
@@ -130,26 +130,26 @@ export default function Dashboard() {
       </div>
 
       {/* ── Revenue Cards ── */}
-      <div className="dash-rev-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-        <div className="web-card">
+      <div className="dash-rev-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="web-card dash-rev-card">
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
             <p style={{ margin: 0, fontSize: 13, color: "var(--text-secondary)", fontWeight: 500 }}>Today&apos;s Revenue</p>
-            <span style={{ width: 32, height: 32, borderRadius: 8, background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)", color: "var(--grade-b-text)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ width: 32, height: 32, borderRadius: 8, background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)", color: "var(--grade-b-text)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <TrendingUp size={14} />
             </span>
           </div>
-          <p style={{ margin: "14px 0 0", fontSize: 34, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1 }}>₹{todayTotal.toLocaleString("en-IN")}</p>
-          <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{todayEntries.length} pickup{todayEntries.length !== 1 ? "s" : ""} today</p>
+          <p className="dash-rev-amount" style={{ margin: "14px 0 0", fontSize: 34, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1 }}>₹{todayTotal.toLocaleString("en-IN")}</p>
+          <p className="dash-rev-sub" style={{ margin: "8px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{todayEntries.length} pickup{todayEntries.length !== 1 ? "s" : ""} today</p>
         </div>
-        <div className="web-card">
+        <div className="web-card dash-rev-card">
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
             <p style={{ margin: 0, fontSize: 13, color: "var(--text-secondary)", fontWeight: 500 }}>Monthly Revenue</p>
-            <span style={{ width: 32, height: 32, borderRadius: 8, background: "var(--grade-a-bg)", border: "1px solid var(--grade-a-border)", color: "var(--grade-a-text)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ width: 32, height: 32, borderRadius: 8, background: "var(--grade-a-bg)", border: "1px solid var(--grade-a-border)", color: "var(--grade-a-text)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <TrendingUp size={14} />
             </span>
           </div>
-          <p style={{ margin: "14px 0 0", fontSize: 34, fontWeight: 700, color: "var(--accent-success)", lineHeight: 1 }}>₹{monthTotal.toLocaleString("en-IN")}</p>
-          <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{monthEntries.length} entries this month</p>
+          <p className="dash-rev-amount" style={{ margin: "14px 0 0", fontSize: 34, fontWeight: 700, color: "var(--accent-success)", lineHeight: 1 }}>₹{monthTotal.toLocaleString("en-IN")}</p>
+          <p className="dash-rev-sub" style={{ margin: "8px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{monthEntries.length} entries this month</p>
         </div>
       </div>
 
@@ -168,19 +168,19 @@ export default function Dashboard() {
       )}
 
       {/* ── Stat Cards ── */}
-      <div className="dash-stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 16 }}>
+      <div className="dash-stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 14 }}>
         {[
           { icon: <Users size={16} />,       label: "Customers",  value: customers.length,   bg: "var(--grade-b-bg)", border: "var(--grade-b-border)", color: "var(--grade-b-text)" },
           { icon: <Package size={16} />,      label: "Pending",    value: pendingCount,        bg: "var(--grade-c-bg)", border: "var(--grade-c-border)", color: "var(--grade-c-text)" },
           { icon: <CheckCircle2 size={16} />, label: "Delivered",  value: deliveredCount,      bg: "var(--grade-a-bg)", border: "var(--grade-a-border)", color: "var(--grade-a-text)" },
-          { icon: <TrendingUp size={16} />,   label: "Delivery %", value: `${deliveryRate}%`,  bg: "var(--grade-b-bg)", border: "var(--grade-b-border)", color: "var(--grade-b-text)" },
+          { icon: <TrendingUp size={16} />,   label: "Rate",       value: `${deliveryRate}%`,  bg: "var(--grade-b-bg)", border: "var(--grade-b-border)", color: "var(--grade-b-text)" },
         ].map((s, i) => (
-          <div key={i} className="web-card" style={{ textAlign: "center", padding: "22px 16px" }}>
-            <span style={{ width: 42, height: 42, borderRadius: 10, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: s.bg, border: `1px solid ${s.border}`, color: s.color }}>
+          <div key={i} className="web-card dash-stat-card" style={{ textAlign: "center", padding: "22px 16px" }}>
+            <span style={{ width: 38, height: 38, borderRadius: 10, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: s.bg, border: `1px solid ${s.border}`, color: s.color }}>
               {s.icon}
             </span>
-            <p style={{ margin: "12px 0 0", fontSize: 30, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</p>
-            <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--text-secondary)", fontWeight: 500 }}>{s.label}</p>
+            <p className="dash-stat-val" style={{ margin: "12px 0 0", fontSize: 30, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</p>
+            <p className="dash-stat-lbl" style={{ margin: "6px 0 0", fontSize: 12, color: "var(--text-secondary)", fontWeight: 500 }}>{s.label}</p>
           </div>
         ))}
       </div>
