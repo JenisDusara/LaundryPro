@@ -1,10 +1,12 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAuth, shopFilter } from "@/lib/auth";
+import { requireAuth, shopFilter, requireWrite, denyStaff } from "@/lib/auth";
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
+  const staff = denyStaff(user); if (staff) return staff;
+  const ro = requireWrite(user); if (ro) return ro;
   const { date, category, description, amount } = await req.json();
   const existing = await prisma.expense.findFirst({ where: { id: params.id, ...shopFilter(user, req) } });
   if (!existing) return NextResponse.json({ detail: "Not found" }, { status: 404 });
@@ -18,6 +20,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
+  const staff = denyStaff(user); if (staff) return staff;
+  const ro = requireWrite(user); if (ro) return ro;
   const existing = await prisma.expense.findFirst({ where: { id: params.id, ...shopFilter(user, req) } });
   if (!existing) return NextResponse.json({ detail: "Not found" }, { status: 404 });
   await prisma.expense.delete({ where: { id: params.id } });

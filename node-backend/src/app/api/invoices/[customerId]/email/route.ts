@@ -1,12 +1,14 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAuth, shopFilter } from "@/lib/auth";
+import { requireAuth, shopFilter, requireWrite } from "@/lib/auth";
+import { monthRange } from "@/lib/dates";
 import { sendEmail } from "@/lib/email";
 import { getSettings } from "@/lib/settings";
 
 export async function POST(req: NextRequest, { params }: { params: { customerId: string } }) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
+  const ro = requireWrite(user); if (ro) return ro;
 
   const p = new URL(req.url).searchParams;
   const month = parseInt(p.get("month") || String(new Date().getMonth() + 1));
@@ -16,8 +18,7 @@ export async function POST(req: NextRequest, { params }: { params: { customerId:
   if (!customer) return NextResponse.json({ detail: "Customer not found" }, { status: 404 });
   if (!customer.email) return NextResponse.json({ detail: "Customer has no email" }, { status: 400 });
 
-  const start = new Date(year, month - 1, 1).toISOString().slice(0, 10);
-  const end = new Date(year, month, 0).toISOString().slice(0, 10);
+  const { start, end } = monthRange(year, month);
   const entries = await prisma.laundryEntry.findMany({
     where: { customer_id: params.customerId, entry_date: { gte: start, lte: end }, ...shopFilter(user, req) },
     include: { items: true },

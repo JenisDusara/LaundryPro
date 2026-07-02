@@ -1,6 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
-import { requireAuth, shopFilter } from "@/lib/auth";
+import { requireAuth, shopFilter, requireWrite } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const user = requireAuth(req);
@@ -12,9 +12,9 @@ export async function GET(req: NextRequest) {
   const parents = all.filter(s => !s.parent_id);
   const result = parents.map(p => ({
     ...p,
-    price: p.price ? Number(p.price) : null,
+    price: p.price != null ? Number(p.price) : null,
     children: all.filter(c => c.parent_id === p.id).map(c => ({
-      ...c, price: c.price ? Number(c.price) : null, children: [],
+      ...c, price: c.price != null ? Number(c.price) : null, children: [],
     })),
   }));
   return NextResponse.json(result);
@@ -23,10 +23,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
+  const ro = requireWrite(user); if (ro) return ro;
   const { name, price, parent_id } = await req.json();
   const shop_id = user.role === "superadmin" ? "shop1" : user.shop_id;
   const service = await prisma.service.create({
     data: { name, price: price ?? null, parent_id: parent_id || null, shop_id },
   });
-  return NextResponse.json({ ...service, price: service.price ? Number(service.price) : null, children: [] }, { status: 201 });
+  return NextResponse.json({ ...service, price: service.price != null ? Number(service.price) : null, children: [] }, { status: 201 });
 }

@@ -1,6 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
-import { requireAuth, shopFilter } from "@/lib/auth";
+import { requireAuth, shopFilter, requireWrite } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const user = requireAuth(req);
@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
+  const ro = requireWrite(user); if (ro) return ro;
   const data = await req.json();
   if (!data.phone || !/^\d{10}$/.test(data.phone)) {
     return NextResponse.json({ detail: "Phone number must be exactly 10 digits" }, { status: 400 });

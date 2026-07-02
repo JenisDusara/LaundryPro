@@ -106,36 +106,6 @@ export default function NewEntry() {
     sendWAMsg(selectedCustomer.phone, msg);
   };
 
-  const saveAndDeliverWithWA = async () => {
-    if (!selectedCustomer) return;
-    setSaving(true);
-    const deliveredItems = pendingEntries.flatMap(e=>e.items);
-    const savedItems = [...items];
-    const savedCustomer = selectedCustomer;
-    try {
-      await Promise.all(pendingEntries.map(e=>
-        api.patch(`/entries/${e.id}/status`,null,{params:{status:"delivered"}})
-      ));
-      if (items.length > 0) {
-        await api.post("/entries",{customer_id:selectedCustomer.id,notes,items:items.map(i=>({service_id:i.service_id,service_name:i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name,quantity:Number(i.quantity),price_per_unit:Number(i.price)}))});
-        setItems([]); setNotes("");
-      }
-      setSuccess(true);
-      const res = await api.get("/entries",{params:{customer_id:selectedCustomer.id}});
-      setPastEntries(res.data);
-      setTimeout(()=>setSuccess(false),3000);
-      let msg = `Hi ${savedCustomer.name}! 🙏\n\n*${SHOP_NAME}*\n${today()}\n\n`;
-      if (deliveredItems.length > 0) {
-        msg += `✅ *Delivered:*\n${deliveredItems.map(i=>`• ${i.service_name} ×${i.quantity}`).join("\n")}\n\n`;
-      }
-      if (savedItems.length > 0) {
-        msg += `🧺 *New Pickup:*\n${savedItems.map(i=>`• ${i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name} ×${i.quantity}`).join("\n")}\n\n`;
-      }
-      msg += `Thank you for your business! 🙏\n— ${SHOP_NAME}`;
-      sendWAMsg(savedCustomer.phone, msg);
-    } finally { setSaving(false); }
-  };
-
   const save = async (withWA = false) => {
     if(!selectedCustomer||items.length===0) return;
     setSaving(true);

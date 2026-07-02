@@ -13,6 +13,17 @@ interface Client {
   id: string; username: string; name: string;
   shop_id: string; shop_name: string; is_active: boolean; created_at: string;
   staff_count: number; plan_type: string | null; expires_at: string | null;
+  total_entries?: number; month_revenue?: number; last_activity?: string | null;
+}
+
+// Human-friendly "last active" label from a YYYY-MM-DD date string.
+function lastActiveLabel(dateStr: string | null | undefined): { text: string; stale: boolean } {
+  if (!dateStr) return { text: "No activity", stale: true };
+  const days = Math.floor((Date.now() - new Date(dateStr + "T00:00:00").getTime()) / 86400000);
+  if (days <= 0) return { text: "Active today", stale: false };
+  if (days === 1) return { text: "Active yesterday", stale: false };
+  if (days <= 30) return { text: `Active ${days}d ago`, stale: days > 14 };
+  return { text: `Idle ${Math.floor(days / 30)}mo`, stale: true };
 }
 
 function daysLeft(expiresAt: string | null): number | null {
@@ -177,8 +188,9 @@ export default function SuperAdminPage() {
         {[
           {label:"Total clients", value:clients.length,                                icon:<Building2 size={18}/>, iconBg:"rgba(109,40,217,0.15)",  iconColor:"#8b5cf6"},
           {label:"Active",        value:clients.filter(c=>c.is_active).length,         icon:<UserCheck size={18}/>, iconBg:"rgba(5,150,105,0.15)",   iconColor:"#10b981"},
-          {label:"Disabled",      value:clients.filter(c=>!c.is_active).length,        icon:<UserX size={18}/>,     iconBg:"rgba(239,68,68,0.15)",   iconColor:"#ef4444"},
-          {label:"Total staff",   value:clients.reduce((s,c)=>s+(c.staff_count||0),0), icon:<Users size={18}/>,     iconBg:"rgba(245,158,11,0.15)",  iconColor:"#f59e0b"},
+          {label:"Expiring ≤7d",  value:expiryAlerts.length,                           icon:<CalendarClock size={18}/>, iconBg:"rgba(245,158,11,0.15)", iconColor:"#f59e0b"},
+          {label:"Revenue /mo",   value:`₹${clients.reduce((s,c)=>s+(c.month_revenue||0),0).toLocaleString("en-IN")}`, icon:<TrendingUp size={18}/>, iconBg:"rgba(37,99,235,0.15)", iconColor:"#2563eb"},
+          {label:"Total staff",   value:clients.reduce((s,c)=>s+(c.staff_count||0),0), icon:<Users size={18}/>,     iconBg:"rgba(239,68,68,0.15)",   iconColor:"#ef4444"},
         ].map((s,i)=>(
           <div key={i} style={{background:"var(--bg-card)",borderRadius:14,padding:"16px 18px",border:"1px solid var(--border-hard)"}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
@@ -344,6 +356,13 @@ export default function SuperAdminPage() {
                     <div style={{fontSize:12,color:"var(--text-muted)",marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
                       {c.name||"—"} · <span style={{fontFamily:"monospace"}}>@{c.username}</span>
                     </div>
+                    {(() => { const la = lastActiveLabel(c.last_activity); return (
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginTop:4,whiteSpace:"nowrap"}}>
+                        <span style={{fontSize:11,fontWeight:600,color:"var(--text-secondary)"}}>📋 {c.total_entries ?? 0}</span>
+                        <span style={{fontSize:11,fontWeight:700,color:"#10b981"}}>₹{(c.month_revenue ?? 0).toLocaleString("en-IN")}<span style={{fontWeight:400,color:"var(--text-muted)"}}>/mo</span></span>
+                        <span style={{fontSize:11,fontWeight:600,color:la.stale?"#f59e0b":"var(--text-muted)"}}>{la.stale?"● ":""}{la.text}</span>
+                      </div>
+                    ); })()}
                   </div>
                 </div>
 

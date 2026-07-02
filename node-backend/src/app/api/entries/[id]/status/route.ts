@@ -1,6 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
-import { requireAuth, shopFilter } from "@/lib/auth";
+import { requireAuth, shopFilter, requireWrite } from "@/lib/auth";
 import { sendEmail, deliveryEmailHtml } from "@/lib/email";
 import { sendSms } from "@/lib/sms";
 import { getSettings } from "@/lib/settings";
@@ -8,6 +8,7 @@ import { getSettings } from "@/lib/settings";
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
+  const ro = requireWrite(user); if (ro) return ro;
   const status = new URL(req.url).searchParams.get("status") || "pending";
   const rows = await withRetry(() => prisma.laundryEntry.updateMany({
     where: { id: params.id, ...shopFilter(user, req) },

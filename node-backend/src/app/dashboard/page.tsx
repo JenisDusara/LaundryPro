@@ -7,6 +7,8 @@ import {
   TrendingUp, CheckCircle2, ChevronRight, Package
 } from "lucide-react";
 import api from "@/lib/api";
+import { isEntryDelivered, isEntryPending } from "@/lib/entry-status";
+import { todayIST } from "@/lib/dates";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import type { LaundryEntry, Customer } from "@/types";
 
@@ -34,7 +36,7 @@ export default function Dashboard() {
   const [profile,       setProfile]       = useState<{ name: string; shop_name: string } | null>(null);
   const [showNotifSheet, setShowNotifSheet] = useState(false);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIST();
 
   const loadData = useCallback(() => {
     const month = new Date().getMonth() + 1;
@@ -50,11 +52,7 @@ export default function Dashboard() {
       setMonthEntries(m.data);
       setCustomers(c.data);
       setProfile(me.data);
-      setAllPending(all.data.filter((e: LaundryEntry) =>
-        e.delivery_status !== "delivered" &&
-        e.delivery_date &&
-        !e.items?.every((i: { item_status: string }) => i.item_status === "delivered")
-      ));
+      setAllPending(all.data.filter((e: LaundryEntry) => isEntryPending(e) && e.delivery_date));
     }).finally(() => setLoading(false));
   }, [today]);
 
@@ -84,8 +82,8 @@ export default function Dashboard() {
 
   const todayTotal     = todayEntries.reduce((s, e) => s + Number(e.total_amount), 0);
   const monthTotal     = monthEntries.reduce((s, e) => s + Number(e.total_amount), 0);
-  const deliveredCount = monthEntries.filter(e => e.delivery_status === "delivered").length;
-  const pendingCount   = monthEntries.filter(e => e.delivery_status !== "delivered").length;
+  const deliveredCount = monthEntries.filter(isEntryDelivered).length;
+  const pendingCount   = monthEntries.filter(isEntryPending).length;
   const deliveryRate   = monthEntries.length > 0 ? Math.round((deliveredCount / monthEntries.length) * 100) : 0;
 
   const hour     = new Date().getHours();

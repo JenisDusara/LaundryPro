@@ -1,6 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
-import { requireAuth, shopFilter } from "@/lib/auth";
+import { requireAuth, shopFilter, requireWrite } from "@/lib/auth";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const user = requireAuth(req);
@@ -22,6 +22,15 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
+  const ro = requireWrite(user); if (ro) return ro;
+
+  // Ownership check — ensure this entry belongs to the caller's shop before mutating.
+  const owned = await withRetry(() => prisma.laundryEntry.findFirst({
+    where: { id: params.id, ...shopFilter(user, req) },
+    select: { id: true },
+  }));
+  if (!owned) return NextResponse.json({ detail: "Not found" }, { status: 404 });
+
   const { notes, items, delivery_date } = await req.json();
 
   await withRetry(() => prisma.entryItem.deleteMany({ where: { entry_id: params.id } }));
@@ -72,6 +81,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
+  const ro = requireWrite(user); if (ro) return ro;
   await withRetry(() => prisma.laundryEntry.deleteMany({ where: { id: params.id, ...shopFilter(user, req) } }));
   return NextResponse.json({ message: "Deleted" });
 }

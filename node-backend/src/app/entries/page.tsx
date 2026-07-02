@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { Calendar, Filter, Trash2, ChevronDown, ChevronUp, ChevronRight, Pencil, X, Plus, FileText, Search } from "lucide-react";
 import api from "@/lib/api";
+import { isEntryDelivered } from "@/lib/entry-status";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import type { LaundryEntry, Service } from "@/types";
 
@@ -180,7 +181,7 @@ export default function Entries() {
           const custOpen   = expandedCustomer===cid;
           const custTotal  = cust.entries.reduce((s,e)=>s+Number(e.total_amount),0);
           const allItems   = cust.entries.flatMap(e=>e.items);
-          const custAllDel = allItems.length>0&&allItems.every(i=>i.item_status==="delivered");
+          const custAllDel = cust.entries.length>0&&cust.entries.every(isEntryDelivered);
           const pendingCnt = allItems.filter(i=>i.item_status!=="delivered").length;
           const dateMap    = new Map<string,LaundryEntry[]>();
           cust.entries.forEach(e=>{ if(!dateMap.has(e.entry_date)) dateMap.set(e.entry_date,[]); dateMap.get(e.entry_date)!.push(e); });

@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { IndianRupee, TrendingUp, ShoppingBag, Users, Download } from "lucide-react";
 import api from "@/lib/api";
+import { downloadAuthedFile } from "@/lib/download";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import type { LaundryEntry } from "@/types";
 
@@ -14,7 +15,7 @@ export default function Reports() {
 
   useEffect(()=>{ setLoading(true); const [y,m]=monthVal.split("-"); api.get("/entries",{params:{year:parseInt(y),month:parseInt(m)}}).then(r=>setEntries(r.data)).finally(()=>setLoading(false)); },[monthVal]);
 
-  const exportCombined = () => { const [y,m]=monthVal.split("-"); window.open(`/api/exports/combined?month=${m}&year=${y}&token=${localStorage.getItem("token")}`,"_blank"); };
+  const exportCombined = () => { const [y,m]=monthVal.split("-"); downloadAuthedFile("/exports/combined",`LaundryPro-Report-${y}-${m}.xlsx`,{month:parseInt(m),year:parseInt(y)}).catch(()=>alert("Failed to export report")); };
 
   const totalRevenue=entries.reduce((s,e)=>s+Number(e.total_amount),0);
   const uniqueCustomers=new Set(entries.map(e=>e.customer_id)).size;

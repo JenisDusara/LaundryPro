@@ -1,16 +1,17 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAuth, shopFilter } from "@/lib/auth";
+import { requireAuth, shopFilter, requireWrite, denyStaff } from "@/lib/auth";
+import { monthRange } from "@/lib/dates";
 
 export async function GET(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
+  const staff = denyStaff(user); if (staff) return staff;
   const p = new URL(req.url).searchParams;
   const where: any = { ...shopFilter(user, req) };
   if (p.get("month") && p.get("year")) {
     const m = parseInt(p.get("month")!), y = parseInt(p.get("year")!);
-    const start = new Date(y, m - 1, 1).toISOString().slice(0, 10);
-    const end   = new Date(y, m, 0).toISOString().slice(0, 10);
+    const { start, end } = monthRange(y, m);
     where.date  = { gte: start, lte: end };
   }
   if (p.get("date")) where.date = p.get("date");
@@ -21,6 +22,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
+  const staff = denyStaff(user); if (staff) return staff;
+  const ro = requireWrite(user); if (ro) return ro;
   const { date, category, description, amount } = await req.json();
   if (!date || !category || !amount) {
     return NextResponse.json({ detail: "date, category and amount are required" }, { status: 400 });

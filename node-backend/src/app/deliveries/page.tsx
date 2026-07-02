@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { CheckCircle, Clock, RefreshCw, X, Truck, CalendarDays, ChevronRight, ChevronDown } from "lucide-react";
 import api from "@/lib/api";
+import { isEntryDelivered } from "@/lib/entry-status";
+import { todayIST } from "@/lib/dates";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import type { LaundryEntry } from "@/types";
 
@@ -10,7 +12,7 @@ function fmtDate(d: string) {
 }
 
 export default function Deliveries() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIST();
   const [allEntries,       setAllEntries]       = useState<LaundryEntry[]>([]);
   const [filter,           setFilter]           = useState("all");
   const [loading,          setLoading]          = useState(true);
@@ -152,7 +154,7 @@ export default function Deliveries() {
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           {customers.map(([cid,cust],ci)=>{
             const custTotal = cust.entries.reduce((s,e)=>s+Number(e.total_amount),0);
-            const allDel    = cust.entries.every(e=>e.delivery_status==="delivered");
+            const allDel    = cust.entries.every(isEntryDelivered);
             const isOpen    = expandedCustomer===cid;
             return (
               <div key={cid} style={{background:"var(--bg-card)",borderRadius:14,border:"1px solid var(--border-hard)",overflow:"hidden",animation:`fadeUp 0.3s ease ${ci*0.04}s both`}}>
@@ -181,7 +183,7 @@ export default function Deliveries() {
                       color:allDel?"#10b981":"#f59e0b",
                       border:`1px solid ${allDel?"rgba(5,150,105,0.3)":"rgba(245,158,11,0.3)"}`}}>
                       {allDel?<CheckCircle size={13}/>:<Clock size={13}/>}
-                      {allDel?"All delivered":`${cust.entries.filter(e=>e.delivery_status!=="delivered").length} Pending`}
+                      {allDel?"All delivered":`${cust.entries.filter(e=>!isEntryDelivered(e)).length} Pending`}
                     </span>
                     <span style={{fontWeight:800,fontSize:15,color:"var(--text-primary)"}}>₹{custTotal}</span>
                     {isOpen?<ChevronDown size={16} color="var(--text-muted)"/>:<ChevronRight size={16} color="var(--text-muted)"/>}
@@ -192,9 +194,9 @@ export default function Deliveries() {
                 {isOpen&&cust.entries.map((entry,ei)=>{
                   const isPickupDay   = selectedDate&&entry.entry_date===selectedDate;
                   const isDeliveryDay = selectedDate&&entry.delivery_date===selectedDate;
-                  const isOverdue     = entry.delivery_date&&entry.delivery_date<today&&entry.delivery_status!=="delivered";
-                  const isDueToday    = entry.delivery_date===today&&entry.delivery_status!=="delivered";
-                  const delivered     = entry.delivery_status==="delivered";
+                  const delivered     = isEntryDelivered(entry);
+                  const isOverdue     = entry.delivery_date&&entry.delivery_date<today&&!delivered;
+                  const isDueToday    = entry.delivery_date===today&&!delivered;
                   return (
                     <div key={entry.id} style={{padding:"14px 16px",borderTop:"1px solid var(--border-hard)",background:"var(--bg-elevated)"}}>
                       {(isPickupDay||isDeliveryDay)&&(

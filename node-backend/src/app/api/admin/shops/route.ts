@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { todayIST, monthRange } from "@/lib/dates";
 
 export async function GET(req: NextRequest) {
   const user = requireAuth(req);
@@ -21,18 +22,40 @@ export async function GET(req: NextRequest) {
     GROUP BY a.id
     ORDER BY a.created_at ASC
   `;
-  return NextResponse.json(clients.map(c => ({
-    id: c.id,
-    username: c.username,
-    name: c.name,
-    shop_id: c.shop_id,
-    shop_name: c.shop_name,
-    is_active: c.is_active,
-    created_at: c.created_at,
-    staff_count: Number(c.staff_count),
-    plan_type: c.plan_type,
-    expires_at: c.expires_at,
-  })));
+
+  // Per-shop business activity — computed separately to avoid multiplying the staff join.
+  const [yy, mm] = todayIST().split("-").map(Number);
+  const { start, end } = monthRange(yy, mm);
+  const stats = await prisma.$queryRaw<{
+    shop_id: string; total_entries: bigint; month_revenue: number | null; last_activity: string | null;
+  }[]>`
+    SELECT shop_id,
+           COUNT(*) AS total_entries,
+           SUM(CASE WHEN entry_date >= ${start} AND entry_date <= ${end} THEN total_amount ELSE 0 END) AS month_revenue,
+           MAX(entry_date) AS last_activity
+    FROM laundry_entries
+    GROUP BY shop_id
+  `;
+  const statMap = new Map(stats.map(s => [s.shop_id, s]));
+
+  return NextResponse.json(clients.map(c => {
+    const st = statMap.get(c.shop_id);
+    return {
+      id: c.id,
+      username: c.username,
+      name: c.name,
+      shop_id: c.shop_id,
+      shop_name: c.shop_name,
+      is_active: c.is_active,
+      created_at: c.created_at,
+      staff_count: Number(c.staff_count),
+      plan_type: c.plan_type,
+      expires_at: c.expires_at,
+      total_entries: Number(st?.total_entries ?? 0),
+      month_revenue: Number(st?.month_revenue ?? 0),
+      last_activity: st?.last_activity ?? null,
+    };
+  }));
 }
 
 export async function POST(req: NextRequest) {

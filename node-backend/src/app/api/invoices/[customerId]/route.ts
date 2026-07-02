@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAuth, shopFilter } from "@/lib/auth";
+import { monthRange } from "@/lib/dates";
 import { getSettings } from "@/lib/settings";
 import PDFDocument from "pdfkit";
 
@@ -20,8 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: { customerId: 
   if (entry_date) {
     where.entry_date = entry_date;
   } else if (month && year) {
-    const start = new Date(year, month - 1, 1).toISOString().slice(0, 10);
-    const end   = new Date(year, month,     0).toISOString().slice(0, 10);
+    const { start, end } = monthRange(year, month);
     where.entry_date = { gte: start, lte: end };
   }
 

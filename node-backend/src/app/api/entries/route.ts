@@ -1,9 +1,10 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
-import { requireAuth, shopFilter } from "@/lib/auth";
+import { requireAuth, shopFilter, requireWrite } from "@/lib/auth";
 import { sendEmail, pickupEmailHtml } from "@/lib/email";
 import { sendSms } from "@/lib/sms";
 import { getSettings } from "@/lib/settings";
+import { todayIST, monthRange } from "@/lib/dates";
 
 export async function GET(req: NextRequest) {
   const user = requireAuth(req);
@@ -13,8 +14,7 @@ export async function GET(req: NextRequest) {
   if (p.get("entry_date")) where.entry_date = p.get("entry_date");
   if (p.get("month") && p.get("year")) {
     const m = parseInt(p.get("month")!), y = parseInt(p.get("year")!);
-    const start = new Date(y, m - 1, 1).toISOString().slice(0, 10);
-    const end = new Date(y, m, 0).toISOString().slice(0, 10);
+    const { start, end } = monthRange(y, m);
     where.entry_date = { gte: start, lte: end };
   }
   if (p.get("customer_id")) where.customer_id = p.get("customer_id");
@@ -49,10 +49,15 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
+  const ro = requireWrite(user); if (ro) return ro;
   const { customer_id, notes, items, delivery_date } = await req.json();
 
   const customer = await prisma.customer.findFirst({ where: { id: customer_id, ...shopFilter(user, req) } });
   if (!customer) return NextResponse.json({ detail: "Customer not found" }, { status: 404 });
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return NextResponse.json({ detail: "At least one item is required" }, { status: 400 });
+  }
 
   let total = 0;
   const entryItems = items.map((item: any) => {
@@ -68,7 +73,7 @@ export async function POST(req: NextRequest) {
     };
   });
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIST();
   const entry = await prisma.laundryEntry.create({
     data: {
       customer_id,

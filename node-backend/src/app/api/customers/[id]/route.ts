@@ -1,6 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
-import { requireAuth, shopFilter } from "@/lib/auth";
+import { requireAuth, shopFilter, requireWrite } from "@/lib/auth";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const user = requireAuth(req);
@@ -13,9 +13,18 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
+  const ro = requireWrite(user); if (ro) return ro;
   const data = await req.json();
   if (data.phone !== undefined && !/^\d{10}$/.test(data.phone)) {
     return NextResponse.json({ detail: "Phone number must be exactly 10 digits" }, { status: 400 });
+  }
+  // Prevent editing a customer to a phone already used by another customer in this shop.
+  if (data.phone !== undefined) {
+    const clash = await withRetry(() => prisma.customer.findFirst({
+      where: { phone: data.phone, ...shopFilter(user, req), NOT: { id: params.id } },
+      select: { id: true },
+    }));
+    if (clash) return NextResponse.json({ detail: "Another customer with this phone already exists" }, { status: 409 });
   }
   const customer = await withRetry(() => prisma.customer.updateMany({
     where: { id: params.id, ...shopFilter(user, req) },
@@ -27,6 +36,16 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
+  const ro = requireWrite(user); if (ro) return ro;
+
+  // Ownership check FIRST — the cascade below deletes child rows by customer_id, which is
+  // not shop-scoped, so we must confirm the customer belongs to the caller's shop before touching anything.
+  const owned = await withRetry(() => prisma.customer.findFirst({
+    where: { id: params.id, ...shopFilter(user, req) },
+    select: { id: true },
+  }));
+  if (!owned) return NextResponse.json({ detail: "Not found" }, { status: 404 });
+
   const entries = await withRetry(() => prisma.laundryEntry.findMany({ where: { customer_id: params.id }, select: { id: true } }));
   const entryIds = entries.map(e => e.id);
   if (entryIds.length > 0) {

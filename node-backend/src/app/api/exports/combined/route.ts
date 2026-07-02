@@ -1,17 +1,18 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAuth, shopFilter } from "@/lib/auth";
+import { requireAuth, shopFilter, denyStaff } from "@/lib/auth";
+import { monthRange } from "@/lib/dates";
 import ExcelJS from "exceljs";
 
 export async function GET(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
+  const staff = denyStaff(user); if (staff) return staff;
 
   const p     = new URL(req.url).searchParams;
   const month = parseInt(p.get("month") || String(new Date().getMonth() + 1));
   const year  = parseInt(p.get("year")  || String(new Date().getFullYear()));
-  const start = new Date(year, month - 1, 1).toISOString().slice(0, 10);
-  const end   = new Date(year, month, 0).toISOString().slice(0, 10);
+  const { start, end } = monthRange(year, month);
   const monthName = new Date(year, month - 1, 1).toLocaleString("en-IN", { month: "long", year: "numeric" });
 
   const [entries, customers] = await Promise.all([

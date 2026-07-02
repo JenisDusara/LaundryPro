@@ -1,6 +1,11 @@
 import jwt from "jsonwebtoken";
 import { NextRequest, NextResponse } from "next/server";
 
+// Fail fast in production if the signing secret is not configured —
+// the fallback below is public knowledge and would allow token forgery.
+if (!process.env.SECRET_KEY && process.env.NODE_ENV === "production") {
+  throw new Error("SECRET_KEY environment variable must be set in production");
+}
 const SECRET = process.env.SECRET_KEY || "laundrypro-secret";
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
@@ -57,4 +62,25 @@ export function shopFilter(user: TokenPayload, req?: NextRequest): { shop_id?: s
     if (selected) return { shop_id: selected };
   }
   return {};
+}
+
+// Blocks write operations while a shop is in the post-expiry grace period.
+// Returns a 403 response to short-circuit the handler, or null to proceed.
+export function requireWrite(user: TokenPayload): NextResponse | null {
+  if (user.read_only) {
+    return NextResponse.json(
+      { detail: "Your subscription has expired. Access is read-only during the grace period." },
+      { status: 403 }
+    );
+  }
+  return null;
+}
+
+// Blocks staff-role users from admin-only areas (reports, accounting, labour, expenses).
+// Returns a 403 response to short-circuit the handler, or null to proceed.
+export function denyStaff(user: TokenPayload): NextResponse | null {
+  if (user.role === "staff") {
+    return NextResponse.json({ detail: "Forbidden" }, { status: 403 });
+  }
+  return null;
 }

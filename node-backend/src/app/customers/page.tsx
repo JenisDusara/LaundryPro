@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight, Plus, Edit2, Trash2, X, Mail, Phone, Home, Building2, MapPin, User, ChevronDown, ChevronUp, FileText, Search, MessageCircle } from "lucide-react";
 import api from "@/lib/api";
+import { openAuthedFile } from "@/lib/download";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import type { Customer, LaundryEntry } from "@/types";
 
@@ -209,7 +210,7 @@ export default function Customers() {
                     </button>
                     {/* Invoice button */}
                     {hasActivity && (
-                      <button onClick={e => { e.stopPropagation(); window.open(`/api/invoices/${c.id}?month=${month}&year=${year}&token=${localStorage.getItem("token")}`, "_blank"); }}
+                      <button onClick={e => { e.stopPropagation(); openAuthedFile(`/invoices/${c.id}`, { month, year }).catch(() => alert("Failed to open invoice")); }}
                         style={{ width: 30, height: 30, borderRadius: 8, background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <FileText size={13} color="var(--grade-b-text)" />
                       </button>
@@ -266,7 +267,7 @@ export default function Customers() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "var(--web-bg-band)", borderTop: "1px solid var(--border-hard)" }}>
                       <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>{custEntries.length} {custEntries.length === 1 ? "entry" : "entries"} this month</span>
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                        <button onClick={() => window.open(`/api/invoices/${c.id}?month=${month}&year=${year}&token=${localStorage.getItem("token")}`, "_blank")}
+                        <button onClick={() => openAuthedFile(`/invoices/${c.id}`, { month, year }).catch(() => alert("Failed to open invoice"))}
                           style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", background: "var(--accent-primary)", color: "#0b1830", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                           <FileText size={12} /> View Invoice
                         </button>
