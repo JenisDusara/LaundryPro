@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Search, Trash2, Check, ChevronDown, ChevronUp, Clock, CheckCircle2, Truck, Phone } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Search, Trash2, Check, ChevronDown, ChevronUp, Clock, CheckCircle2, Truck, Phone, X, Minus, Plus } from "lucide-react";
 import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import type { Customer, Service, LaundryEntry } from "@/types";
@@ -39,6 +40,7 @@ export default function NewEntry() {
   const [updatingItemId,   setUpdatingItemId]   = useState<string|null>(null);
   const [justDelivered,    setJustDelivered]    = useState<{service_name:string;quantity:number;pickup_date:string}[]>([]);
   const [deliveryDate,     setDeliveryDate]     = useState("");
+  const router = useRouter();
 
   useEffect(() => {
     api.get("/customers").then(r=>setCustomers(r.data));
@@ -223,14 +225,29 @@ export default function NewEntry() {
       <style>{`
         .svc-btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-web-lift); }
         .entry-row:hover { background: var(--bg-elevated) !important; }
+        @media (max-width: 768px) {
+          .mob-handle { display: block !important; }
+          .mob-ne-close { display: flex !important; }
+          .ne-grid-2col { grid-template-columns: 1fr !important; }
+          .ne-actions { flex-direction: column !important; align-items: stretch !important; }
+          .ne-save-btn { width: 100% !important; padding: 14px 20px !important; font-size: 15px !important; border-radius: 12px !important; }
+        }
       `}</style>
 
-      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20}}>
+      {/* Mobile handle bar */}
+      <div className="mob-handle" style={{display:"none",textAlign:"center",marginBottom:6}}>
+        <div style={{width:36,height:4,borderRadius:4,background:"var(--border-hard)",display:"inline-block"}} />
+      </div>
+
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
         <div>
-          <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",textTransform:"uppercase",letterSpacing:"0.12em"}}>Entry</div>
-          <h2 style={{color:"var(--text-primary)",marginBottom:4,marginTop:"2px",fontSize:22,fontWeight:700}}>New entry</h2>
-          <p style={{color:"var(--text-secondary)",fontSize:13,margin:0}}>Add a customer and select services</p>
+          <h2 style={{color:"var(--text-primary)",marginBottom:2,marginTop:0,fontSize:22,fontWeight:800}}>New entry</h2>
+          <p style={{color:"var(--text-secondary)",fontSize:13,margin:0}}>Add customer & services</p>
         </div>
+        <button className="mob-ne-close" onClick={()=>router.back()}
+          style={{display:"none",width:32,height:32,borderRadius:"50%",background:"var(--bg-elevated)",border:"1px solid var(--border-hard)",cursor:"pointer",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          <X size={16} color="var(--text-secondary)"/>
+        </button>
       </div>
 
       {success && (
@@ -423,21 +440,33 @@ export default function NewEntry() {
       {items.length>0&&(
         <div className="web-card" style={{background:"var(--bg-card-solid)",borderRadius:14,padding:"18px 20px",marginBottom:14,boxShadow:"var(--shadow-web-lift)",border:"1px solid var(--border-hard)"}}>
           <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",marginBottom:12,textTransform:"uppercase",letterSpacing:"0.1em"}}>Items ({items.length})</div>
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
             {items.map(item=>(
-              <div key={item.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"var(--web-bg-band)",borderRadius:8,border:"1px solid var(--border-hard)"}}>
-                <span style={{fontWeight:600,fontSize:13,color:"var(--text-primary)",flex:1}}>{item.service_name}</span>
-                <div style={{display:"flex",alignItems:"center",gap:6,background:"var(--bg-input)",border:"1px solid var(--border)",borderRadius:6,padding:"4px 8px"}}>
-                  <span style={{fontSize:11,color:"var(--text-muted)"}}>Qty</span>
-                  <input type="number" style={{width:44,border:"none",outline:"none",fontSize:14,fontWeight:600,textAlign:"center",background:"transparent",color:"var(--text-primary)"}} value={item.quantity} min={1} onChange={e=>updateItem(item.id,"quantity",e.target.value)}/>
+              <div key={item.id} style={{background:"var(--bg-elevated)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--border-hard)"}}>
+                {/* Row 1: name + delete */}
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                  <span style={{fontWeight:700,fontSize:14,color:"var(--text-primary)",flex:1,marginRight:8}}>{item.service_name}{item.item_name?` — ${item.item_name}`:""}</span>
+                  <button onClick={()=>removeItem(item.id)} style={{width:30,height:30,borderRadius:8,background:"rgba(239,68,68,0.12)",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <Trash2 size={13} color="#ef4444"/>
+                  </button>
                 </div>
-                <div style={{display:"flex",alignItems:"center",gap:4,background:"var(--bg-input)",border:"1px solid var(--border)",borderRadius:6,padding:"4px 8px"}}>
-                  <span style={{fontSize:11,color:"var(--text-muted)"}}>₹</span>
-                  <input type="number" style={{width:52,border:"none",outline:"none",fontSize:13,fontWeight:600,textAlign:"right",background:"transparent",color:"var(--text-primary)"}} value={item.price} min={0} onChange={e=>updateItem(item.id,"price",e.target.value)}/>
+                {/* Row 2: qty controls + price + total */}
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{display:"flex",alignItems:"center",background:"var(--bg-input)",borderRadius:8,border:"1px solid var(--border-hard)",overflow:"hidden"}}>
+                    <button onClick={()=>updateItem(item.id,"quantity",Math.max(1,Number(item.quantity)-1))} style={{width:32,height:34,background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-secondary)"}}>
+                      <Minus size={14}/>
+                    </button>
+                    <span style={{width:28,textAlign:"center",fontSize:14,fontWeight:700,color:"var(--text-primary)"}}>{item.quantity}</span>
+                    <button onClick={()=>updateItem(item.id,"quantity",Number(item.quantity)+1)} style={{width:32,height:34,background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-secondary)"}}>
+                      <Plus size={14}/>
+                    </button>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:3,background:"var(--bg-input)",border:"1px solid var(--border-hard)",borderRadius:8,padding:"0 10px",height:34,flex:1}}>
+                    <span style={{fontSize:12,color:"var(--text-muted)"}}>₹</span>
+                    <input type="number" style={{flex:1,border:"none",outline:"none",fontSize:13,fontWeight:600,background:"transparent",color:"var(--text-primary)"}} value={item.price} min={0} onChange={e=>updateItem(item.id,"price",e.target.value)}/>
+                  </div>
+                  <span style={{fontWeight:800,fontSize:15,color:"var(--accent-success)",minWidth:36,textAlign:"right"}}>₹{(Number(item.price)*Number(item.quantity)).toFixed(0)}</span>
                 </div>
-                <span style={{fontWeight:700,fontSize:13,color:"var(--accent-success)",minWidth:48,textAlign:"right"}}>₹{(Number(item.price)*Number(item.quantity)).toFixed(0)}</span>
-                <input style={{width:110,padding:"5px 8px",border:"1.5px solid var(--border)",borderRadius:6,fontSize:12,outline:"none",color:"var(--text-primary)",background:"var(--bg-input)"}} placeholder="Note..." value={item.item_name} onChange={e=>updateItem(item.id,"item_name",e.target.value)}/>
-                <button onClick={()=>removeItem(item.id)} style={{background:"var(--grade-f-bg)",border:"1px solid var(--grade-f-border)",borderRadius:6,cursor:"pointer",padding:"4px 6px",display:"flex",flexShrink:0}}><Trash2 size={14} style={{color:"var(--grade-f-text)"}}/></button>
               </div>
             ))}
           </div>
@@ -448,8 +477,8 @@ export default function NewEntry() {
         </div>
       )}
 
-      {/* ── Delivery Date + Notes — 2 column like MCP ── */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+      {/* ── Delivery Date + Notes ── */}
+      <div className="ne-grid-2col" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
         <div className="web-card" style={{background:"var(--bg-card-solid)",borderRadius:14,padding:"18px 20px",boxShadow:"var(--shadow-web-lift)",border:"1px solid var(--border-hard)"}}>
           <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.1em"}}>
             Expected Delivery <span style={{fontSize:10,fontWeight:400,textTransform:"none",color:"var(--text-muted)"}}>(optional)</span>
@@ -476,8 +505,8 @@ export default function NewEntry() {
         </div>
       </div>
 
-      {/* ── Action Buttons — MCP style: right-aligned row ── */}
-      <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:10,paddingTop:4,marginBottom:16}}>
+      {/* ── Action Buttons ── */}
+      <div className="ne-actions" style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:10,paddingTop:4,marginBottom:16}}>
         <button
           onClick={()=>{ setItems([]); setSelectedCustomer(null); setSearch(""); setNotes(""); setDeliveryDate(""); setPastEntries([]); }}
           style={{padding:"10px 22px",borderRadius:9,border:"1.5px solid var(--border)",background:"var(--bg-input)",color:"var(--text-secondary)",cursor:"pointer",fontSize:13,fontWeight:600,transition:"all 0.15s"}}
@@ -500,6 +529,7 @@ export default function NewEntry() {
           WA
         </button>
         <button
+          className="ne-save-btn"
           onClick={()=>save(false)}
           disabled={isDisabled}
           style={{

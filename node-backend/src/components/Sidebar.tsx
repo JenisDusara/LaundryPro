@@ -2,7 +2,7 @@
 import { useRouter, usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
-  LayoutDashboard, PlusCircle, Users, ClipboardList, Truck,
+  LayoutDashboard, PlusCircle, Plus, Users, ClipboardList, Truck,
   BarChart3, Wrench, Hammer, LogOut, X, Key, Eye, EyeOff,
   Building2, Wallet, Activity, ShieldCheck, ChevronRight, ChevronDown,
   UserCog, MoreHorizontal, Sun, Moon, Monitor, Check, Search,
@@ -53,17 +53,13 @@ const staffNavItems = [
   { path: "/services",   label: "Services",   icon: Wrench },
 ];
 
-const mobileNav = [
-  { path: "/dashboard",  label: "Home",      icon: LayoutDashboard },
-  { path: "/new-entry",  label: "New",       icon: PlusCircle },
-  { path: "/customers",  label: "Customers", icon: Users },
-  { path: "/entries",    label: "Entries",   icon: ClipboardList },
+// Mobile bottom bar — 4 real nav items + center FAB handled inline
+const mobileNavLeft  = [
+  { path: "/dashboard", label: "Home",    icon: LayoutDashboard },
+  { path: "/entries",   label: "Entries", icon: ClipboardList },
 ];
-
-const moreItems = [
-  { path: "/accounting", label: "Accounting", icon: Wallet },
-  { path: "/reports",    label: "Reports",    icon: BarChart3 },
-  { path: "/services",   label: "Services",   icon: Wrench },
+const mobileNavRight = [
+  { path: "/deliveries", label: "Deliveries", icon: Truck },
 ];
 
 type Profile = { name: string; username: string; role?: string; read_only?: boolean; expires_at?: string | null };
@@ -316,7 +312,11 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
           </div>
           {/* Mobile: LP brand shown when search is hidden */}
           <div style={{ display: "none" }} className="mob-brand">
-            <div style={{ fontWeight: 800, fontSize: 16, color: "var(--text-primary)", letterSpacing: "-.01em" }}>LaundryPro</div>
+            <div style={{ fontWeight: 800, fontSize: 17, color: "var(--text-primary)", letterSpacing: "-.01em" }}>LaundryPro</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2, fontSize: 11, color: "var(--text-secondary)" }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent-success)", display: "inline-block", flexShrink: 0 }} />
+              Synced just now
+            </div>
           </div>
 
           {/* Right actions */}
@@ -327,16 +327,16 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* Theme cycle button */}
-            <button onClick={cycleTheme}
+            <button className="mob-theme-btn" onClick={cycleTheme}
               style={{ display: "inline-flex", alignItems: "center", gap: 7, border: "1px solid var(--border-default)", background: "var(--bg-input)", color: "var(--text-secondary)", fontWeight: 600, fontSize: 12, borderRadius: 8, padding: "7px 12px", cursor: "pointer", transition: "border-color .15s, color .15s" }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--border-active)"; e.currentTarget.style.color = "var(--text-primary)"; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border-default)"; e.currentTarget.style.color = "var(--text-secondary)"; }}>
               {themeIcon}
-              <span>{theme.charAt(0).toUpperCase() + theme.slice(1)}</span>
+              <span className="mob-hide">{theme.charAt(0).toUpperCase() + theme.slice(1)}</span>
             </button>
 
-            {/* Avatar → opens profile modal */}
-            <div onClick={() => setShowProfile(true)}
+            {/* Avatar → opens profile modal (hidden on mobile; accessible via More sheet) */}
+            <div className="mob-hide" onClick={() => setShowProfile(true)}
               style={{
                 width: 34, height: 34, borderRadius: "50%", cursor: "pointer",
                 background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)",
@@ -375,22 +375,54 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
       <nav className="bottom-bar" style={{
         display: "none", position: "fixed", bottom: 0, left: 0, right: 0,
         background: "var(--bg-card)", borderTop: "1px solid var(--border)",
-        justifyContent: "space-around", padding: "8px 0 14px", zIndex: 100,
+        justifyContent: "space-around", alignItems: "center",
+        padding: "6px 0 16px", zIndex: 100,
       }}>
-        {mobileNav.map(item => {
+        {/* Left: Home + Entries */}
+        {mobileNavLeft.map(item => {
           const active = pathname === item.path;
           return (
             <div key={item.path} onClick={() => goTo(item.path)}
-              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer", color: active ? "var(--accent-primary)" : "var(--text-muted)" }}>
+              style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer",
+                color: active ? "var(--accent-primary)" : "var(--text-muted)" }}>
               <item.icon size={22} />
-              <span style={{ fontSize: 10, fontWeight: active ? 600 : 400 }}>{item.label}</span>
+              <span style={{ fontSize: 10, fontWeight: active ? 700 : 400 }}>{item.label}</span>
+            </div>
+          );
+        })}
+
+        {/* Center FAB — New Entry */}
+        <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "flex-end", paddingBottom: 4 }}>
+          <div onClick={() => goTo("/new-entry")}
+            style={{
+              width: 54, height: 54, borderRadius: "50%",
+              background: "linear-gradient(135deg,#3b82f6,#2563eb)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", flexShrink: 0,
+              boxShadow: "0 4px 20px rgba(37,99,235,0.55)",
+              transform: "translateY(-10px)",
+            }}>
+            <Plus size={26} color="#fff" strokeWidth={2.5} />
+          </div>
+        </div>
+
+        {/* Right: Deliveries + More */}
+        {mobileNavRight.map(item => {
+          const active = pathname === item.path;
+          return (
+            <div key={item.path} onClick={() => goTo(item.path)}
+              style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer",
+                color: active ? "var(--accent-primary)" : "var(--text-muted)" }}>
+              <item.icon size={22} />
+              <span style={{ fontSize: 10, fontWeight: active ? 700 : 400 }}>{item.label}</span>
             </div>
           );
         })}
         <div onClick={() => setShowMore(v => !v)}
-          style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer", color: showMore ? "var(--accent-primary)" : "var(--text-muted)" }}>
+          style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer",
+            color: showMore ? "var(--accent-primary)" : "var(--text-muted)" }}>
           <MoreHorizontal size={22} />
-          <span style={{ fontSize: 10 }}>More</span>
+          <span style={{ fontSize: 10, fontWeight: showMore ? 700 : 400 }}>More</span>
         </div>
       </nav>
 
@@ -520,37 +552,81 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
       )}
 
       {/* ── Mobile More Sheet ── */}
-      {showMore && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 200, display: "flex", alignItems: "flex-end" }}
-          onClick={() => setShowMore(false)}>
-          <div style={{ background: "var(--bg-card)", width: "100%", borderRadius: "16px 16px 0 0", padding: "18px 16px 32px" }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <span style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>More</span>
-              <button onClick={() => setShowMore(false)} style={{ background: "var(--bg-input)", border: "1px solid var(--border)", borderRadius: 7, padding: 6, cursor: "pointer", display: "flex" }}>
-                <X size={16} color="var(--text-secondary)" />
-              </button>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
-              {moreItems.map(item => (
-                <div key={item.path} onClick={() => goTo(item.path)}
-                  style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "13px 8px", borderRadius: 12, cursor: "pointer",
-                    background: pathname === item.path ? "var(--grade-b-bg)" : "var(--bg-input)",
-                    color: pathname === item.path ? "var(--grade-b-text)" : "var(--text-secondary)",
-                    border: `1px solid ${pathname === item.path ? "var(--grade-b-border)" : "var(--border)"}` }}>
-                  <item.icon size={20} />
-                  <span style={{ fontSize: 11, fontWeight: 500, marginTop: 5 }}>{item.label}</span>
+      {showMore && (() => {
+        const isStaff = profile?.role === "staff";
+        const isSuperAdmin = profile?.role === "superadmin";
+        const moreGrid = [
+          { path: "/customers",  label: "Customers",     icon: Users,    sub: "Manage contacts" },
+          ...(!isStaff ? [{ path: "/accounting", label: "Accounting",    icon: Wallet,   sub: "Income & expense" }] : []),
+          ...(!isStaff ? [{ path: "/reports",    label: "Reports",       icon: BarChart3, sub: "Insights" }] : []),
+          { path: "/services",   label: "Services",      icon: Wrench,   sub: "Pricing" },
+          ...(!isStaff ? [{ path: "/labour",     label: "Labour",        icon: Hammer,   sub: "Press & pay" }] : []),
+          ...(!isStaff ? [{ path: "/staff",      label: "Staff",         icon: UserCog,  sub: "Manage team" }] : []),
+          ...(isSuperAdmin ? [
+            { path: "/superadmin",     label: "Clients",        icon: Building2, sub: "Super Admin" },
+            { path: "/login-activity", label: "Login activity", icon: Activity,  sub: "Super Admin" },
+          ] : []),
+        ];
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 200, display: "flex", alignItems: "flex-end" }}
+            onClick={() => setShowMore(false)}>
+            <div style={{ background: "var(--bg-card)", width: "100%", borderRadius: "20px 20px 0 0", maxHeight: "88vh", overflowY: "auto" }}
+              onClick={e => e.stopPropagation()}>
+
+              {/* Sheet header — tap left side to open profile */}
+              <div style={{ padding: "20px 18px 16px", borderBottom: "1px solid var(--border-hard)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div onClick={() => { setShowMore(false); setShowProfile(true); }} style={{ cursor: "pointer" }}>
+                  <div style={{ fontWeight: 800, fontSize: 18, color: "var(--text-primary)" }}>More</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, fontSize: 12, color: "var(--text-secondary)" }}>
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent-success)", display: "inline-block", flexShrink: 0 }} />
+                    {profile
+                      ? `${(profile.role||"user").charAt(0).toUpperCase()}${(profile.role||"user").slice(1)} · @${profile.username}`
+                      : "Loading…"}
+                  </div>
                 </div>
-              ))}
-              <div onClick={logout}
-                style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "13px 8px", borderRadius: 12, cursor: "pointer", background: "var(--grade-f-bg)", color: "var(--grade-f-text)", border: "1px solid var(--grade-f-border)" }}>
-                <LogOut size={20} />
-                <span style={{ fontSize: 11, fontWeight: 500, marginTop: 5 }}>Logout</span>
+                <button onClick={() => setShowMore(false)}
+                  style={{ width: 34, height: 34, background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <X size={16} color="var(--text-secondary)" />
+                </button>
+              </div>
+
+              {/* Grid of pages */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, padding: "14px 14px 10px" }}>
+                {moreGrid.map(item => {
+                  const active = pathname === item.path;
+                  return (
+                    <div key={item.path} onClick={() => goTo(item.path)}
+                      style={{
+                        padding: "14px 14px 12px",
+                        borderRadius: 14, cursor: "pointer",
+                        background: active ? "var(--grade-b-bg)" : "var(--bg-elevated)",
+                        border: `1.5px solid ${active ? "var(--grade-b-border)" : "var(--border-hard)"}`,
+                        transition: "all .15s",
+                      }}>
+                      <div style={{ width: 38, height: 38, borderRadius: 10, marginBottom: 10,
+                        background: active ? "rgba(110,168,255,0.25)" : "rgba(110,168,255,0.1)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        color: active ? "var(--grade-b-text)" : "var(--text-secondary)" }}>
+                        <item.icon size={18} />
+                      </div>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: active ? "var(--grade-b-text)" : "var(--text-primary)", marginBottom: 2 }}>{item.label}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{item.sub}</div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Sign out */}
+              <div style={{ padding: "4px 14px 32px" }}>
+                <button onClick={() => { setShowMore(false); logout(); }}
+                  style={{ width: "100%", padding: "14px", border: "1.5px solid var(--grade-f-border)", borderRadius: 14, background: "var(--grade-f-bg)", color: "var(--grade-f-text)", fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  <LogOut size={16} /> Sign out
+                </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

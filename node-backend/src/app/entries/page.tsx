@@ -193,41 +193,32 @@ export default function Entries() {
           return (
             <div key={cid} className="cust-card" style={{background:"var(--bg-card,#fff)",borderRadius:14,overflow:"hidden",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",border:"1px solid var(--border-hard)",transition:"box-shadow 0.2s"}}>
               {/* Customer header */}
-              <div style={{display:"flex",alignItems:"stretch",cursor:"pointer"}} onClick={()=>{setExpandedCustomer(custOpen?null:cid);setExpandedDate(null);}}>
-                {/* Avatar peek strip */}
-                <div style={{width:58,flexShrink:0,background:avatarColor,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
-                  <span style={{color:"rgba(255,255,255,0.9)",fontSize:28,fontWeight:900,userSelect:"none",lineHeight:1}}>
+              <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 14px",cursor:"pointer"}} onClick={()=>{setExpandedCustomer(custOpen?null:cid);setExpandedDate(null);}}>
+                {/* Small square avatar */}
+                <div style={{width:44,height:44,borderRadius:12,background:avatarColor,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+                  <span style={{color:"#fff",fontSize:20,fontWeight:900,userSelect:"none",lineHeight:1}}>
                     {cust.name.charAt(0).toUpperCase()}
                   </span>
                 </div>
-                {/* Content */}
-                <div style={{flex:1,display:"flex",alignItems:"center",gap:10,padding:"14px 14px"}}>
-                  {/* Info */}
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:700,fontSize:15,color:"var(--text-primary,#1e293b)"}}>{cust.name}</div>
-                    <div style={{fontSize:12,color:"var(--text-secondary,#94a3b8)",marginTop:2}}>
+                {/* Two-row content */}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
+                    <div style={{fontWeight:700,fontSize:15,color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cust.name}</div>
+                    <div style={{fontWeight:800,fontSize:15,color:"var(--text-primary)",flexShrink:0}}>₹{custTotal.toLocaleString("en-IN")}</div>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                    <div style={{fontSize:12,color:"var(--text-muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>
                       {[cust.flat,cust.society,latestDate].filter(Boolean).join(" · ")}
                     </div>
-                  </div>
-                  {/* Right side */}
-                  <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-                    <span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,
-                      background:isOverdue?"#fef2f2":custAllDel?"#dcfce7":"#fef3c7",
-                      color:isOverdue?"#dc2626":custAllDel?"#16a34a":"#d97706"}}>
+                    <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:20,flexShrink:0,
+                      background:isOverdue?"rgba(239,68,68,0.12)":custAllDel?"rgba(5,150,105,0.12)":"rgba(245,158,11,0.12)",
+                      color:isOverdue?"#ef4444":custAllDel?"#10b981":"#f59e0b",
+                      border:`1px solid ${isOverdue?"rgba(239,68,68,0.25)":custAllDel?"rgba(5,150,105,0.25)":"rgba(245,158,11,0.25)"}`}}>
                       {isOverdue?"Overdue":custAllDel?"Delivered":`${pendingCnt} pending`}
                     </span>
-                    <button style={{display:"flex",alignItems:"center",justifyContent:"center",width:34,height:34,background:"#22c55e",borderRadius:8,border:"none",cursor:"pointer",flexShrink:0}}
-                      onClick={e=>{e.stopPropagation();if(cust.phone)openWA(cust.phone);}}>
-                      {WA_ICON_WHITE}
-                    </button>
-                    <button className="entry-invoice-btn" style={{display:"flex",alignItems:"center",gap:4,padding:"6px 10px",background:"transparent",color:"var(--text-secondary,#64748b)",border:"1px solid var(--border-soft,#e2e8f0)",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:600}}
-                      onClick={e=>{e.stopPropagation();const now=new Date();openInvoice(cid,cust.name,{month:now.getMonth()+1,year:now.getFullYear()});}}>
-                      <FileText size={12}/>{invoiceLoading?"...":"Invoice"}
-                    </button>
-                    <span className="entry-amount" style={{fontWeight:800,fontSize:17,color:"var(--text-primary,#0f172a)",minWidth:48,textAlign:"right"}}>₹{custTotal.toLocaleString("en-IN")}</span>
-                    {custOpen?<ChevronUp size={15} color="#94a3b8"/>:<ChevronRight size={15} color="#94a3b8"/>}
                   </div>
                 </div>
+                {custOpen?<ChevronUp size={16} color="var(--text-muted)" style={{flexShrink:0}}/>:<ChevronRight size={16} color="var(--text-muted)" style={{flexShrink:0}}/>}
               </div>
 
               {/* Date rows */}
