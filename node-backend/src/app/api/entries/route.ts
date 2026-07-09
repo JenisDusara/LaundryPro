@@ -81,7 +81,10 @@ export async function POST(req: NextRequest) {
       total_amount: total,
       delivery_status: "pending",
       notes: notes || "",
-      shop_id: user.shop_id,
+      // Bind the entry to the customer's shop — for a regular admin this equals
+      // user.shop_id (the customer was looked up shop-scoped), and for a superadmin
+      // it correctly targets the selected shop instead of "superadmin".
+      shop_id: customer.shop_id,
       items: { create: entryItems },
     },
     include: { customer: true, items: true },
@@ -92,7 +95,7 @@ export async function POST(req: NextRequest) {
     await prisma.$executeRawUnsafe(`UPDATE laundry_entries SET delivery_date = $1 WHERE id::text = $2`, delivery_date, entry.id);
   }
 
-  const profile = await getShopProfile(user.shop_id);
+  const profile = await getShopProfile(customer.shop_id);
   const shopName = profile.shop_name || "LaundryPro";
   if (customer.email) {
     sendEmail(customer.email, `Laundry Pickup - ${shopName}`,

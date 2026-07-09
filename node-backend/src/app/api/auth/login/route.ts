@@ -16,6 +16,25 @@ export async function POST(req: NextRequest) {
   const ip = getIp(req);
 
   try {
+    // Brute-force guard: block a username after too many recent failed attempts.
+    // Uses the login_logs we already record; the window slides so it self-resets.
+    if (username) {
+      const WINDOW_MIN = 15, MAX_FAILS = 8;
+      const since = new Date(Date.now() - WINDOW_MIN * 60 * 1000);
+      const recentFails = await withRetry(() => prisma.loginLog.count({
+        where: { username, status: "failed", created_at: { gte: since } },
+      })).catch(() => 0);
+      if (recentFails >= MAX_FAILS) {
+        await withRetry(() => prisma.loginLog.create({
+          data: { username, name: "", shop_id: "", shop_name: "", role: "", status: "failed", reason: "Rate limited", ip },
+        })).catch(() => {});
+        return NextResponse.json(
+          { detail: `Too many failed attempts. Please try again after ${WINDOW_MIN} minutes.` },
+          { status: 429 }
+        );
+      }
+    }
+
     const admin = await withRetry(() => prisma.admin.findUnique({ where: { username } }));
 
     if (!admin) {

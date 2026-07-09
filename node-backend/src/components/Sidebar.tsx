@@ -5,9 +5,16 @@ import {
   LayoutDashboard, PlusCircle, Plus, Users, ClipboardList, Truck,
   BarChart3, Wrench, Hammer, LogOut, X, Key, Eye, EyeOff,
   Building2, Wallet, Activity, ShieldCheck, ChevronRight, ChevronDown,
-  UserCog, MoreHorizontal, Sun, Moon, Monitor, Check, Search, Settings,
+  UserCog, MoreHorizontal, Sun, Moon, Monitor, Check, Settings, Bell,
 } from "lucide-react";
 import api from "@/lib/api";
+import { isEntryPending } from "@/lib/entry-status";
+import { todayIST } from "@/lib/dates";
+import type { LaundryEntry } from "@/types";
+
+function fmtDate(d: string) {
+  return new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
 
 type Theme = "light" | "dark" | "system";
 
@@ -97,10 +104,6 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
     return () => mq.removeEventListener("change", handler);
   }, [theme]);
 
-  const cycleTheme = () => {
-    const order: Theme[] = ["light", "dark", "system"];
-    setTheme(prev => order[(order.indexOf(prev) + 1) % 3]);
-  };
 
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [showPassForm,  setShowPassForm]  = useState(false);
@@ -112,6 +115,11 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
   const [passMsg,       setPassMsg]       = useState<{ text: string; ok: boolean } | null>(null);
   const [passLoading,   setPassLoading]   = useState(false);
 
+  const [allPending,     setAllPending]     = useState<LaundryEntry[]>([]);
+  const [showNotifSheet, setShowNotifSheet] = useState(false);
+  const [notifSent,      setNotifSent]      = useState(false);
+  const today = todayIST();
+
   useEffect(() => {
     api.get("/auth/me").then(r => setProfile(r.data)).catch(() => {});
     if (typeof window !== "undefined") setSelectedShopId(localStorage.getItem("sa_shop_id") || "");
@@ -122,8 +130,46 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
   }, [profile?.role]);
 
   useEffect(() => {
+    if (!profile?.role) return;
+    // Superadmin only has alerts for a shop they've picked (the api client sends that
+    // shop via x-selected-shop); admin/staff always see their own shop.
+    if (profile.role === "superadmin" && !selectedShopId) { setAllPending([]); return; }
+    api.get("/entries").then(r => {
+      // All undelivered orders — including those without a delivery date, so the shop
+      // still sees pending work to hand back even when no due date was entered.
+      setAllPending(r.data.filter((e: LaundryEntry) => isEntryPending(e)));
+    }).catch(() => {});
+  }, [profile?.role, selectedShopId]);
+
+  // Fire a browser/system notification once per session when there is pending work,
+  // but only if the user has already granted permission (asked on first bell click).
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof Notification === "undefined") return;
+    if (notifSent || Notification.permission !== "granted") return;
+    const overdue  = allPending.filter(e => e.delivery_date && e.delivery_date < today).length;
+    const dueToday = allPending.filter(e => e.delivery_date === today).length;
+    const noDate   = allPending.filter(e => !e.delivery_date).length;
+    if (overdue + dueToday + noDate === 0) return;
+    const parts: string[] = [];
+    if (overdue > 0)  parts.push(`${overdue} overdue`);
+    if (dueToday > 0) parts.push(`${dueToday} due today`);
+    if (noDate > 0)   parts.push(`${noDate} pending`);
+    new Notification("LaundryPro — deliveries", { body: `${parts.join(" · ")} order(s) to hand over.` });
+    setNotifSent(true);
+  }, [allPending, today, notifSent]);
+
+  // Opens the alerts panel; on first use also asks for browser-notification permission
+  // (must be triggered by a click, which this is).
+  const openAlerts = () => {
+    setShowNotifSheet(true);
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission().then(() => setNotifSent(false)).catch(() => {});
+    }
+  };
+
+  useEffect(() => {
     setShowProfile(false); setShowMore(false); setShowShopPicker(false);
-    setShowPassForm(false); setShowThemeMenu(false);
+    setShowPassForm(false); setShowThemeMenu(false); setShowNotifSheet(false);
   }, [pathname]);
 
   const logout = () => {
@@ -151,11 +197,18 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
 
   const isAdminSection = pathname === "/superadmin" || pathname === "/login-activity";
 
+  const overdueEntries  = allPending.filter(e => e.delivery_date && e.delivery_date < today);
+  const dueTodayEntries = allPending.filter(e => e.delivery_date === today);
+  const upcomingEntries = allPending.filter(e => e.delivery_date && e.delivery_date > today);
+  const noDateEntries   = allPending.filter(e => !e.delivery_date);
+  // Orders needing attention now = overdue + due today + undated pending (future-dated excluded).
+  const alertCount      = overdueEntries.length + dueTodayEntries.length + noDateEntries.length;
+  // Admin/staff always; superadmin only while viewing a selected shop.
+  const showAlerts      = !isAdminSection && (profile?.role !== "superadmin" || !!selectedShopId);
+
   const navItems = isAdminSection && profile?.role === "superadmin"
     ? [{ path: "/superadmin", label: "Clients", icon: Building2 }, { path: "/login-activity", label: "Login Activity", icon: Activity }]
     : profile?.role === "staff" ? staffNavItems : adminNavItems;
-
-  const themeIcon = theme === "light" ? <Sun size={14} /> : theme === "dark" ? <Moon size={14} /> : <Monitor size={14} />;
 
   const inp: React.CSSProperties = {
     width: "100%", padding: "9px 12px",
@@ -303,15 +356,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
           position: "sticky", top: 0, zIndex: 40,
         }}>
-          {/* Search */}
-          <div className="mob-hide" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "var(--bg-input)", border: "1px solid var(--border-default)", borderRadius: 8, padding: "8px 12px", minWidth: 280 }}>
-            <Search size={14} color="var(--text-muted)" />
-            <input
-              placeholder="Search customers, entries, flats…"
-              style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--text-primary)", fontSize: 13 }}
-            />
-          </div>
-          {/* Mobile: LP brand shown when search is hidden */}
+          {/* Mobile: LP brand (desktop header keeps only the right-side actions) */}
           <div style={{ display: "none" }} className="mob-brand">
             <div style={{ fontWeight: 800, fontSize: 17, color: "var(--text-primary)", letterSpacing: "-.01em" }}>LaundryPro</div>
             <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2, fontSize: 11, color: "var(--text-secondary)" }}>
@@ -321,33 +366,18 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Right actions */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div className="mob-hide" style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 500, color: "var(--text-secondary)" }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent-success)", display: "inline-block", flexShrink: 0 }} />
-              Synced
-            </div>
-
-            {/* Theme cycle button */}
-            <button className="mob-theme-btn" onClick={cycleTheme}
-              style={{ display: "inline-flex", alignItems: "center", gap: 7, border: "1px solid var(--border-default)", background: "var(--bg-input)", color: "var(--text-secondary)", fontWeight: 600, fontSize: 12, borderRadius: 8, padding: "7px 12px", cursor: "pointer", transition: "border-color .15s, color .15s" }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--border-active)"; e.currentTarget.style.color = "var(--text-primary)"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border-default)"; e.currentTarget.style.color = "var(--text-secondary)"; }}>
-              {themeIcon}
-              <span className="mob-hide">{theme.charAt(0).toUpperCase() + theme.slice(1)}</span>
+          {showAlerts && (
+            <button onClick={openAlerts} title="Alerts" aria-label="Alerts"
+              style={{ position: "relative", marginLeft: "auto", background: "var(--bg-input)", border: "1px solid var(--border-default)", borderRadius: 10, padding: "9px", width: 38, height: 38, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-secondary)", flexShrink: 0 }}>
+              <Bell size={17} color={alertCount > 0 ? "var(--accent-error)" : "var(--accent-success)"} />
+              {alertCount > 0 && (
+                <span style={{ position: "absolute", top: -6, right: -6, minWidth: 18, height: 18, padding: "0 4px", borderRadius: 9, background: "var(--accent-error)", color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {alertCount}
+                </span>
+              )}
             </button>
+          )}
 
-            {/* Avatar → opens profile modal (hidden on mobile; accessible via More sheet) */}
-            <div className="mob-hide" onClick={() => setShowProfile(true)}
-              style={{
-                width: 34, height: 34, borderRadius: "50%", cursor: "pointer",
-                background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)",
-                color: "var(--grade-b-text)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontWeight: 800, fontSize: 13,
-              }}>
-              {(profile?.name || "A").charAt(0).toUpperCase()}
-            </div>
-          </div>
         </header>
 
         {/* Page content */}
@@ -629,6 +659,166 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
           </div>
         );
       })()}
+
+      {/* ── Alerts Popup ── */}
+      {showNotifSheet && (
+        <>
+          {/* Invisible backdrop to close on outside tap */}
+          <div style={{ position: "fixed", inset: 0, zIndex: 299 }} onClick={() => setShowNotifSheet(false)} />
+
+          {/* Floating popup card */}
+          <div style={{
+            position: "fixed", top: 68, right: 14, zIndex: 300,
+            background: "var(--bg-card)",
+            borderRadius: 16,
+            border: "1px solid var(--border-hard)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+            width: "min(340px, calc(100vw - 28px))",
+            maxHeight: "70vh",
+            overflowY: "auto",
+            animation: "notifPop .15s ease-out",
+          }}>
+            <style>{`
+              @keyframes notifPop {
+                from { opacity: 0; transform: scale(0.93) translateY(-6px); }
+                to   { opacity: 1; transform: scale(1)    translateY(0);    }
+              }
+            `}</style>
+
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px 12px", borderBottom: "1px solid var(--border-hard)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Bell size={16} color="var(--text-primary)" />
+                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--text-primary)" }}>Alerts</span>
+                {alertCount > 0 && (
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 20, background: "var(--grade-f-bg)", color: "var(--grade-f-text)", border: "1px solid var(--grade-f-border)" }}>
+                    {alertCount}
+                  </span>
+                )}
+              </div>
+              <button onClick={() => setShowNotifSheet(false)}
+                style={{ width: 28, height: 28, borderRadius: 8, background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ fontSize: 15, color: "var(--text-secondary)", lineHeight: 1 }}>×</span>
+              </button>
+            </div>
+
+            {/* No alerts */}
+            {overdueEntries.length === 0 && dueTodayEntries.length === 0 && upcomingEntries.length === 0 && noDateEntries.length === 0 && (
+              <div style={{ padding: "28px 16px", textAlign: "center" }}>
+                <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
+                <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>All deliveries on track!</p>
+              </div>
+            )}
+
+            {/* Overdue */}
+            {overdueEntries.length > 0 && (
+              <div style={{ padding: "12px 14px 4px" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--grade-f-text)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
+                  Overdue · {overdueEntries.length}
+                </div>
+                {overdueEntries.map(e => {
+                  const days = Math.floor((new Date(today).getTime() - new Date(e.delivery_date! + "T00:00:00").getTime()) / 86400000);
+                  return (
+                    <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push("/deliveries"); }}
+                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", background: "var(--grade-f-bg)", border: "1px solid var(--grade-f-border)", borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(239,68,68,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <Truck size={13} color="var(--grade-f-text)" />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.customer?.name}</div>
+                        <div style={{ fontSize: 11, color: "var(--grade-f-text)", marginTop: 1 }}>{days}d overdue · ₹{Number(e.total_amount).toLocaleString("en-IN")}</div>
+                      </div>
+                      <ChevronRight size={12} color="var(--grade-f-text)" style={{ flexShrink: 0 }} />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Due Today */}
+            {dueTodayEntries.length > 0 && (
+              <div style={{ padding: "12px 14px 4px" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--grade-c-text)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
+                  Due Today · {dueTodayEntries.length}
+                </div>
+                {dueTodayEntries.map(e => (
+                  <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push("/deliveries"); }}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", background: "var(--grade-c-bg)", border: "1px solid var(--grade-c-border)", borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(245,158,11,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Truck size={13} color="var(--grade-c-text)" />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.customer?.name}</div>
+                      <div style={{ fontSize: 11, color: "var(--grade-c-text)", marginTop: 1 }}>Due today · ₹{Number(e.total_amount).toLocaleString("en-IN")}</div>
+                    </div>
+                    <ChevronRight size={12} color="var(--grade-c-text)" style={{ flexShrink: 0 }} />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Pending — no due date set */}
+            {noDateEntries.length > 0 && (
+              <div style={{ padding: "12px 14px 4px" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
+                  Pending delivery · {noDateEntries.length}
+                </div>
+                {noDateEntries.slice(0, 8).map(e => {
+                  const days = Math.floor((new Date(today).getTime() - new Date(e.entry_date + "T00:00:00").getTime()) / 86400000);
+                  return (
+                    <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push("/deliveries"); }}
+                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--pressed)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <Truck size={13} color="var(--text-secondary)" />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.customer?.name}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>{days > 0 ? `${days}d waiting` : "Today"} · ₹{Number(e.total_amount).toLocaleString("en-IN")}</div>
+                      </div>
+                      <ChevronRight size={12} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+                    </div>
+                  );
+                })}
+                {noDateEntries.length > 8 && (
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", textAlign: "center", padding: "2px 0 6px" }}>
+                    +{noDateEntries.length - 8} more
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Upcoming */}
+            {upcomingEntries.length > 0 && (
+              <div style={{ padding: "12px 14px 4px" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--grade-b-text)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
+                  Upcoming · {upcomingEntries.length}
+                </div>
+                {upcomingEntries.slice(0, 3).map(e => (
+                  <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push("/deliveries"); }}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Truck size={13} color="var(--grade-b-text)" />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.customer?.name}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>Due {fmtDate(e.delivery_date!)} · ₹{Number(e.total_amount).toLocaleString("en-IN")}</div>
+                    </div>
+                    <ChevronRight size={12} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* View all */}
+            <div style={{ padding: "10px 14px 14px" }}>
+              <button onClick={() => { setShowNotifSheet(false); router.push("/deliveries"); }}
+                style={{ width: "100%", padding: "10px", borderRadius: 10, background: "var(--accent-primary)", border: "none", color: "#0b1830", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                View all deliveries
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

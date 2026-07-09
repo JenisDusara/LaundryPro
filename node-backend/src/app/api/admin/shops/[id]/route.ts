@@ -72,6 +72,16 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (password)  data.password_hash = await bcrypt.hash(password, 12);
 
   const updated = await prisma.admin.update({ where: { id: params.id }, data });
+
+  // Resetting the password also lifts any active brute-force lockout, so the client
+  // (or their staff, who share the login-attempt window by username) can sign in at once.
+  if (password) {
+    const since = new Date(Date.now() - 15 * 60 * 1000);
+    await prisma.loginLog.deleteMany({
+      where: { username: updated.username, status: "failed", created_at: { gte: since } },
+    }).catch(() => {});
+  }
+
   return NextResponse.json({
     id: updated.id, username: updated.username, name: updated.name,
     shop_id: updated.shop_id, shop_name: updated.shop_name,

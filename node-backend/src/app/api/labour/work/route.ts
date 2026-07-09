@@ -3,8 +3,10 @@ import prisma, { withRetry } from "@/lib/prisma";
 import { requireAuth, requireWrite, denyStaff } from "@/lib/auth";
 import { monthRange } from "@/lib/dates";
 
-function labourFilter(user: { role: string; shop_id: string }) {
-  return user.role === "superadmin" ? {} : { labour: { shop_id: user.shop_id } };
+function labourFilter(user: { role: string; shop_id: string }, req: NextRequest) {
+  if (user.role !== "superadmin") return { labour: { shop_id: user.shop_id } };
+  const selected = req.headers.get("x-selected-shop");
+  return selected ? { labour: { shop_id: selected } } : {};
 }
 
 export async function GET(req: NextRequest) {
@@ -17,7 +19,7 @@ export async function GET(req: NextRequest) {
   // If labour_id given → return full history for that labour (no month filter)
   if (labourId) {
     const works = await withRetry(() => prisma.labourWork.findMany({
-      where: { labour_id: labourId, ...labourFilter(user) },
+      where: { labour_id: labourId, ...labourFilter(user, req) },
       include: { labour: true },
       orderBy: { work_date: "desc" },
     }));
@@ -33,7 +35,7 @@ export async function GET(req: NextRequest) {
   const year = parseInt(p.get("year") || String(new Date().getFullYear()));
   const { start, end } = monthRange(year, month);
   const works = await withRetry(() => prisma.labourWork.findMany({
-    where: { work_date: { gte: start, lte: end }, ...labourFilter(user) },
+    where: { work_date: { gte: start, lte: end }, ...labourFilter(user, req) },
     include: { labour: true },
     orderBy: { work_date: "asc" },
   }));

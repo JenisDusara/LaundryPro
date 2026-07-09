@@ -3,14 +3,15 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Users, PlusCircle, ClipboardList, Truck,
-  Bell, BellOff, AlertTriangle, Wallet, Hammer,
-  TrendingUp, CheckCircle2, ChevronRight, Package
+  AlertTriangle, Wallet, Hammer,
+  TrendingUp, CheckCircle2, ChevronRight, Package, Eye, EyeOff
 } from "lucide-react";
 import api from "@/lib/api";
 import { isEntryDelivered, isEntryPending } from "@/lib/entry-status";
 import { todayIST } from "@/lib/dates";
 import ProtectedLayout from "@/components/ProtectedLayout";
-import type { LaundryEntry, Customer } from "@/types";
+import CollectionsChart from "@/components/CollectionsChart";
+import type { LaundryEntry, Customer, Payment } from "@/types";
 
 const statusColor: Record<string, string> = {
   pending: "var(--grade-c-text)", in_delivery: "var(--accent-primary)",
@@ -30,11 +31,10 @@ export default function Dashboard() {
   const [monthEntries,  setMonthEntries]  = useState<LaundryEntry[]>([]);
   const [customers,     setCustomers]     = useState<Customer[]>([]);
   const [allPending,    setAllPending]    = useState<LaundryEntry[]>([]);
+  const [payments,      setPayments]      = useState<Payment[]>([]);
+  const [showCollections, setShowCollections] = useState(false);
   const [loading,       setLoading]       = useState(true);
-  const [notifPerm,     setNotifPerm]     = useState<NotificationPermission>("default");
-  const [notifSent,     setNotifSent]     = useState(false);
   const [profile,       setProfile]       = useState<{ name: string; shop_name: string } | null>(null);
-  const [showNotifSheet, setShowNotifSheet] = useState(false);
 
   const today = todayIST();
 
@@ -47,41 +47,41 @@ export default function Dashboard() {
       api.get("/customers"),
       api.get("/entries"),
       api.get("/auth/me"),
-    ]).then(([t, m, c, all, me]) => {
+      api.get("/payments", { params: { month, year } }),
+    ]).then(([t, m, c, all, me, pay]) => {
       setTodayEntries(t.data);
       setMonthEntries(m.data);
       setCustomers(c.data);
       setProfile(me.data);
       setAllPending(all.data.filter((e: LaundryEntry) => isEntryPending(e) && e.delivery_date));
+      setPayments(pay.data.payments);
     }).finally(() => setLoading(false));
   }, [today]);
 
   useEffect(() => {
     loadData();
-    if (typeof Notification !== "undefined") setNotifPerm(Notification.permission);
   }, [loadData]);
 
   const overdueEntries  = allPending.filter(e => e.delivery_date! < today);
   const dueTodayEntries = allPending.filter(e => e.delivery_date === today);
   const upcomingEntries = allPending.filter(e => e.delivery_date! > today);
 
-  useEffect(() => {
-    if (notifSent || notifPerm !== "granted" || loading) return;
-    const total = overdueEntries.length + dueTodayEntries.length;
-    if (total === 0) return;
-    if (overdueEntries.length > 0) new Notification("Overdue Deliveries", { body: `${overdueEntries.length} order(s) overdue!` });
-    if (dueTodayEntries.length > 0) new Notification("Today's Deliveries", { body: `${dueTodayEntries.length} order(s) to deliver today.` });
-    setNotifSent(true);
-  }, [notifPerm, overdueEntries.length, dueTodayEntries.length, notifSent, loading]);
-
-  const requestNotif = async () => {
-    if (typeof Notification === "undefined") return;
-    const perm = await Notification.requestPermission();
-    setNotifPerm(perm);
-  };
-
   const todayTotal     = todayEntries.reduce((s, e) => s + Number(e.total_amount), 0);
   const monthTotal     = monthEntries.reduce((s, e) => s + Number(e.total_amount), 0);
+
+  // Collections split by method — so the owner can reconcile cash vs UPI vs card at a glance.
+  const payBreakdown = (list: Payment[]) => {
+    const b = { total: 0, cash: 0, upi: 0, card: 0 };
+    for (const p of list) {
+      const amt = Number(p.amount);
+      b.total += amt;
+      if (p.method === "cash" || p.method === "upi" || p.method === "card") b[p.method] += amt;
+    }
+    return b;
+  };
+  const monthPay = payBreakdown(payments);
+  const todayPay = payBreakdown(payments.filter(p => p.date === today));
+
   const deliveredCount = monthEntries.filter(isEntryDelivered).length;
   const pendingCount   = monthEntries.filter(isEntryPending).length;
   const deliveryRate   = monthEntries.length > 0 ? Math.round((deliveredCount / monthEntries.length) * 100) : 0;
@@ -111,25 +111,12 @@ export default function Dashboard() {
       `}</style>
 
       {/* ── Header ── */}
-      <div className="dash-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p className="mob-hide" style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.12em" }}>{dateStr}</p>
-          <h1 className="dash-greeting-h1" style={{ margin: 0, fontSize: 28, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {greeting}{profile?.name ? `, ${profile.name.split(" ")[0]}` : ""}
-          </h1>
-          {profile?.shop_name && <p style={{ margin: "4px 0 0", fontSize: 13.75, color: "var(--text-secondary)" }}>{profile.shop_name}</p>}
-        </div>
-        <button className="dash-bell-btn"
-          onClick={() => setShowNotifSheet(true)}
-          style={{ position: "relative", background: "var(--bg-input)", border: "1px solid var(--border-default)", borderRadius: 10, padding: "9px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, color: "var(--text-secondary)", fontSize: 13, fontWeight: 500, flexShrink: 0 }}>
-          <Bell size={16} color={(overdueEntries.length + dueTodayEntries.length) > 0 ? "var(--accent-error)" : "var(--accent-success)"} />
-          <span className="mob-hide">Alerts</span>
-          {(overdueEntries.length + dueTodayEntries.length) > 0 && (
-            <span style={{ position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: "50%", background: "var(--accent-error)", color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {overdueEntries.length + dueTodayEntries.length}
-            </span>
-          )}
-        </button>
+      <div className="dash-header" style={{ marginBottom: 20 }}>
+        <p className="mob-hide" style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.12em" }}>{dateStr}</p>
+        <h1 className="dash-greeting-h1" style={{ margin: 0, fontSize: 28, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {greeting}{profile?.name ? `, ${profile.name.split(" ")[0]}` : ""}
+        </h1>
+        {profile?.shop_name && <p style={{ margin: "4px 0 0", fontSize: 13.75, color: "var(--text-secondary)" }}>{profile.shop_name}</p>}
       </div>
 
       {/* ── Revenue Cards ── */}
@@ -212,6 +199,40 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* ── Collections (cash / UPI / card) — hidden until revealed ── */}
+      <div className="web-card" style={{ padding: 18, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: showCollections ? 14 : 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Wallet size={16} color="var(--accent-primary)" />
+            <span style={{ fontWeight: 700, fontSize: 15, color: "var(--text-primary)" }}>Collections</span>
+          </div>
+          <button onClick={() => setShowCollections(v => !v)}
+            style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", cursor: "pointer", border: "1px solid var(--border-default)", background: "var(--bg-input)", borderRadius: 20, padding: "6px 12px" }}>
+            {showCollections ? <><EyeOff size={14} /> Hide</> : <><Eye size={14} /> Show</>}
+          </button>
+        </div>
+
+        {showCollections ? (
+          <>
+            <CollectionsChart cash={monthPay.cash} upi={monthPay.upi} card={monthPay.card} />
+            {/* Today's split at a glance */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border-hard)", fontSize: 12, color: "var(--text-muted)" }}>
+              <span style={{ fontWeight: 700, color: "var(--text-secondary)" }}>Aaj:</span>
+              <span>Cash ₹{todayPay.cash.toLocaleString("en-IN")}</span><span>·</span>
+              <span>UPI ₹{todayPay.upi.toLocaleString("en-IN")}</span><span>·</span>
+              <span>Card ₹{todayPay.card.toLocaleString("en-IN")}</span>
+              <span style={{ marginLeft: "auto", fontWeight: 700, color: "var(--text-primary)" }}>Total ₹{todayPay.total.toLocaleString("en-IN")}</span>
+              <span onClick={() => router.push("/accounting")} style={{ cursor: "pointer", color: "var(--accent-primary)", fontWeight: 700, display: "inline-flex", alignItems: "center" }}>Details <ChevronRight size={12} /></span>
+            </div>
+          </>
+        ) : (
+          <div onClick={() => setShowCollections(true)}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "22px 12px", marginTop: 10, borderRadius: 12, border: "1px dashed var(--border-hard)", cursor: "pointer", color: "var(--text-muted)", fontSize: 13 }}>
+            <Eye size={16} /> Collections dekhne ke liye click karein
+          </div>
+        )}
+      </div>
+
       {/* ── Due Today ── */}
       {dueTodayEntries.length > 0 && (
         <DeliverySection title="Deliver Today" entries={dueTodayEntries} accentBg="var(--grade-c-bg)" accentBorder="var(--grade-c-border)" accentColor="var(--grade-c-text)" router={router} />
@@ -283,135 +304,6 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ── Notification Popup ── */}
-      {showNotifSheet && (
-        <>
-          {/* Invisible backdrop to close on outside tap */}
-          <div style={{ position: "fixed", inset: 0, zIndex: 299 }} onClick={() => setShowNotifSheet(false)} />
-
-          {/* Floating popup card */}
-          <div style={{
-            position: "fixed", top: 68, right: 14, zIndex: 300,
-            background: "var(--bg-card)",
-            borderRadius: 16,
-            border: "1px solid var(--border-hard)",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
-            width: "min(340px, calc(100vw - 28px))",
-            maxHeight: "70vh",
-            overflowY: "auto",
-            animation: "notifPop .15s ease-out",
-          }}>
-            <style>{`
-              @keyframes notifPop {
-                from { opacity: 0; transform: scale(0.93) translateY(-6px); }
-                to   { opacity: 1; transform: scale(1)    translateY(0);    }
-              }
-            `}</style>
-
-            {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px 12px", borderBottom: "1px solid var(--border-hard)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Bell size={16} color="var(--text-primary)" />
-                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--text-primary)" }}>Alerts</span>
-                {(overdueEntries.length + dueTodayEntries.length) > 0 && (
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 20, background: "var(--grade-f-bg)", color: "var(--grade-f-text)", border: "1px solid var(--grade-f-border)" }}>
-                    {overdueEntries.length + dueTodayEntries.length}
-                  </span>
-                )}
-              </div>
-              <button onClick={() => setShowNotifSheet(false)}
-                style={{ width: 28, height: 28, borderRadius: 8, background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ fontSize: 15, color: "var(--text-secondary)", lineHeight: 1 }}>×</span>
-              </button>
-            </div>
-
-            {/* No alerts */}
-            {overdueEntries.length === 0 && dueTodayEntries.length === 0 && upcomingEntries.length === 0 && (
-              <div style={{ padding: "28px 16px", textAlign: "center" }}>
-                <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
-                <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>All deliveries on track!</p>
-              </div>
-            )}
-
-            {/* Overdue */}
-            {overdueEntries.length > 0 && (
-              <div style={{ padding: "12px 14px 4px" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--grade-f-text)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
-                  Overdue · {overdueEntries.length}
-                </div>
-                {overdueEntries.map(e => {
-                  const days = Math.floor((new Date(today).getTime() - new Date(e.delivery_date! + "T00:00:00").getTime()) / 86400000);
-                  return (
-                    <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push("/deliveries"); }}
-                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", background: "var(--grade-f-bg)", border: "1px solid var(--grade-f-border)", borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
-                      <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(239,68,68,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        <Truck size={13} color="var(--grade-f-text)" />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.customer?.name}</div>
-                        <div style={{ fontSize: 11, color: "var(--grade-f-text)", marginTop: 1 }}>{days}d overdue · ₹{Number(e.total_amount).toLocaleString("en-IN")}</div>
-                      </div>
-                      <ChevronRight size={12} color="var(--grade-f-text)" style={{ flexShrink: 0 }} />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Due Today */}
-            {dueTodayEntries.length > 0 && (
-              <div style={{ padding: "12px 14px 4px" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--grade-c-text)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
-                  Due Today · {dueTodayEntries.length}
-                </div>
-                {dueTodayEntries.map(e => (
-                  <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push("/deliveries"); }}
-                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", background: "var(--grade-c-bg)", border: "1px solid var(--grade-c-border)", borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(245,158,11,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <Truck size={13} color="var(--grade-c-text)" />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.customer?.name}</div>
-                      <div style={{ fontSize: 11, color: "var(--grade-c-text)", marginTop: 1 }}>Due today · ₹{Number(e.total_amount).toLocaleString("en-IN")}</div>
-                    </div>
-                    <ChevronRight size={12} color="var(--grade-c-text)" style={{ flexShrink: 0 }} />
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Upcoming */}
-            {upcomingEntries.length > 0 && (
-              <div style={{ padding: "12px 14px 4px" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--grade-b-text)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
-                  Upcoming · {upcomingEntries.length}
-                </div>
-                {upcomingEntries.slice(0, 3).map(e => (
-                  <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push("/deliveries"); }}
-                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <Truck size={13} color="var(--grade-b-text)" />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.customer?.name}</div>
-                      <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>Due {fmtDate(e.delivery_date!)} · ₹{Number(e.total_amount).toLocaleString("en-IN")}</div>
-                    </div>
-                    <ChevronRight size={12} color="var(--text-muted)" style={{ flexShrink: 0 }} />
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* View all */}
-            <div style={{ padding: "10px 14px 14px" }}>
-              <button onClick={() => { setShowNotifSheet(false); router.push("/deliveries"); }}
-                style={{ width: "100%", padding: "10px", borderRadius: 10, background: "var(--accent-primary)", border: "none", color: "#0b1830", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                View all deliveries
-              </button>
-            </div>
-          </div>
-        </>
-      )}
     </ProtectedLayout>
   );
 }

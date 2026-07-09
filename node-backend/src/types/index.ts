@@ -45,3 +45,25 @@ export interface LaundryEntry {
   customer: Customer | null;
   created_at: string;
 }
+
+export type PaymentMethod = "cash" | "upi" | "card" | "other";
+
+export interface Payment {
+  id: string;
+  customer_id: string;
+  customer_name: string;
+  amount: number;
+  method: PaymentMethod;
+  date: string;
+  note: string;
+  created_at: string;
+}
+
+// Per-customer running balance. outstanding > 0 = customer owes (udhaar);
+// outstanding < 0 = customer has an advance/credit that auto-adjusts against future bills.
+export interface CustomerBalance {
+  customer_id: string;
+  billed: number;
+  paid: number;
+  outstanding: number;
+}

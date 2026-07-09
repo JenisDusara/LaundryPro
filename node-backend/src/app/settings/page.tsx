@@ -1,7 +1,9 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { Store, Save, Upload, Trash2, ImageIcon } from "lucide-react";
+import { Store, Save, Upload, Trash2, ImageIcon, Download, DatabaseBackup } from "lucide-react";
 import api from "@/lib/api";
+import { downloadAuthedFile } from "@/lib/download";
+import { todayIST } from "@/lib/dates";
 import ProtectedLayout from "@/components/ProtectedLayout";
 
 type Profile = {
@@ -42,7 +44,20 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [backupBusy, setBackupBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const downloadBackup = async () => {
+    setBackupBusy(true);
+    try {
+      await downloadAuthedFile("/admin/backup", `laundrypro-backup-${todayIST()}.json`);
+    } catch {
+      setMsg({ text: "Backup download failed", ok: false });
+      setTimeout(() => setMsg(null), 4000);
+    } finally {
+      setBackupBusy(false);
+    }
+  };
 
   useEffect(() => {
     api.get("/admin/settings")
@@ -204,6 +219,21 @@ export default function Settings() {
                 <Save size={16} /> {saving ? "Saving…" : "Save changes"}
               </button>
             </div>
+          </div>
+
+          {/* Data & backup card */}
+          <div style={{ background: "var(--bg-card)", borderRadius: 14, border: "1px solid var(--border-hard)", padding: 20, marginTop: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, color: "var(--text-primary)" }}>
+              <DatabaseBackup size={16} color="var(--accent-primary)" />
+              <span style={{ fontWeight: 700, fontSize: 14 }}>Data &amp; backup</span>
+            </div>
+            <p style={{ fontSize: 12.5, color: "var(--text-muted)", margin: "0 0 14px" }}>
+              Apne shop ka pura data (customers, entries, services, labour) ek JSON file me download karein. Safe jagah rakhein.
+            </p>
+            <button onClick={downloadBackup} disabled={backupBusy}
+              style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 18px", border: "1px solid var(--border-hard)", borderRadius: 10, background: "var(--bg-input)", color: "var(--text-primary)", fontSize: 13.5, fontWeight: 700, cursor: backupBusy ? "not-allowed" : "pointer", opacity: backupBusy ? 0.6 : 1 }}>
+              <Download size={15} /> {backupBusy ? "Preparing…" : "Download backup"}
+            </button>
           </div>
         </div>
       )}

@@ -14,17 +14,23 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
   const ro = requireWrite(user); if (ro) return ro;
-  const data = await req.json();
-  if (data.phone !== undefined && !/^\d{10}$/.test(data.phone)) {
+  const body = await req.json();
+  if (body.phone !== undefined && !/^\d{10}$/.test(body.phone)) {
     return NextResponse.json({ detail: "Phone number must be exactly 10 digits" }, { status: 400 });
   }
   // Prevent editing a customer to a phone already used by another customer in this shop.
-  if (data.phone !== undefined) {
+  if (body.phone !== undefined) {
     const clash = await withRetry(() => prisma.customer.findFirst({
-      where: { phone: data.phone, ...shopFilter(user, req), NOT: { id: params.id } },
+      where: { phone: body.phone, ...shopFilter(user, req), NOT: { id: params.id } },
       select: { id: true },
     }));
     if (clash) return NextResponse.json({ detail: "Another customer with this phone already exists" }, { status: 409 });
+  }
+  // Whitelist editable fields — never let the body set shop_id/id and move the record
+  // out of (or into) another shop.
+  const data: Record<string, unknown> = {};
+  for (const f of ["name", "phone", "flat_number", "society_name", "address", "email"]) {
+    if (body[f] !== undefined) data[f] = body[f];
   }
   const customer = await withRetry(() => prisma.customer.updateMany({
     where: { id: params.id, ...shopFilter(user, req) },

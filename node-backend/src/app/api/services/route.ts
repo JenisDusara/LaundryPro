@@ -1,6 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
-import { requireAuth, shopFilter, requireWrite } from "@/lib/auth";
+import { requireAuth, shopFilter, requireWrite, writeShopId } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const user = requireAuth(req);
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   if (user instanceof NextResponse) return user;
   const ro = requireWrite(user); if (ro) return ro;
   const { name, price, parent_id } = await req.json();
-  const shop_id = user.role === "superadmin" ? "shop1" : user.shop_id;
+  const shop_id = writeShopId(user, req);
   const service = await prisma.service.create({
     data: { name, price: price ?? null, parent_id: parent_id || null, shop_id },
   });

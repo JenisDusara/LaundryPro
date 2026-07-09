@@ -56,10 +56,28 @@ model Customer {
   created_at   DateTime       @default(now())
   updated_at   DateTime       @updatedAt
   entries      LaundryEntry[]
+  payments     Payment[]
 
   @@unique([phone, shop_id])
   @@index([shop_id])
   @@map("customers")
+}
+
+model Payment {
+  id          String   @id @default(uuid())
+  customer_id String
+  customer    Customer @relation(fields: [customer_id], references: [id])
+  amount      Decimal  @db.Decimal(10, 2)
+  method      String   @default("cash") // "cash" | "upi" | "card" | "other"
+  date        String   // YYYY-MM-DD (payment received date, IST)
+  note        String   @default("")
+  shop_id     String   @default("shop1")
+  created_at  DateTime @default(now())
+
+  @@index([shop_id])
+  @@index([customer_id])
+  @@index([date])
+  @@map("payments")
 }
 
 model Service {

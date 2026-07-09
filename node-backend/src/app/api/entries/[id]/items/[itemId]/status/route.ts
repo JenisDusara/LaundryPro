@@ -15,7 +15,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }));
   if (!owned) return NextResponse.json({ detail: "Not found" }, { status: 404 });
 
-  await withRetry(() => prisma.entryItem.update({ where: { id: params.itemId }, data: { item_status: status } }));
+  // Scope the update to this entry's item — otherwise an itemId from another shop's
+  // entry could be flipped by pairing it with one of your own entry ids.
+  const updated = await withRetry(() => prisma.entryItem.updateMany({
+    where: { id: params.itemId, entry_id: params.id },
+    data: { item_status: status },
+  }));
+  if (updated.count === 0) return NextResponse.json({ detail: "Item not found" }, { status: 404 });
   // If all items are now delivered, update entry delivery_status too
   const allItems = await withRetry(() => prisma.entryItem.findMany({ where: { entry_id: params.id } }));
   const allDone = allItems.every(i => i.item_status === "delivered");

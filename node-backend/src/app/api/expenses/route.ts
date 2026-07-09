@@ -1,6 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAuth, shopFilter, requireWrite, denyStaff } from "@/lib/auth";
+import { requireAuth, shopFilter, requireWrite, denyStaff, writeShopId } from "@/lib/auth";
 import { monthRange } from "@/lib/dates";
 
 export async function GET(req: NextRequest) {
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   if (!date || !category || !amount) {
     return NextResponse.json({ detail: "date, category and amount are required" }, { status: 400 });
   }
-  const shop_id = user.role === "superadmin" ? "superadmin" : user.shop_id;
+  const shop_id = writeShopId(user, req, "superadmin");
   const expense = await prisma.expense.create({
     data: { date, category, description: description || "", amount: Number(amount), shop_id },
   });

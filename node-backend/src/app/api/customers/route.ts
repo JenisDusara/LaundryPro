@@ -1,6 +1,8 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
-import { requireAuth, shopFilter, requireWrite } from "@/lib/auth";
+import { requireAuth, shopFilter, requireWrite, writeShopId } from "@/lib/auth";
+
+const CUSTOMER_FIELDS = ["name", "phone", "flat_number", "society_name", "address", "email"] as const;
 
 export async function GET(req: NextRequest) {
   const user = requireAuth(req);
@@ -27,13 +29,18 @@ export async function POST(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
   const ro = requireWrite(user); if (ro) return ro;
-  const data = await req.json();
-  if (!data.phone || !/^\d{10}$/.test(data.phone)) {
+  const body = await req.json();
+  if (!body.phone || !/^\d{10}$/.test(body.phone)) {
     return NextResponse.json({ detail: "Phone number must be exactly 10 digits" }, { status: 400 });
   }
-  const shop_id = user.role === "superadmin" ? (data.shop_id || "shop1") : user.shop_id;
-  const existing = await prisma.customer.findFirst({ where: { phone: data.phone, shop_id } });
+  // Superadmin writes go to the shop selected in the picker (x-selected-shop header);
+  // regular users always write to their own shop. Fields are whitelisted so a crafted
+  // request can't set shop_id/id directly.
+  const shop_id = writeShopId(user, req, body.shop_id || "shop1");
+  const existing = await prisma.customer.findFirst({ where: { phone: body.phone, shop_id } });
   if (existing) return NextResponse.json({ detail: "Phone already registered" }, { status: 400 });
-  const customer = await prisma.customer.create({ data: { ...data, shop_id } });
+  const data: Record<string, unknown> = { shop_id };
+  for (const f of CUSTOMER_FIELDS) if (body[f] !== undefined) data[f] = body[f];
+  const customer = await prisma.customer.create({ data: data as any });
   return NextResponse.json(customer, { status: 201 });
 }

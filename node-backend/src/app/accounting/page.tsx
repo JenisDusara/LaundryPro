@@ -3,14 +3,25 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   Plus, Trash2, X, TrendingUp, TrendingDown, Wallet, Pencil, Check,
-  CalendarDays, ChevronDown, ChevronRight, ChevronLeft, IndianRupee
+  CalendarDays, ChevronDown, ChevronRight, ChevronLeft, IndianRupee,
+  Banknote, Smartphone, CreditCard
 } from "lucide-react";
 import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
+import CollectionsChart from "@/components/CollectionsChart";
+import type { Payment } from "@/types";
 
 interface Expense { id: string; date: string; category: string; description: string; amount: number; }
 interface EntryItem { service_name: string; quantity: number; subtotal: number; }
 interface Entry { id: string; entry_date: string; total_amount: number; delivery_status: string; customer: { name: string; phone: string }; items: EntryItem[]; }
+interface PaySummary { total: number; cash: number; upi: number; card: number; other: number; count: number; }
+
+const METHOD_META: Record<string, { label: string; color: string; icon: typeof Banknote }> = {
+  cash: { label: "Cash", color: "#16a34a", icon: Banknote },
+  upi:  { label: "UPI",  color: "#2563eb", icon: Smartphone },
+  card: { label: "Card", color: "#8b5cf6", icon: CreditCard },
+  other:{ label: "Other",color: "#64748b", icon: Wallet },
+};
 
 const CATEGORIES = ["Rent","Electricity","Salary","Water","Supplies","Maintenance","Transport","Miscellaneous"];
 const emptyForm = { date: "", category: CATEGORIES[0], description: "", amount: "" };
@@ -121,9 +132,12 @@ function fmtLong(d: string) {
 
 export default function AccountingPage() {
   const now = new Date();
-  const [tab,    setTab]    = useState<"expenses"|"daywise">("expenses");
+  const [tab,    setTab]    = useState<"expenses"|"daywise"|"collections">("expenses");
   const [month,  setMonth]  = useState(now.getMonth() + 1);
   const [year,   setYear]   = useState(now.getFullYear());
+
+  const [payments,   setPayments]   = useState<Payment[]>([]);
+  const [paySummary, setPaySummary] = useState<PaySummary>({ total: 0, cash: 0, upi: 0, card: 0, other: 0, count: 0 });
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [income,   setIncome]   = useState(0);
@@ -145,15 +159,28 @@ export default function AccountingPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [expRes, entRes] = await Promise.all([
+      const [expRes, entRes, payRes] = await Promise.all([
         api.get("/expenses", {params:{month,year}}),
         api.get("/entries",  {params:{month,year}}),
+        api.get("/payments", {params:{month,year}}),
       ]);
       setExpenses(expRes.data);
       setEntries(entRes.data);
       setIncome(entRes.data.reduce((s:number,e:any)=>s+Number(e.total_amount),0));
+      setPayments(payRes.data.payments);
+      setPaySummary(payRes.data.summary);
     } finally { setLoading(false); }
   }, [month, year]);
+
+  const delPayment = async (id: string) => {
+    if (!confirm("Delete this payment record?")) return;
+    try {
+      await api.delete(`/payments/${id}`);
+      setPayments(ps => ps.filter(p => p.id !== id));
+      flash("Payment deleted", true);
+      load();
+    } catch { flash("Delete failed", false); }
+  };
 
   useEffect(()=>{ load(); },[load]);
 
@@ -252,6 +279,7 @@ export default function AccountingPage() {
       <div style={{display:"flex",gap:8,marginBottom:20}}>
         {([
           {key:"expenses",label:"Expenses"},
+          {key:"collections", label:"Collections"},
           {key:"daywise", label:"Day-wise report"},
         ] as const).map(t=>(
           <button key={t.key} className="acc-tab" onClick={()=>setTab(t.key)}
@@ -499,6 +527,69 @@ export default function AccountingPage() {
                         ))}
                       </div>
                     )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════ COLLECTIONS TAB ══════════ */}
+      {tab==="collections"&&(
+        <div style={{animation:"fadeUp 0.25s ease both"}}>
+          {/* Method breakdown — donut chart */}
+          <div style={{background:"var(--bg-card)",border:"1px solid var(--border-hard)",borderRadius:16,padding:"20px 22px",marginBottom:20,boxShadow:"0 2px 10px rgba(0,0,0,0.05)"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:8}}>
+              <div style={{fontWeight:800,fontSize:16,color:"var(--text-primary)"}}>Collections by method</div>
+              <div style={{fontSize:12,color:"var(--text-muted)"}}>{paySummary.count} payment{paySummary.count!==1?"s":""} · {MONTH_NAMES[month-1]} {year}</div>
+            </div>
+            <CollectionsChart cash={paySummary.cash} upi={paySummary.upi} card={paySummary.card} size={152} />
+          </div>
+
+          {/* Payments list */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <div>
+              <div style={{fontWeight:800,fontSize:16,color:"var(--text-primary)"}}>Payments received</div>
+              <div style={{fontSize:12,color:"var(--text-muted)",marginTop:2}}>{MONTH_NAMES[month-1]} {year} · record payments from the Customers page</div>
+            </div>
+          </div>
+
+          {loading?(
+            <div style={{background:"var(--bg-card)",borderRadius:16,padding:60,textAlign:"center",color:"var(--text-muted)",border:"1.5px solid var(--border-hard)"}}>Loading…</div>
+          ):payments.length===0?(
+            <div style={{background:"var(--bg-card)",borderRadius:16,padding:"60px 20px",textAlign:"center",border:"1.5px dashed var(--border-hard)"}}>
+              <div style={{width:56,height:56,borderRadius:16,background:"var(--bg-elevated)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
+                <IndianRupee size={26} color="var(--text-muted)"/>
+              </div>
+              <div style={{fontWeight:700,fontSize:15,color:"var(--text-muted)",marginBottom:6}}>No payments this month</div>
+              <div style={{fontSize:13,color:"var(--text-muted)"}}>Go to Customers → tap the ₹ button to record a payment</div>
+            </div>
+          ):(
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {payments.map((pay,i)=>{
+                const m = METHOD_META[pay.method] || METHOD_META.other;
+                const Icon = m.icon;
+                return (
+                  <div key={pay.id} className="exp-row"
+                    style={{animation:`fadeUp 0.25s ease ${Math.min(i,10)*0.03}s both`,background:"var(--bg-card)",borderRadius:12,padding:"13px 16px",boxShadow:"0 1px 6px rgba(0,0,0,0.04)",border:"1px solid var(--border-hard)",display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{width:42,height:42,borderRadius:12,background:`${m.color}22`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:m.color}}>
+                      <Icon size={18}/>
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:700,fontSize:14,color:"var(--text-primary)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{pay.customer_name}</div>
+                      <div style={{fontSize:12,color:"var(--text-muted)",marginTop:2,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                        <span style={{fontWeight:700,color:m.color}}>{m.label}</span>
+                        <span>·</span>
+                        <span>{fmt(pay.date)}</span>
+                        {pay.note&&<><span>·</span><span>{pay.note}</span></>}
+                      </div>
+                    </div>
+                    <div style={{fontWeight:800,fontSize:15,color:"#0f766e",flexShrink:0}}>₹{Number(pay.amount).toLocaleString("en-IN")}</div>
+                    <button onClick={()=>delPayment(pay.id)}
+                      style={{width:30,height:30,background:"transparent",border:"1px solid var(--border-hard)",borderRadius:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#94a3b8",flexShrink:0}}>
+                      <Trash2 size={13}/>
+                    </button>
                   </div>
                 );
               })}

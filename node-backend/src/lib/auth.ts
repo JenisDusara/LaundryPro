@@ -64,6 +64,16 @@ export function shopFilter(user: TokenPayload, req?: NextRequest): { shop_id?: s
   return {};
 }
 
+// Resolves which shop a newly-created record should belong to.
+// Superadmin writes are attributed to the shop selected in the picker
+// (x-selected-shop header); if none is selected, falls back to `fallback`.
+// Regular users always write to their own shop — the header is ignored for
+// them, so it can never be used to plant data in another shop.
+export function writeShopId(user: TokenPayload, req: NextRequest, fallback = "shop1"): string {
+  if (user.role !== "superadmin") return user.shop_id;
+  return req.headers.get("x-selected-shop") || fallback;
+}
+
 // Blocks write operations while a shop is in the post-expiry grace period.
 // Returns a 403 response to short-circuit the handler, or null to proceed.
 export function requireWrite(user: TokenPayload): NextResponse | null {
