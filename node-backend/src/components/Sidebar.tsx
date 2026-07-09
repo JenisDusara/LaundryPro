@@ -5,7 +5,7 @@ import {
   LayoutDashboard, PlusCircle, Plus, Users, ClipboardList, Truck,
   BarChart3, Wrench, Hammer, LogOut, X, Key, Eye, EyeOff,
   Building2, Wallet, Activity, ShieldCheck, ChevronRight, ChevronDown,
-  UserCog, MoreHorizontal, Sun, Moon, Monitor, Check, Search,
+  UserCog, MoreHorizontal, Sun, Moon, Monitor, Check, Search, Settings,
 } from "lucide-react";
 import api from "@/lib/api";
 
@@ -42,6 +42,7 @@ const adminNavItems = [
   { path: "/services",   label: "Services",   icon: Wrench },
   { path: "/labour",     label: "Labour",     icon: Hammer },
   { path: "/staff",      label: "Staff",      icon: UserCog },
+  { path: "/settings",   label: "Settings",   icon: Settings },
 ];
 
 const staffNavItems = [
@@ -562,6 +563,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
           { path: "/services",   label: "Services",      icon: Wrench,   sub: "Pricing" },
           ...(!isStaff ? [{ path: "/labour",     label: "Labour",        icon: Hammer,   sub: "Press & pay" }] : []),
           ...(!isStaff ? [{ path: "/staff",      label: "Staff",         icon: UserCog,  sub: "Manage team" }] : []),
+          ...(!isStaff ? [{ path: "/settings",   label: "Settings",      icon: Settings, sub: "Business profile" }] : []),
           ...(isSuperAdmin ? [
             { path: "/superadmin",     label: "Clients",        icon: Building2, sub: "Super Admin" },
             { path: "/login-activity", label: "Login activity", icon: Activity,  sub: "Super Admin" },

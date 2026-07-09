@@ -3,7 +3,7 @@ import prisma, { withRetry } from "@/lib/prisma";
 import { requireAuth, shopFilter, requireWrite } from "@/lib/auth";
 import { sendEmail, deliveryEmailHtml } from "@/lib/email";
 import { sendSms } from "@/lib/sms";
-import { getSettings } from "@/lib/settings";
+import { getShopProfile } from "@/lib/settings";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const user = requireAuth(req);
@@ -27,14 +27,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     include: { customer: true },
   }));
   if (status === "delivered" && entry?.customer) {
-    const settings = getSettings();
+    const profile = await getShopProfile(entry.customer.shop_id);
+    const shopName = profile.shop_name || "LaundryPro";
     if (entry.customer?.email) {
-      sendEmail(entry.customer.email, `Laundry Ready - ${settings.shop_name}`,
-        deliveryEmailHtml(entry.customer.name, settings.shop_name)
+      sendEmail(entry.customer.email, `Laundry Ready - ${shopName}`,
+        deliveryEmailHtml(entry.customer.name, shopName)
       ).catch(() => {});
     }
     if (entry.customer?.phone) {
-      sendSms(entry.customer.phone, `Dear ${entry.customer.name}, your laundry is ready for delivery! - ${settings.shop_name}`).catch(() => {});
+      sendSms(entry.customer.phone, `Dear ${entry.customer.name}, your laundry is ready for delivery! - ${shopName}`).catch(() => {});
     }
   }
   return NextResponse.json({ message: "Updated", status });

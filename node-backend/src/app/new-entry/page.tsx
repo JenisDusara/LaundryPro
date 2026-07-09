@@ -40,11 +40,13 @@ export default function NewEntry() {
   const [updatingItemId,   setUpdatingItemId]   = useState<string|null>(null);
   const [justDelivered,    setJustDelivered]    = useState<{service_name:string;quantity:number;pickup_date:string}[]>([]);
   const [deliveryDate,     setDeliveryDate]     = useState("");
+  const [shopName,         setShopName]         = useState("");
   const router = useRouter();
 
   useEffect(() => {
     api.get("/customers").then(r=>setCustomers(r.data));
     api.get("/services").then(r=>setServices(r.data));
+    api.get("/auth/me").then(r=>setShopName(r.data.shop_name||"")).catch(()=>{});
   }, []);
 
   // Search: name, flat, society, phone number
@@ -80,7 +82,7 @@ export default function NewEntry() {
 
   const total = items.reduce((s,i)=>s+(Number(i.price)*Number(i.quantity)),0);
 
-  const SHOP_NAME = "Shree Chamunda Drycleaners";
+  const SHOP_NAME = shopName || "Your Laundry";
 
   const sendWAMsg = (phone: string, msg: string) => {
     const url = `whatsapp://send?phone=91${phone.replace(/\D/g,"").slice(-10)}&text=${encodeURIComponent(msg)}`;

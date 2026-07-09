@@ -44,7 +44,7 @@ export default function Labour() {
   const [historyAdv,     setHistoryAdv]     = useState<AdvanceEntry[]>([]);
   const [histLoading,    setHistLoading]    = useState(false);
   const [expandedMonth,  setExpandedMonth]  = useState<string|null>(null);
-  const [workForm,       setWorkForm]       = useState({labour_id:"",work_date:new Date().toISOString().split("T")[0],press_count:"",rate_per_piece:"2"});
+  const [workForm,       setWorkForm]       = useState({labour_id:"",work_date:new Date().toISOString().split("T")[0],press_count:"",rate_per_piece:""});
   const [advForm,        setAdvForm]        = useState({labour_id:"",advance_date:new Date().toISOString().split("T")[0],amount:"",description:""});
   const [workMsg,        setWorkMsg]        = useState("");
   const [advMsg,         setAdvMsg]         = useState("");
@@ -58,7 +58,14 @@ export default function Labour() {
     return parseInt(y)===now.getFullYear()&&parseInt(m)===now.getMonth()+1 ? now.toISOString().split("T")[0] : `${y}-${m}-01`;
   };
 
-  useEffect(()=>{ loadLabours(); },[]);
+  useEffect(()=>{
+    loadLabours();
+    // Pre-fill the work rate from the shop's configured default (Settings → Business profile)
+    api.get("/admin/settings").then(r=>{
+      const rate = r.data?.default_labour_rate;
+      if (rate != null) setWorkForm(f=>({...f, rate_per_piece: String(rate)}));
+    }).catch(()=>{});
+  },[]);
   useEffect(()=>{
     loadWork(); loadAdvances();
     const d=monthDate(monthVal);
@@ -100,7 +107,7 @@ export default function Labour() {
   const deleteAdvance = async (id:string) => { await api.delete(`/labour/advance/${id}`); loadAdvances(); refreshHistory(); };
 
   const saveWork = async () => {
-    if(!workForm.labour_id||!workForm.press_count) return;
+    if(!workForm.labour_id||!workForm.press_count||!workForm.rate_per_piece) return;
     try {
       await api.post("/labour/work",{labour_id:workForm.labour_id,work_date:workForm.work_date,press_count:parseInt(workForm.press_count),rate_per_piece:parseFloat(workForm.rate_per_piece)});
       setWorkMsg("saved"); setWorkForm(f=>({...f,press_count:""}));

@@ -11,7 +11,19 @@
       "Bash(cmd /c \"taskkill /F /IM node.exe\")",
       "Bash(cmd /c \"cd /d c:\\\\Users\\\\Jenish\\\\Desktop\\\\laundry-pro\\\\node-backend && npx prisma generate\")",
       "Bash(npx tsx:*)",
-      "Bash(node -e ':*)"
+      "Bash(node -e ':*)",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Select-Object ProcessId, @{n='Cmd';e={$_.CommandLine}} | Format-Table -Wrap -AutoSize)",
+      "PowerShell(npx prisma db push --skip-generate)",
+      "PowerShell(npm run db:push)",
+      "PowerShell(npm --prefix .\\\\node-backend run db:push)",
+      "PowerShell(Stop-Process -Id 20880,4724,21296 -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\")",
+      "PowerShell(npm --prefix .\\\\node-backend run db:generate)",
+      "PowerShell(npx --prefix .\\\\node-backend tsc --noEmit -p .\\\\node-backend\\\\tsconfig.json)",
+      "PowerShell(npm --prefix .\\\\node-backend run dev)",
+      "PowerShell($p = Get-CimInstance Win32_Process -Filter \"Name='node.exe'\"; if \\($p\\) { $p | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } }; Start-Sleep -Seconds 1; \\(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Measure-Object\\).Count)",
+      "PowerShell($c = \\(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Measure-Object\\).Count; \"node procs: $c\"; npm --prefix .\\\\node-backend run db:push)",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; Start-Sleep -Seconds 2; npm --prefix .\\\\node-backend run db:generate)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Jenish\\Desktop\\laundry-pro\\node-backend\\src\\app\\api\\invoices\\[customerId]",

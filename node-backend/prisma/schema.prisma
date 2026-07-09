@@ -23,6 +23,27 @@ model Admin {
   @@map("admins")
 }
 
+model ShopProfile {
+  id         String   @id @default(uuid())
+  shop_id    String   @unique
+  shop_name  String   @default("")
+  tagline    String   @default("")
+  phone      String   @default("")
+  address    String   @default("")
+  email      String   @default("")
+  upi_id     String   @default("")
+  gst_number String   @default("")
+  gst_rate   Float    @default(0) // GST % shown on invoice tax line; 0 = no tax line
+  invoice_terms       String @default("Garments held 30 days · not responsible for colour bleed or shrinkage")
+  footer_note         String @default("Thank you for your business")
+  default_labour_rate Float  @default(2) // pre-fills the labour work rate (₹/piece)
+  logo_data  String?  @db.Text // base64 data-URL, embedded in invoice header
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("shop_profiles")
+}
+
 model Customer {
   id           String         @id @default(uuid())
   name         String

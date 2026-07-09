@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAuth, shopFilter } from "@/lib/auth";
 import { monthRange } from "@/lib/dates";
-import { getSettings } from "@/lib/settings";
+import { getShopProfile } from "@/lib/settings";
 
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 const rupee = (n: number) => `₹${Number(n).toLocaleString("en-IN")}`;
@@ -15,6 +15,7 @@ export async function GET(req: NextRequest, { params }: { params: { customerId: 
   const month = p.get("month") ? parseInt(p.get("month")!) : null;
   const year  = p.get("year")  ? parseInt(p.get("year")!)  : null;
   const entry_date = p.get("entry_date");
+  const discount = Math.max(0, Number(p.get("discount")) || 0); // admin-entered discount (₹), 0 if none
 
   const customer = await prisma.customer.findFirst({ where: { id: params.customerId, ...shopFilter(user, req) } });
   if (!customer) return NextResponse.json({ detail: "Customer not found" }, { status: 404 });
@@ -31,8 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: { customerId: 
     where, include: { items: true }, orderBy: { entry_date: "asc" },
   });
 
-  const settings = getSettings();
-  const settingsAny = settings as Record<string, any>;
+  const profile = await getShopProfile(customer.shop_id);
 
   const fmtDate = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
   const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -72,11 +72,26 @@ export async function GET(req: NextRequest, { params }: { params: { customerId: 
   });
 
   const expDelivery = deliveryDates.length ? fmtDate(deliveryDates.sort().slice(-1)[0]) : "—";
-  const shopName = settings.shop_name || "LaundryPro";
-  const shopInitial = shopName.charAt(0).toUpperCase();
-  const tagline = settingsAny.tagline || "Professional Dry Cleaning & Laundry Services";
-  const upiId: string = settingsAny.upi || settingsAny.upi_id || "";
-  const contactBits = [settings.contact, settings.address].filter(Boolean).map(esc);
+  const shopName = profile.shop_name || "LaundryPro";
+  const tagline = profile.tagline || "Professional Dry Cleaning & Laundry Services";
+  const upiId: string = profile.upi_id || "";
+
+  const svgPhone = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+  const svgPin   = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
+  const svgMail  = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg>`;
+  const contactItems = [
+    profile.phone   ? { icon: svgPhone, text: profile.phone }   : null,
+    profile.address ? { icon: svgPin,   text: profile.address } : null,
+    profile.email   ? { icon: svgMail,  text: profile.email }   : null,
+  ].filter(Boolean) as { icon: string; text: string }[];
+
+  // Totals: subtotal → less discount → plus GST (per-shop rate) → total
+  const subtotal = grandTotal;
+  const discountAmt = Math.min(discount, subtotal);
+  const taxable = subtotal - discountAmt;
+  const gstRate = Number(profile.gst_rate) || 0;
+  const taxAmt = Math.round(taxable * gstRate / 100);
+  const total = taxable + taxAmt;
   const period = entry_date ? fmtDate(entry_date) : (month && year ? new Date(year, month - 1, 1).toLocaleString("en-IN", { month: "long", year: "numeric" }) : "All entries");
 
   const svgCash = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>`;
@@ -94,6 +109,9 @@ export async function GET(req: NextRequest, { params }: { params: { customerId: 
   .shopname{font-size:20px;font-weight:800;letter-spacing:-.01em}
   .tag{font-size:11px;color:#c7d7f5;margin-top:2px}
   .contact{font-size:10.5px;color:#c7d7f5;margin-top:14px;display:flex;gap:18px;flex-wrap:wrap}
+  .contact .cbit{display:inline-flex;align-items:center;gap:5px}
+  .contact .cbit svg{opacity:.85;flex-shrink:0}
+  .gstline{font-size:10px;color:#c7d7f5;margin-top:6px;font-weight:600;letter-spacing:.02em}
   .invpanel{background:rgba(255,255,255,0.14);border-radius:12px;padding:14px 16px;min-width:172px;text-align:left}
   .invpanel .lbl{font-size:10px;color:#c7d7f5;font-weight:700;letter-spacing:.06em}
   .invpanel .no{font-size:21px;font-weight:800;margin:2px 0 9px}
@@ -139,11 +157,12 @@ export async function GET(req: NextRequest, { params }: { params: { customerId: 
 <body>
   <div class="header">
     <div class="brand">
-      <div class="logo">${esc(shopInitial)}</div>
+      ${profile.logo_data ? `<img class="logo" src="${esc(profile.logo_data)}" alt="" style="object-fit:cover">` : ""}
       <div>
         <div class="shopname">${esc(shopName)}</div>
         <div class="tag">${esc(tagline)}</div>
-        ${contactBits.length ? `<div class="contact">${contactBits.map(b => `<span>${b}</span>`).join("")}</div>` : ""}
+        ${contactItems.length ? `<div class="contact">${contactItems.map(c => `<span class="cbit">${c.icon}${esc(c.text)}</span>`).join("")}</div>` : ""}
+        ${profile.gst_number ? `<div class="gstline">GSTIN: ${esc(profile.gst_number)}</div>` : ""}
       </div>
     </div>
     <div class="invpanel">
@@ -181,16 +200,18 @@ export async function GET(req: NextRequest, { params }: { params: { customerId: 
       <div class="pmrow"><span class="pmicon">${svgUpi}</span><span class="pmname">UPI</span>${upiId ? `<span class="pmsub">${esc(upiId)}</span>` : ""}</div>
     </div>
     <div class="totals">
-      <div class="trow"><span>Subtotal</span><span class="v">${rupee(grandTotal)}</span></div>
+      <div class="trow"><span>Subtotal</span><span class="v">${rupee(subtotal)}</span></div>
+      <div class="trow"><span>Discount</span><span class="v">${discountAmt > 0 ? "−" : ""}${rupee(discountAmt)}</span></div>
+      ${gstRate > 0 ? `<div class="trow"><span>Tax (GST ${gstRate}%)</span><span class="v">${rupee(taxAmt)}</span></div>` : ""}
       <div class="tdiv"></div>
-      <div class="total"><span class="t">Total</span><span class="tv">${rupee(grandTotal)}</span></div>
+      <div class="total"><span class="t">Total</span><span class="tv">${rupee(total)}</span></div>
     </div>
   </div>
 
   <div class="foot">
     <div>
-      <div class="ty">Thank you for your business</div>
-      <div class="terms">Garments held 30 days · not responsible for colour bleed or shrinkage</div>
+      <div class="ty">${esc(profile.footer_note || "Thank you for your business")}</div>
+      ${profile.invoice_terms ? `<div class="terms">${esc(profile.invoice_terms)}</div>` : ""}
     </div>
     <div class="sign">Authorised signature</div>
   </div>

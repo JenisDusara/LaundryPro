@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============ FONTS ============ */
+/* Prefer rounded geometric faces if the user has them installed; otherwise
+   fall back to the system stack. No network dependency (Google Fonts is
+   unreachable in this environment). */
+:root {
+  /* skill "Modern Professional" pairing: Poppins (headings) + Open Sans (body) */
+  --font-sans: "Open Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+  --font-display: "Poppins", "Nunito", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* ============ THEME TOKENS ============ */
+:root {
+  /* skill SaaS (General): bg #F8FAFC, fg #1E293B, muted #64748B, border #E2E8F0 */
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --text: #1e293b;
+  --muted: #64748b;
+  --faint: #94a3b8;
+  --line: #e2e8f0;
+  --dot: rgba(37, 99, 235, 0.11);
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #0b1120;
+  --card: #111a2e;
+  --text: #e8edf5;
+  --muted: #94a3b8;
+  --faint: #6b7a92;
+  --line: rgba(255, 255, 255, 0.09);
+  --dot: rgba(255, 255, 255, 0.07);
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 88px;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+body,
+body * {
+  transition-property: background-color, border-color, color, fill, stroke,
+    box-shadow;
+  transition-duration: 200ms;
+  transition-timing-function: ease;
+}
+
+::selection {
+  background: rgba(235, 162, 60, 0.28);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 40%, transparent);
+  border-radius: 999px;
+}
+
+/* marquee ticker (cities) — seamless left scroll */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 40s linear infinite;
+}
+.marquee-mask {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+
+/* soft hero glow — blue + orange, kept subtle */
+.hero-glow {
+  background:
+    radial-gradient(60% 55% at 80% 10%, rgba(234, 88, 12, 0.08), transparent 70%),
+    radial-gradient(55% 50% at 10% 6%, rgba(37, 99, 235, 0.1), transparent 70%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

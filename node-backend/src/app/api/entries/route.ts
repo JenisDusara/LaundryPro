@@ -3,7 +3,7 @@ import prisma, { withRetry } from "@/lib/prisma";
 import { requireAuth, shopFilter, requireWrite } from "@/lib/auth";
 import { sendEmail, pickupEmailHtml } from "@/lib/email";
 import { sendSms } from "@/lib/sms";
-import { getSettings } from "@/lib/settings";
+import { getShopProfile } from "@/lib/settings";
 import { todayIST, monthRange } from "@/lib/dates";
 
 export async function GET(req: NextRequest) {
@@ -92,14 +92,15 @@ export async function POST(req: NextRequest) {
     await prisma.$executeRawUnsafe(`UPDATE laundry_entries SET delivery_date = $1 WHERE id::text = $2`, delivery_date, entry.id);
   }
 
-  const settings = getSettings();
+  const profile = await getShopProfile(user.shop_id);
+  const shopName = profile.shop_name || "LaundryPro";
   if (customer.email) {
-    sendEmail(customer.email, `Laundry Pickup - ${settings.shop_name}`,
-      pickupEmailHtml(customer.name, entryItems, total, settings.shop_name)
+    sendEmail(customer.email, `Laundry Pickup - ${shopName}`,
+      pickupEmailHtml(customer.name, entryItems, total, shopName)
     ).catch(() => {});
   }
   if (customer.phone) {
-    sendSms(customer.phone, `Dear ${customer.name}, your laundry has been picked up. Total: Rs.${total}. - ${settings.shop_name}`).catch(() => {});
+    sendSms(customer.phone, `Dear ${customer.name}, your laundry has been picked up. Total: Rs.${total}. - ${shopName}`).catch(() => {});
   }
 
   return NextResponse.json({

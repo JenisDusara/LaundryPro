@@ -33,8 +33,9 @@ export default function Entries() {
   const [emailEntry,       setEmailEntry]       = useState<{cid:string;name:string;email:string;dateStr:string}|null>(null);
   const [emailSending,     setEmailSending]     = useState(false);
   const [emailMsg,         setEmailMsg]         = useState("");
-  const [invoiceModal,     setInvoiceModal]     = useState<{url:string;name:string;blob:Blob}|null>(null);
+  const [invoiceModal,     setInvoiceModal]     = useState<{url:string;name:string;blob:Blob;cid:string;params:Record<string,any>}|null>(null);
   const [invoiceLoading,   setInvoiceLoading]   = useState(false);
+  const [invoiceDiscount,  setInvoiceDiscount]  = useState("");
 
   const load = async () => {
     setLoading(true); setLoadError("");
@@ -70,6 +71,7 @@ export default function Entries() {
 
   const openInvoice = async (cid: string, custName: string, params: Record<string,any>) => {
     setInvoiceLoading(true);
+    setInvoiceDiscount("");
     try {
       const res = await api.get(`/invoices/${cid}`, { params, responseType: "blob" });
       const blob = new Blob([res.data], { type: "text/html" });
@@ -77,14 +79,30 @@ export default function Entries() {
       const m = params.month || parseInt(params.entry_date?.slice(5,7));
       const y = params.year  || params.entry_date?.slice(0,4);
       const monthName = new Date(y, m - 1, 1).toLocaleString("en-IN", { month: "long" });
-      setInvoiceModal({ url, name: `${custName} - ${monthName} ${y}`, blob });
+      setInvoiceModal({ url, name: `${custName} - ${monthName} ${y}`, blob, cid, params });
     } catch { alert("Failed to load invoice"); }
+    finally { setInvoiceLoading(false); }
+  };
+
+  // Re-fetch the currently-open invoice with the admin-entered discount applied
+  const applyDiscount = async () => {
+    if (!invoiceModal) return;
+    const discount = Math.max(0, Number(invoiceDiscount) || 0);
+    setInvoiceLoading(true);
+    try {
+      const res = await api.get(`/invoices/${invoiceModal.cid}`, { params: { ...invoiceModal.params, discount }, responseType: "blob" });
+      const blob = new Blob([res.data], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      URL.revokeObjectURL(invoiceModal.url);
+      setInvoiceModal({ ...invoiceModal, url, blob });
+    } catch { alert("Failed to apply discount"); }
     finally { setInvoiceLoading(false); }
   };
 
   const closeInvoice = () => {
     if (invoiceModal) URL.revokeObjectURL(invoiceModal.url);
     setInvoiceModal(null);
+    setInvoiceDiscount("");
   };
 
   const printInvoice = () => {
@@ -393,7 +411,19 @@ export default function Entries() {
               <div style={{fontWeight:700,fontSize:15,color:"var(--text-primary)",display:"flex",alignItems:"center",gap:8}}>
                 <FileText size={16} color="var(--grade-b-text)"/> Invoice Preview
               </div>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,border:"1px solid var(--border-hard)",borderRadius:10,padding:"4px 6px 4px 10px",background:"var(--bg-input)"}}>
+                  <span style={{fontSize:12,fontWeight:600,color:"var(--text-secondary)"}}>Discount ₹</span>
+                  <input type="number" min={0} value={invoiceDiscount}
+                    onChange={e=>setInvoiceDiscount(e.target.value)}
+                    onKeyDown={e=>{ if(e.key==="Enter") applyDiscount(); }}
+                    placeholder="0"
+                    style={{width:64,padding:"5px 7px",border:"1px solid var(--border-hard)",borderRadius:7,fontSize:13,outline:"none",background:"var(--bg-card)",color:"var(--text-primary)"}}/>
+                  <button onClick={applyDiscount} disabled={invoiceLoading}
+                    style={{padding:"5px 10px",background:"var(--grade-b-bg)",color:"var(--grade-b-text)",border:"none",borderRadius:7,fontSize:12,fontWeight:700,cursor:invoiceLoading?"not-allowed":"pointer"}}>
+                    Apply
+                  </button>
+                </div>
                 <button onClick={printInvoice}
                   style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",background:"var(--accent-primary)",color:"#0b1830",border:"none",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer"}}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
