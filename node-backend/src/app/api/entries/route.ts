@@ -34,11 +34,20 @@ export async function GET(req: NextRequest) {
         )
       : [];
     const ddMap = new Map(ddRows.map(r => [r.id, r.delivery_date ?? null]));
+    // Fetch delivered_qty per item the same way (column may not be in the client yet).
+    const itemIds = entries.flatMap(e => e.items.map(i => i.id));
+    const dqRows: { id: string; delivered_qty: number }[] = itemIds.length > 0
+      ? await prisma.$queryRawUnsafe(
+          `SELECT id::text, delivered_qty FROM entry_items WHERE id::text = ANY($1::text[])`,
+          itemIds
+        )
+      : [];
+    const dqMap = new Map(dqRows.map(r => [r.id, Number(r.delivered_qty) || 0]));
     return NextResponse.json(entries.map(e => ({
       ...e,
       delivery_date: ddMap.get(e.id) ?? null,
       total_amount: Number(e.total_amount),
-      items: e.items.map(i => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal) })),
+      items: e.items.map(i => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal), delivered_qty: dqMap.get(i.id) ?? 0 })),
     })));
   } catch (err: any) {
     console.error("Entries GET error:", err?.message);

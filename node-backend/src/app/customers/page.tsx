@@ -335,10 +335,12 @@ export default function Customers() {
                           {/* Items as chips */}
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
                             {dateItems.map(item => {
-                              const isDel = item.item_status === "delivered";
+                              const dq = item.delivered_qty ?? (item.item_status === "delivered" ? item.quantity : 0);
+                              const isDel = dq >= item.quantity;
+                              const partial = dq > 0 && !isDel;
                               return (
                                 <span key={item.id} className="item-chip" style={{ fontSize: 11, padding: "3px 9px", borderRadius: 20, fontWeight: 600, background: isDel ? "var(--grade-a-bg)" : "var(--grade-c-bg)", color: isDel ? "var(--grade-a-text)" : "var(--grade-c-text)", border: `1px solid ${isDel ? "var(--grade-a-border)" : "var(--grade-c-border)"}` }}>
-                                  {isDel ? "✓" : "⏳"} {item.service_name} ×{item.quantity}
+                                  {isDel ? "✓" : "⏳"} {item.service_name} {partial ? `${dq}/${item.quantity}` : `×${item.quantity}`}
                                 </span>
                               );
                             })}

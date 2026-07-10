@@ -29,6 +29,7 @@ export interface EntryItem {
   service_name: string;
   price_per_unit: number;
   quantity: number;
+  delivered_qty?: number; // how many of `quantity` handed over (partial delivery)
   subtotal: number;
   item_status: string;
 }

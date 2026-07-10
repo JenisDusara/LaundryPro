@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Search, Trash2, Check, ChevronDown, ChevronUp, Clock, CheckCircle2, Truck, Phone, X, Minus, Plus } from "lucide-react";
 import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
+import ItemDeliver from "@/components/ItemDeliver";
 import type { Customer, Service, LaundryEntry } from "@/types";
 
 interface ManualItem { id:string; service_id:string; service_name:string; item_name:string; price:number; quantity:number; }
@@ -37,7 +38,6 @@ export default function NewEntry() {
   const [pastLoading,      setPastLoading]      = useState(false);
   const [showDropdown,     setShowDropdown]     = useState(false);
   const [updatingId,       setUpdatingId]       = useState<string|null>(null);
-  const [updatingItemId,   setUpdatingItemId]   = useState<string|null>(null);
   const [justDelivered,    setJustDelivered]    = useState<{service_name:string;quantity:number;pickup_date:string}[]>([]);
   const [deliveryDate,     setDeliveryDate]     = useState("");
   const [shopName,         setShopName]         = useState("");
@@ -69,6 +69,14 @@ export default function NewEntry() {
       setPastEntries(res.data);
     } catch { setPastEntries([]); }
     finally { setPastLoading(false); }
+  };
+
+  const reloadPast = async () => {
+    if (!selectedCustomer) return;
+    try {
+      const res = await api.get("/entries", { params: { customer_id: selectedCustomer.id } });
+      setPastEntries(res.data);
+    } catch { /* keep current list on failure */ }
   };
 
   const clearCustomer = () => {
@@ -165,29 +173,6 @@ export default function NewEntry() {
         ? { ...e, delivery_status: "delivered", items: e.items.map(i => ({ ...i, item_status: "delivered" })) }
         : e));
     } finally { setUpdatingId(null); }
-  };
-
-  const markItemStatus = async (entryId: string, itemId: string, currentStatus: string) => {
-    const newStatus = currentStatus === "delivered" ? "pending" : "delivered";
-    setUpdatingItemId(itemId);
-    try {
-      await api.patch(`/entries/${entryId}/items/${itemId}/status`, null, { params: { status: newStatus } });
-      const entry = pastEntries.find(e => e.id === entryId);
-      const item  = entry?.items.find(i => i.id === itemId);
-      if (item) {
-        if (newStatus === "delivered") {
-          setJustDelivered(jd => [...jd, { service_name: item.service_name, quantity: item.quantity, pickup_date: entry!.entry_date }]);
-        } else {
-          setJustDelivered(jd => { const idx = jd.findIndex(x => x.service_name === item.service_name && x.pickup_date === entry!.entry_date); return idx === -1 ? jd : jd.filter((_,i) => i !== idx); });
-        }
-      }
-      setPastEntries(prev => prev.map(e => {
-        if (e.id !== entryId) return e;
-        const updatedItems = e.items.map(i => i.id === itemId ? { ...i, item_status: newStatus } : i);
-        const allDel = updatedItems.every(i => i.item_status === "delivered");
-        return { ...e, items: updatedItems, delivery_status: allDel ? "delivered" : "pending" };
-      }));
-    } finally { setUpdatingItemId(null); }
   };
 
   const isDisabled = !selectedCustomer || items.length === 0 || saving;
@@ -337,25 +322,10 @@ export default function NewEntry() {
                         </button>
                       </div>
                     </div>
-                    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                      {e.items.map(item => {
-                        const isDel = item.item_status === "delivered";
-                        const isItemUpdating = updatingItemId === item.id;
-                        return (
-                          <button key={item.id} onClick={()=>markItemStatus(e.id,item.id,item.item_status)} disabled={isItemUpdating}
-                            title={isDel?"Click to undo":"Click to mark delivered"}
-                            style={{display:"flex",alignItems:"center",gap:5,padding:"5px 10px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",border:"none",transition:"all 0.15s",
-                              background:isDel?"var(--grade-a-bg)":"var(--bg-card-solid)",
-                              color:isDel?"var(--grade-a-text)":"var(--grade-c-text)",
-                              boxShadow:isDel?"0 0 0 1.5px var(--grade-a-border)":"0 0 0 1.5px var(--grade-c-border)"
-                            }}>
-                            {isItemUpdating ? "..." : isDel ? "✓" : "○"}
-                            <span>{item.service_name}</span>
-                            <span style={{opacity:0.6}}>×{item.quantity}</span>
-                            <span style={{opacity:0.7}}>₹{item.subtotal}</span>
-                          </button>
-                        );
-                      })}
+                    <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
+                      {e.items.map(item => (
+                        <ItemDeliver key={item.id} entryId={e.id} item={item} onChanged={reloadPast} />
+                      ))}
                     </div>
                   </div>
                 );

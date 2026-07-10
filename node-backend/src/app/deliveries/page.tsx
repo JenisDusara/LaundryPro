@@ -5,6 +5,7 @@ import api from "@/lib/api";
 import { isEntryDelivered } from "@/lib/entry-status";
 import { todayIST } from "@/lib/dates";
 import ProtectedLayout from "@/components/ProtectedLayout";
+import ItemDeliver from "@/components/ItemDeliver";
 import type { LaundryEntry } from "@/types";
 
 function fmtDate(d: string) {
@@ -210,12 +211,10 @@ export default function Deliveries() {
                   const isDueToday = entry.delivery_date===today&&!delivered;
                   return (
                     <div key={entry.id} style={{display:"flex",alignItems:"center",gap:14,rowGap:8,padding:"12px 16px",borderTop:"1px solid var(--border-hard)",background:"var(--bg-elevated)",flexWrap:"wrap"}}>
-                      {/* Item pills */}
+                      {/* Item pills — tap to set how many delivered (partial) */}
                       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                        {entry.items?.map((item,i)=>(
-                          <span key={i} style={{background:"var(--grade-b-bg)",color:"var(--grade-b-text)",fontSize:11,padding:"3px 10px",borderRadius:8,fontWeight:600,border:"1px solid var(--grade-b-border)"}}>
-                            {item.service_name} × {item.quantity}
-                          </span>
+                        {entry.items?.map(item=>(
+                          <ItemDeliver key={item.id} entryId={entry.id} item={item} onChanged={load} />
                         ))}
                       </div>
                       {/* Pickup date */}

@@ -38,10 +38,25 @@ model ShopProfile {
   footer_note         String @default("Thank you for your business")
   default_labour_rate Float  @default(2) // pre-fills the labour work rate (₹/piece)
   logo_data  String?  @db.Text // base64 data-URL, embedded in invoice header
+  weekly_report_enabled Boolean @default(true) // auto-email the Sunday weekly report to `email`
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   @@map("shop_profiles")
+}
+
+model WeeklyReportLog {
+  id         String   @id @default(uuid())
+  shop_id    String
+  week_start String
+  week_end   String
+  status     String   // "sent" | "skipped" | "failed"
+  reason     String   @default("")
+  created_at DateTime @default(now())
+
+  @@index([shop_id])
+  @@index([created_at])
+  @@map("weekly_report_logs")
 }
 
 model Customer {
@@ -125,8 +140,9 @@ model EntryItem {
   service_name   String
   price_per_unit Decimal      @db.Decimal(10, 2)
   quantity       Int
+  delivered_qty  Int          @default(0) // how many of `quantity` have been handed over (partial delivery)
   subtotal       Decimal      @db.Decimal(10, 2)
-  item_status    String       @default("pending")
+  item_status    String       @default("pending") // kept in sync: "delivered" once delivered_qty >= quantity
 
   @@map("entry_items")
 }

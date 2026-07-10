@@ -22,3 +22,13 @@ export function monthRange(year: number, month: number): { start: string; end: s
     end: `${year}-${mm}-${String(lastDay).padStart(2, "0")}`,
   };
 }
+
+// The most recently completed 7-day window (yesterday, IST, back 6 more days) as
+// "YYYY-MM-DD" strings. Used for the Sunday-morning weekly report so it covers a full
+// past week (last Sun–Sat) rather than the still-in-progress current day.
+export function lastWeekRange(): { start: string; end: string } {
+  const todayIstMs = Date.now() + IST_OFFSET_MS;
+  const end = new Date(todayIstMs - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const start = new Date(todayIstMs - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return { start, end };
+}

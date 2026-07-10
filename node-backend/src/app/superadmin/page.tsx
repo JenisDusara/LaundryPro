@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import {
   Building2, Plus, Trash2, X, Eye, EyeOff,
   Pencil, Check, Search, Users, RefreshCw, KeyRound,
-  CalendarClock, AlertTriangle, RotateCcw, UserCheck, UserX, TrendingUp
+  CalendarClock, AlertTriangle, RotateCcw, UserCheck, UserX, TrendingUp,
+  Mail, CheckCircle2, XCircle, MinusCircle, ChevronDown, ChevronUp
 } from "lucide-react";
 import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
@@ -14,6 +15,12 @@ interface Client {
   shop_id: string; shop_name: string; is_active: boolean; created_at: string;
   staff_count: number; plan_type: string | null; expires_at: string | null;
   total_entries?: number; month_revenue?: number; last_activity?: string | null;
+}
+
+interface ReportLog {
+  id: string; shop_id: string; shop_name: string;
+  week_start: string; week_end: string;
+  status: "sent" | "skipped" | "failed"; reason: string; created_at: string;
 }
 
 // Human-friendly "last active" label from a YYYY-MM-DD date string.
@@ -74,6 +81,9 @@ export default function SuperAdminPage() {
   const [renewPlan,   setRenewPlan]   = useState<"monthly"|"yearly">("monthly");
   const [renewDate,   setRenewDate]   = useState("");
   const [renewSaving, setRenewSaving] = useState(false);
+  const [logs,        setLogs]        = useState<ReportLog[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [showLogs,    setShowLogs]    = useState(false);
 
   useEffect(() => {
     api.get("/auth/me").then(r => {
@@ -86,6 +96,18 @@ export default function SuperAdminPage() {
   const load = () => {
     setLoading(true);
     api.get("/admin/shops").then(r => setClients(r.data)).finally(() => setLoading(false));
+  };
+
+  const loadLogs = () => {
+    setLogsLoading(true);
+    api.get("/admin/weekly-report-logs").then(r => setLogs(r.data)).finally(() => setLogsLoading(false));
+  };
+
+  const toggleLogs = () => {
+    setShowLogs(v => {
+      if (!v && logs.length === 0) loadLogs();
+      return !v;
+    });
   };
 
   const flash = (text: string, ok: boolean) => { setMsg({text,ok}); setTimeout(()=>setMsg(null),4000); };
@@ -429,6 +451,64 @@ export default function SuperAdminPage() {
         </div>
         </div>
       )}
+
+      {/* Weekly report log */}
+      <div style={{background:"var(--bg-card)",border:"1px solid var(--border-hard)",borderRadius:14,marginTop:20,overflow:"hidden"}}>
+        <div onClick={toggleLogs} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px",cursor:"pointer"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:34,height:34,borderRadius:9,background:"rgba(37,99,235,0.15)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <Mail size={16} color="#2563eb"/>
+            </div>
+            <div>
+              <div style={{fontWeight:700,fontSize:14,color:"var(--text-primary)"}}>Weekly report log</div>
+              <div style={{fontSize:12,color:"var(--text-muted)"}}>Sunday auto-email history — sent / skipped / failed per shop</div>
+            </div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            {logsLoading && <RefreshCw size={14} style={{animation:"spin 1s linear infinite",color:"var(--text-muted)"}}/>}
+            {showLogs ? <ChevronUp size={16} color="var(--text-secondary)"/> : <ChevronDown size={16} color="var(--text-secondary)"/>}
+          </div>
+        </div>
+        {showLogs && (
+          <div style={{borderTop:"1px solid var(--border-hard)"}}>
+            {logsLoading ? (
+              <div style={{padding:"30px 20px",textAlign:"center",color:"var(--text-muted)",fontSize:13}}>Loading…</div>
+            ) : logs.length === 0 ? (
+              <div style={{padding:"30px 20px",textAlign:"center",color:"var(--text-muted)",fontSize:13}}>No weekly reports sent yet</div>
+            ) : (
+              <div className="mob-scroll">
+              <div style={{minWidth:640}}>
+                {logs.map((l,i) => {
+                  const cfg = l.status === "sent"
+                    ? {icon:<CheckCircle2 size={14}/>, color:"#10b981", bg:"rgba(16,185,129,0.1)"}
+                    : l.status === "skipped"
+                    ? {icon:<MinusCircle size={14}/>, color:"#f59e0b", bg:"rgba(245,158,11,0.1)"}
+                    : {icon:<XCircle size={14}/>, color:"#ef4444", bg:"rgba(239,68,68,0.1)"};
+                  return (
+                    <div key={l.id} style={{display:"flex",alignItems:"center",gap:14,padding:"12px 20px",borderBottom:i<logs.length-1?"1px solid var(--border-hard)":"none"}}>
+                      <div style={{width:28,height:28,borderRadius:8,background:cfg.bg,color:cfg.color,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                        {cfg.icon}
+                      </div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{l.shop_name}</div>
+                        <div style={{fontSize:11.5,color:"var(--text-muted)"}}>
+                          {l.week_start} to {l.week_end}
+                          {l.reason && <span> · {l.reason}</span>}
+                        </div>
+                      </div>
+                      <div style={{textAlign:"right",flexShrink:0}}>
+                        <div style={{fontSize:11.5,fontWeight:700,color:cfg.color,textTransform:"capitalize"}}>{l.status}</div>
+                        <div style={{fontSize:11,color:"var(--text-muted)"}}>{new Date(l.created_at).toLocaleDateString("en-IN",{day:"2-digit",month:"short"})}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Edit modal */}
       {editClient&&(

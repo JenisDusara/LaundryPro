@@ -13,15 +13,17 @@ export interface ShopProfile {
   footer_note: string;
   default_labour_rate: number;
   logo_data: string | null;
+  weekly_report_enabled: boolean;
 }
 
 // Fields a client is allowed to write. id / shop_id / timestamps are never accepted from the request.
 const EDITABLE: (keyof ShopProfile)[] = [
   "shop_name", "tagline", "phone", "address", "email", "upi_id", "gst_number", "gst_rate",
-  "invoice_terms", "footer_note", "default_labour_rate", "logo_data",
+  "invoice_terms", "footer_note", "default_labour_rate", "logo_data", "weekly_report_enabled",
 ];
 
 const NUMERIC: (keyof ShopProfile)[] = ["gst_rate", "default_labour_rate"];
+const BOOLEAN: (keyof ShopProfile)[] = ["weekly_report_enabled"];
 
 function defaults(shopName = ""): ShopProfile {
   return {
@@ -37,6 +39,7 @@ function defaults(shopName = ""): ShopProfile {
     footer_note: "Thank you for your business",
     default_labour_rate: 2,
     logo_data: null,
+    weekly_report_enabled: true,
   };
 }
 
@@ -56,16 +59,18 @@ export async function getShopProfile(shopId: string): Promise<ShopProfile> {
     footer_note: row.footer_note,
     default_labour_rate: row.default_labour_rate,
     logo_data: row.logo_data,
+    weekly_report_enabled: row.weekly_report_enabled,
   };
 }
 
 export async function upsertShopProfile(shopId: string, data: Record<string, unknown>): Promise<ShopProfile> {
-  const clean: Record<string, string | number | null> = {};
+  const clean: Record<string, string | number | boolean | null> = {};
   for (const key of EDITABLE) {
     if (key in data) {
       const v = data[key];
       if (key === "logo_data") clean[key] = v == null ? null : String(v);
       else if (NUMERIC.includes(key)) clean[key] = Math.max(0, Number(v) || 0);
+      else if (BOOLEAN.includes(key)) clean[key] = Boolean(v);
       else clean[key] = String(v ?? "");
     }
   }

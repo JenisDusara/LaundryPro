@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { Store, Save, Upload, Trash2, ImageIcon, Download, DatabaseBackup } from "lucide-react";
+import { Store, Save, Upload, Trash2, ImageIcon, Download, DatabaseBackup, Mail, Send } from "lucide-react";
 import api from "@/lib/api";
 import { downloadAuthedFile } from "@/lib/download";
 import { todayIST } from "@/lib/dates";
@@ -19,12 +19,14 @@ type Profile = {
   footer_note: string;
   default_labour_rate: number | string;
   logo_data: string | null;
+  weekly_report_enabled: boolean;
 };
 
 const EMPTY: Profile = {
   shop_name: "", tagline: "", phone: "", address: "",
   email: "", upi_id: "", gst_number: "", gst_rate: 0,
   invoice_terms: "", footer_note: "", default_labour_rate: 2, logo_data: null,
+  weekly_report_enabled: true,
 };
 
 const LOGO_MAX_BYTES = 150 * 1024; // ~150 KB — logo is embedded in every invoice, keep it small
@@ -45,6 +47,7 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [backupBusy, setBackupBusy] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const downloadBackup = async () => {
@@ -56,6 +59,19 @@ export default function Settings() {
       setTimeout(() => setMsg(null), 4000);
     } finally {
       setBackupBusy(false);
+    }
+  };
+
+  const sendReportNow = async () => {
+    setReportBusy(true);
+    try {
+      const r = await api.post("/reports/weekly/send");
+      setMsg({ text: `Report sent! (${r.data.start} to ${r.data.end})`, ok: true });
+    } catch (e: any) {
+      setMsg({ text: e.response?.data?.detail || "Failed to send report", ok: false });
+    } finally {
+      setReportBusy(false);
+      setTimeout(() => setMsg(null), 4000);
     }
   };
 
@@ -234,6 +250,37 @@ export default function Settings() {
               style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 18px", border: "1px solid var(--border-hard)", borderRadius: 10, background: "var(--bg-input)", color: "var(--text-primary)", fontSize: 13.5, fontWeight: 700, cursor: backupBusy ? "not-allowed" : "pointer", opacity: backupBusy ? 0.6 : 1 }}>
               <Download size={15} /> {backupBusy ? "Preparing…" : "Download backup"}
             </button>
+          </div>
+
+          {/* Weekly report card */}
+          <div style={{ background: "var(--bg-card)", borderRadius: 14, border: "1px solid var(--border-hard)", padding: 20, marginTop: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, color: "var(--text-primary)" }}>
+              <Mail size={16} color="var(--accent-primary)" />
+              <span style={{ fontWeight: 700, fontSize: 14 }}>Weekly report email</span>
+            </div>
+            <p style={{ fontSize: 12.5, color: "var(--text-muted)", margin: "0 0 14px" }}>
+              Har Sunday subah 8 baje, is shop ke earnings/entries/udhaar ka poora report is email pe automatically chala jayega: <b style={{ color: "var(--text-secondary)" }}>{form.email || "(set an email above first)"}</b>
+            </p>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div onClick={() => setForm(f => ({ ...f, weekly_report_enabled: !f.weekly_report_enabled }))} style={{ cursor: "pointer" }}>
+                  <div style={{ width: 44, height: 24, borderRadius: 12, position: "relative", transition: "background 0.2s", background: form.weekly_report_enabled ? "#16a34a" : "var(--bg-elevated)" }}>
+                    <div style={{ position: "absolute", top: 2, left: form.weekly_report_enabled ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.25)", transition: "left 0.2s" }} />
+                  </div>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
+                  Automatic Sunday email {form.weekly_report_enabled ? "ON" : "OFF"}
+                </span>
+              </div>
+              <button onClick={sendReportNow} disabled={reportBusy || !form.email}
+                title={!form.email ? "Pehle upar email address set karo" : undefined}
+                style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 18px", border: "1px solid var(--border-hard)", borderRadius: 10, background: "var(--bg-input)", color: "var(--text-primary)", fontSize: 13.5, fontWeight: 700, cursor: (reportBusy || !form.email) ? "not-allowed" : "pointer", opacity: (reportBusy || !form.email) ? 0.6 : 1 }}>
+                <Send size={15} /> {reportBusy ? "Sending…" : "Send now"}
+              </button>
+            </div>
+            <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 10 }}>
+              Toggle change karne ke baad, upar "Save changes" dabana na bhoolein. "Send now" turant bhejta hai, toggle ki state se independent.
+            </div>
           </div>
         </div>
       )}
