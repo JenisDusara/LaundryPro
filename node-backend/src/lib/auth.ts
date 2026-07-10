@@ -1,12 +1,18 @@
 import jwt from "jsonwebtoken";
 import { NextRequest, NextResponse } from "next/server";
 
-// Fail fast in production if the signing secret is not configured —
-// the fallback below is public knowledge and would allow token forgery.
-if (!process.env.SECRET_KEY && process.env.NODE_ENV === "production") {
-  throw new Error("SECRET_KEY environment variable must be set in production");
+// Resolve the JWT signing secret lazily (at request time, not module import) so a
+// missing SECRET_KEY never crashes `next build` while it collects route data. In
+// production the check still fails fast — on the first token sign/verify — because
+// the dev fallback below is public knowledge and would allow token forgery.
+function getSecret(): string {
+  const s = process.env.SECRET_KEY;
+  if (s) return s;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("SECRET_KEY environment variable must be set in production");
+  }
+  return "laundrypro-secret";
 }
-const SECRET = process.env.SECRET_KEY || "laundrypro-secret";
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -21,12 +27,12 @@ export interface TokenPayload {
 }
 
 export function signToken(payload: object): string {
-  return jwt.sign(payload, SECRET, { expiresIn: "7d" });
+  return jwt.sign(payload, getSecret(), { expiresIn: "7d" });
 }
 
 export function verifyToken(token: string): TokenPayload | null {
   try {
-    return jwt.verify(token, SECRET) as TokenPayload;
+    return jwt.verify(token, getSecret()) as TokenPayload;
   } catch {
     return null;
   }
