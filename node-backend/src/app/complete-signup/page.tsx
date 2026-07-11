@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { XCircle } from "lucide-react";
 import api from "@/lib/api";
@@ -16,7 +16,7 @@ const inputStyle: React.CSSProperties = {
 };
 const labelStyle: React.CSSProperties = { display: "block", fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6 };
 
-export default function CompleteSignupPage() {
+function CompleteSignupInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
@@ -118,5 +118,17 @@ export default function CompleteSignupPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CompleteSignupPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-page)", color: "var(--text-muted)", fontSize: 14 }}>
+        Loading…
+      </div>
+    }>
+      <CompleteSignupInner />
+    </Suspense>
   );
 }
