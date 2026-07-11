@@ -8,17 +8,19 @@ datasource db {
 }
 
 model Admin {
-  id            String    @id @default(uuid())
-  username      String    @unique
-  password_hash String
-  name          String
-  shop_id       String    @default("shop1")
-  shop_name     String    @default("My Shop")
-  role          String    @default("admin")
-  is_active     Boolean   @default(true)
-  plan_type     String?   // "monthly" | "yearly"
-  expires_at    DateTime?
-  created_at    DateTime  @default(now())
+  id                  String    @id @default(uuid())
+  username            String    @unique
+  password_hash       String
+  name                String
+  shop_id             String    @default("shop1")
+  shop_name           String    @default("My Shop")
+  role                String    @default("admin")
+  is_active           Boolean   @default(true)
+  plan_type           String?   // "monthly" | "yearly"
+  expires_at          DateTime?
+  created_at          DateTime  @default(now())
+  setup_token         String?   @unique // pending "choose your username/password" link after signup-request approval
+  setup_token_expires DateTime?
 
   @@map("admins")
 }
@@ -213,5 +215,25 @@ model Expense {
   @@index([shop_id])
   @@index([date])
   @@map("expenses")
+}
+
+// Public "Start free trial" leads from the marketing site. Superadmin reviews
+// and either approves (creates the actual Admin/ShopProfile) or rejects each
+// one; approved + rejected rows stay around as a marketing contact list.
+model SignupRequest {
+  id          String    @id @default(uuid())
+  shop_name   String
+  owner_name  String
+  phone       String
+  email       String
+  city        String    @default("")
+  status      String    @default("pending") // "pending" | "approved" | "rejected"
+  ip          String    @default("")
+  created_at  DateTime  @default(now())
+  reviewed_at DateTime?
+
+  @@index([status])
+  @@index([created_at])
+  @@map("signup_requests")
 }
 

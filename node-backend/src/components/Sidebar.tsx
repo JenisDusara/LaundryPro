@@ -6,6 +6,7 @@ import {
   BarChart3, Wrench, Hammer, LogOut, X, Key, Eye, EyeOff,
   Building2, Wallet, Activity, ShieldCheck, ChevronRight, ChevronDown,
   UserCog, MoreHorizontal, Sun, Moon, Monitor, Check, Settings, Bell,
+  UserPlus, Mail,
 } from "lucide-react";
 import api from "@/lib/api";
 import { isEntryPending } from "@/lib/entry-status";
@@ -117,6 +118,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
 
   const [allPending,     setAllPending]     = useState<LaundryEntry[]>([]);
   const [showNotifSheet, setShowNotifSheet] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState(0);
   const [notifSent,      setNotifSent]      = useState(false);
   const today = todayIST();
 
@@ -127,6 +129,11 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (profile?.role === "superadmin") api.get("/admin/shops").then(r => setShops(r.data)).catch(() => {});
+  }, [profile?.role]);
+
+  useEffect(() => {
+    if (profile?.role !== "superadmin") return;
+    api.get("/admin/signup-requests").then(r => setPendingRequests(r.data.filter((x: { status: string }) => x.status === "pending").length)).catch(() => {});
   }, [profile?.role]);
 
   useEffect(() => {
@@ -195,7 +202,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
     finally { setPassLoading(false); setTimeout(() => setPassMsg(null), 4000); }
   };
 
-  const isAdminSection = pathname === "/superadmin" || pathname === "/login-activity";
+  const isAdminSection = pathname === "/superadmin" || pathname === "/login-activity" || pathname === "/signup-requests" || pathname === "/weekly-report-log";
 
   const overdueEntries  = allPending.filter(e => e.delivery_date && e.delivery_date < today);
   const dueTodayEntries = allPending.filter(e => e.delivery_date === today);
@@ -207,7 +214,12 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
   const showAlerts      = !isAdminSection && (profile?.role !== "superadmin" || !!selectedShopId);
 
   const navItems = isAdminSection && profile?.role === "superadmin"
-    ? [{ path: "/superadmin", label: "Clients", icon: Building2 }, { path: "/login-activity", label: "Login Activity", icon: Activity }]
+    ? [
+        { path: "/superadmin", label: "Clients", icon: Building2 },
+        { path: "/signup-requests", label: "Signup Requests", icon: UserPlus, badge: pendingRequests || undefined },
+        { path: "/weekly-report-log", label: "Weekly Reports", icon: Mail },
+        { path: "/login-activity", label: "Login Activity", icon: Activity },
+      ]
     : profile?.role === "staff" ? staffNavItems : adminNavItems;
 
   const inp: React.CSSProperties = {
@@ -296,7 +308,10 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
                   borderLeft: `2px solid ${active ? "var(--accent-primary)" : "transparent"}`,
                 }}>
                 <item.icon size={15} />
-                <span>{item.label}</span>
+                <span style={{ flex: 1 }}>{item.label}</span>
+                {"badge" in item && !!item.badge && (
+                  <span style={{ background: "#d97706", color: "#fff", borderRadius: 8, padding: "1px 7px", fontSize: 10.5, fontWeight: 800 }}>{item.badge}</span>
+                )}
               </div>
             );
           })}
@@ -595,8 +610,10 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
           ...(!isStaff ? [{ path: "/staff",      label: "Staff",         icon: UserCog,  sub: "Manage team" }] : []),
           ...(!isStaff ? [{ path: "/settings",   label: "Settings",      icon: Settings, sub: "Business profile" }] : []),
           ...(isSuperAdmin ? [
-            { path: "/superadmin",     label: "Clients",        icon: Building2, sub: "Super Admin" },
-            { path: "/login-activity", label: "Login activity", icon: Activity,  sub: "Super Admin" },
+            { path: "/superadmin",        label: "Clients",         icon: Building2, sub: "Super Admin" },
+            { path: "/signup-requests",   label: "Signup requests", icon: UserPlus,  sub: "Super Admin" },
+            { path: "/weekly-report-log", label: "Weekly reports",  icon: Mail,      sub: "Super Admin" },
+            { path: "/login-activity",    label: "Login activity",  icon: Activity,  sub: "Super Admin" },
           ] : []),
         ];
         return (

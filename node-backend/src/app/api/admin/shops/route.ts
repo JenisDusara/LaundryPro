@@ -1,8 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { todayIST, monthRange } from "@/lib/dates";
+import { sendEmail, completeSignupEmailHtml } from "@/lib/email";
+
+const SETUP_LINK_VALID_DAYS = 3;
+
+async function uniquePlaceholderUsername(): Promise<string> {
+  for (let i = 0; i < 5; i++) {
+    const candidate = `pending_${crypto.randomBytes(6).toString("hex")}`;
+    if (!(await prisma.admin.findUnique({ where: { username: candidate } }))) return candidate;
+  }
+  throw new Error("Could not generate a unique placeholder username");
+}
 
 export async function GET(req: NextRequest) {
   const user = requireAuth(req);
@@ -63,25 +75,70 @@ export async function POST(req: NextRequest) {
   if (user instanceof NextResponse) return user;
   if (user.role !== "superadmin") return NextResponse.json({ detail: "Forbidden" }, { status: 403 });
 
-  const { username, password, name, shop_id, shop_name, plan_type, expires_at } = await req.json();
-  if (!username || !password || !shop_id || !shop_name) {
-    return NextResponse.json({ detail: "username, password, shop_id, and shop_name are required" }, { status: 400 });
+  const { username, password, name, shop_id, shop_name, plan_type, expires_at, signup_request_id } = await req.json();
+  if (!shop_id || !shop_name) {
+    return NextResponse.json({ detail: "shop_id and shop_name are required" }, { status: 400 });
   }
 
-  const existing = await prisma.admin.findUnique({ where: { username } });
-  if (existing) return NextResponse.json({ detail: "Username already taken" }, { status: 400 });
+  // Approving a signup request just means: create the shop as usual, then link
+  // the two records — copy the lead's contact details into ShopProfile and mark
+  // the request approved, so the new admin's email is pre-filled (weekly report,
+  // invoices) without them having to re-enter it in Settings.
+  let signupRequest = null;
+  if (signup_request_id) {
+    signupRequest = await prisma.signupRequest.findUnique({ where: { id: signup_request_id } });
+    if (!signupRequest || signupRequest.status !== "pending") {
+      return NextResponse.json({ detail: "Signup request not found or already reviewed" }, { status: 400 });
+    }
+  } else if (!username || !password) {
+    return NextResponse.json({ detail: "username and password are required" }, { status: 400 });
+  }
 
-  const hash = await bcrypt.hash(password, 12);
+  if (username) {
+    const existing = await prisma.admin.findUnique({ where: { username } });
+    if (existing) return NextResponse.json({ detail: "Username already taken" }, { status: 400 });
+  }
+
   const expiryDate = expires_at ? (() => { const d = new Date(expires_at); d.setHours(23,59,59,999); return d; })() : null;
+
+  // For a signup-request approval, the customer chooses their own username/password
+  // via a setup link — the account starts with an unusable random password and a
+  // placeholder username that gets overwritten when they complete setup.
+  const finalUsername = signupRequest ? await uniquePlaceholderUsername() : username;
+  const finalPassword = signupRequest ? crypto.randomBytes(24).toString("hex") : password;
+  const setupToken = signupRequest ? crypto.randomBytes(32).toString("hex") : null;
+  const setupTokenExpires = signupRequest ? new Date(Date.now() + SETUP_LINK_VALID_DAYS * 24 * 60 * 60 * 1000) : null;
+
+  const hash = await bcrypt.hash(finalPassword, 12);
 
   const client = await prisma.admin.create({
     data: {
-      username, password_hash: hash, name: name || username,
+      username: finalUsername, password_hash: hash, name: name || finalUsername,
       shop_id, shop_name, role: "admin",
       plan_type: plan_type || null,
       expires_at: expiryDate,
+      setup_token: setupToken,
+      setup_token_expires: setupTokenExpires,
     },
   });
+
+  if (signupRequest) {
+    await prisma.shopProfile.upsert({
+      where: { shop_id },
+      update: { email: signupRequest.email, phone: signupRequest.phone },
+      create: { shop_id, shop_name, email: signupRequest.email, phone: signupRequest.phone },
+    });
+    await prisma.signupRequest.update({
+      where: { id: signupRequest.id },
+      data: { status: "approved", reviewed_at: new Date() },
+    });
+
+    // Best-effort — a failed email shouldn't undo the account that was just created.
+    const setupUrl = `${new URL(req.url).origin}/complete-signup?token=${setupToken}`;
+    sendEmail(signupRequest.email, `Welcome to LaundryPro — ${shop_name}`, completeSignupEmailHtml(shop_name, setupUrl))
+      .catch(err => console.error("Failed to send complete-signup email:", err));
+  }
+
   return NextResponse.json({
     id: client.id, username: client.username, name: client.name,
     shop_id: client.shop_id, shop_name: client.shop_name,

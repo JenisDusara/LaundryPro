@@ -113,7 +113,18 @@ export default function LoginPage() {
             {loading ? "Signing in…" : "Sign In"}
           </button>
 
-          <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 24, marginBottom: 0 }}>LaundryPro © 2025 · Ahmedabad</p>
+          {/* New client → start free trial (goes to the public signup form) */}
+          <div style={{ marginTop: 20, paddingTop: 18, borderTop: "1px solid var(--border-hard)" }}>
+            <p style={{ fontSize: 13.5, color: "var(--text-secondary)", margin: 0 }}>
+              New business?{" "}
+              <span onClick={() => router.push("/trial")}
+                style={{ color: "var(--accent-primary)", fontWeight: 700, cursor: "pointer" }}>
+                Start your free trial →
+              </span>
+            </p>
+          </div>
+
+          <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 20, marginBottom: 0 }}>LaundryPro © 2025 · Ahmedabad</p>
         </div>
       </div>
     </div>
