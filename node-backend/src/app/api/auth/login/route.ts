@@ -16,20 +16,22 @@ export async function POST(req: NextRequest) {
   const ip = getIp(req);
 
   try {
-    // Brute-force guard: block a username after too many recent failed attempts.
-    // Uses the login_logs we already record; the window slides so it self-resets.
-    if (username) {
-      const WINDOW_MIN = 15, MAX_FAILS = 8;
-      const since = new Date(Date.now() - WINDOW_MIN * 60 * 1000);
-      const recentFails = await withRetry(() => prisma.loginLog.count({
-        where: { username, status: "failed", created_at: { gte: since } },
+    const WINDOW_MIN = 15, MAX_USER_FAILS = 8, MAX_IP_FAILS = 30;
+    const since = new Date(Date.now() - WINDOW_MIN * 60 * 1000);
+
+    // Per-IP throttle: one machine can only fail so many times in the window, no matter
+    // which usernames it targets. This is the layer that actually limits brute-forcing
+    // (and the bcrypt CPU cost below), and it runs before we touch the DB user record.
+    if (ip !== "unknown") {
+      const ipFails = await withRetry(() => prisma.loginLog.count({
+        where: { ip, status: "failed", created_at: { gte: since } },
       })).catch(() => 0);
-      if (recentFails >= MAX_FAILS) {
+      if (ipFails >= MAX_IP_FAILS) {
         await withRetry(() => prisma.loginLog.create({
-          data: { username, name: "", shop_id: "", shop_name: "", role: "", status: "failed", reason: "Rate limited", ip },
+          data: { username: username || "", name: "", shop_id: "", shop_name: "", role: "", status: "failed", reason: "Rate limited (IP)", ip },
         })).catch(() => {});
         return NextResponse.json(
-          { detail: `Too many failed attempts. Please try again after ${WINDOW_MIN} minutes.` },
+          { detail: `Too many attempts from this network. Please try again after ${WINDOW_MIN} minutes.` },
           { status: 429 }
         );
       }
@@ -47,9 +49,21 @@ export async function POST(req: NextRequest) {
     const valid = await bcrypt.compare(password, admin.password_hash);
 
     if (!valid) {
+      // Per-username brute-force throttle, applied ONLY on the wrong-password path. A correct
+      // password is never blocked by this, so an attacker who spams wrong guesses at a known
+      // username can no longer lock the real owner out — that was a trivial lockout DoS.
+      const userFails = await withRetry(() => prisma.loginLog.count({
+        where: { username: admin.username, status: "failed", created_at: { gte: since } },
+      })).catch(() => 0);
       await withRetry(() => prisma.loginLog.create({
         data: { username: admin.username, name: admin.name, shop_id: admin.shop_id, shop_name: admin.shop_name, role: admin.role, status: "failed", reason: "Wrong password", ip },
       })).catch(() => {});
+      if (userFails >= MAX_USER_FAILS) {
+        return NextResponse.json(
+          { detail: `Too many failed attempts. Please try again after ${WINDOW_MIN} minutes.` },
+          { status: 429 }
+        );
+      }
       return NextResponse.json({ detail: "Invalid credentials" }, { status: 401 });
     }
 

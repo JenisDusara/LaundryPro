@@ -41,6 +41,16 @@ export async function POST(req: NextRequest) {
   if (existing) return NextResponse.json({ detail: "Phone already registered" }, { status: 400 });
   const data: Record<string, unknown> = { shop_id };
   for (const f of CUSTOMER_FIELDS) if (body[f] !== undefined) data[f] = body[f];
-  const customer = await prisma.customer.create({ data: data as any });
-  return NextResponse.json(customer, { status: 201 });
+  try {
+    const customer = await prisma.customer.create({ data: data as any });
+    return NextResponse.json(customer, { status: 201 });
+  } catch (e: any) {
+    // The findFirst check above isn't atomic; a concurrent double-submit can still hit the
+    // @@unique([phone, shop_id]) constraint. Turn that into the same friendly message
+    // instead of leaking a raw 500.
+    if (e?.code === "P2002") {
+      return NextResponse.json({ detail: "Phone already registered" }, { status: 400 });
+    }
+    throw e;
+  }
 }

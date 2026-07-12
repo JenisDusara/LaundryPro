@@ -233,7 +233,7 @@ export default function NewEntry() {
 
           {/* Suggestions dropdown */}
           {showDropdown && filtered.length>0 && !selectedCustomer && (
-            <div style={{position:"absolute",top:"calc(100% + 6px)",left:0,right:0,background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:12,zIndex:100,boxShadow:"var(--shadow-web-lift)",maxHeight:260,overflowY:"auto"}}>
+            <div style={{position:"absolute",top:"calc(100% + 6px)",left:0,right:0,background:"var(--bg-card-solid)",border:"1px solid var(--border)",borderRadius:12,zIndex:100,boxShadow:"var(--shadow-web-lift)",maxHeight:260,overflowY:"auto"}}>
               {filtered.map(c=>(
                 <div key={c.id}
                   style={{padding:"12px 16px",cursor:"pointer",borderBottom:"1px solid var(--web-bg-band)",transition:"background 0.1s"}}
@@ -360,7 +360,7 @@ export default function NewEntry() {
                   {svc.name} {isOpen ? <ChevronUp size={13}/> : <ChevronDown size={13}/>}
                 </button>
                 {isOpen&&(
-                  <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,zIndex:50,minWidth:160,boxShadow:"var(--shadow-web-lift)",overflow:"hidden"}}>
+                  <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,background:"var(--bg-card-solid)",border:"1px solid var(--border)",borderRadius:8,zIndex:50,minWidth:160,maxWidth:"calc(100vw - 28px)",maxHeight:"min(55vh, 300px)",overflowY:"auto",overflowX:"hidden",boxShadow:"var(--shadow-web-lift)"}}>
                     {children.map(child=>(
                       <div key={child.id} onClick={()=>{ addItem(child); toggle(); }}
                         style={{padding:"8px 14px",fontSize:13,cursor:"pointer",display:"flex",justifyContent:"space-between",gap:12,color:"var(--text-primary)"}}

@@ -30,6 +30,13 @@ export default function Deliveries() {
     setLoading(false);
   }, []);
 
+  // Preselect the tab when arriving from a dashboard card (e.g. /deliveries?filter=pending).
+  // Read from window.location to avoid the Suspense requirement that useSearchParams adds.
+  useEffect(() => {
+    const f = new URLSearchParams(window.location.search).get("filter");
+    if (f === "pending" || f === "delivered" || f === "all") setFilter(f);
+  }, []);
+
   useEffect(() => {
     load();
     const onVisible = () => { if (document.visibilityState === "visible") load(); };

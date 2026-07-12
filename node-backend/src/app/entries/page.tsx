@@ -50,6 +50,16 @@ export default function Entries() {
 
   useEffect(()=>{ load(); },[filterType,dateVal,monthVal]);
   useEffect(()=>{ api.get("/services").then(r=>setServices(r.data)).catch(()=>{}); },[]);
+  // Deep-link from the dashboard "Today's Pickups" (e.g. /entries?date=2026-07-12&customer=<id>)
+  // — switch to that day's filter AND auto-open the tapped customer's card, so clicking Ankit's
+  // row lands directly on Ankit's entry instead of a blank form or the whole list.
+  useEffect(()=>{
+    const q = new URLSearchParams(window.location.search);
+    const d = q.get("date");
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) { setFilterType("date"); setDateVal(d); }
+    const cust = q.get("customer");
+    if (cust) setExpandedCustomer(cust);
+  },[]);
 
   const del = async (id:string) => { if(!confirm("Delete?"))return; await api.delete(`/entries/${id}`); load(); };
 

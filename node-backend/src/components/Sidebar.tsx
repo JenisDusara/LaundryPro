@@ -123,7 +123,12 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
   const today = todayIST();
 
   useEffect(() => {
-    api.get("/auth/me").then(r => setProfile(r.data)).catch(() => {});
+    api.get("/auth/me").then(r => {
+      // /me hands back a fresh token when the DB expiry has changed (e.g. plan renewed),
+      // so the subscription lift takes effect on this load instead of after a re-login.
+      if (r.data?.access_token && typeof window !== "undefined") localStorage.setItem("token", r.data.access_token);
+      setProfile(r.data);
+    }).catch(() => {});
     if (typeof window !== "undefined") setSelectedShopId(localStorage.getItem("sa_shop_id") || "");
   }, []);
 

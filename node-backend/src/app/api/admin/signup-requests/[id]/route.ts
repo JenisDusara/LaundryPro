@@ -17,6 +17,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const existing = await prisma.signupRequest.findUnique({ where: { id: params.id } });
   if (!existing) return NextResponse.json({ detail: "Not found" }, { status: 404 });
+  // Only a pending request can be rejected. An already-approved request has a live shop
+  // account behind it — flipping it to "rejected" would only lie in the audit trail.
+  if (existing.status !== "pending") {
+    return NextResponse.json({ detail: `Request already ${existing.status}` }, { status: 400 });
+  }
 
   const updated = await prisma.signupRequest.update({
     where: { id: params.id },

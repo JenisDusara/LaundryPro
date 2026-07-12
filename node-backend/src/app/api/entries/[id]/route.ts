@@ -35,6 +35,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   const { notes, items, delivery_date } = await req.json();
 
+  if (!Array.isArray(items) || items.length === 0) {
+    return NextResponse.json({ detail: "At least one item is required" }, { status: 400 });
+  }
+  // Same validation as create — a bad edit must not be able to write a negative/garbage total.
+  for (const item of items) {
+    const q = Number(item.quantity), pr = Number(item.price_per_unit);
+    if (!Number.isInteger(q) || q < 1 || !Number.isFinite(pr) || pr < 0) {
+      return NextResponse.json({ detail: "Each item needs a whole quantity ≥ 1 and a price ≥ 0" }, { status: 400 });
+    }
+  }
+
   await withRetry(() => prisma.entryItem.deleteMany({ where: { entry_id: params.id } }));
 
   let total = 0;
@@ -61,6 +72,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     },
     include: { customer: true, items: true },
   }));
+
+  // Items were deleted and recreated above, which resets delivered_qty to its default (0).
+  // Re-derive it from the item_status the client sent so the partial-delivery count and the
+  // "delivered" indicator stay consistent: delivered → full quantity, otherwise nothing.
+  await prisma.$executeRawUnsafe(
+    `UPDATE entry_items SET delivered_qty = CASE WHEN item_status = 'delivered' THEN quantity ELSE 0 END WHERE entry_id::text = $1`,
+    params.id
+  );
 
   // Update delivery_date via raw SQL if provided
   if (delivery_date !== undefined) {

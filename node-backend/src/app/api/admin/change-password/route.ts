@@ -6,7 +6,12 @@ import { requireAuth } from "@/lib/auth";
 export async function POST(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
-  const { old_password, new_password } = await req.json();
+  const { old_password, new_password } = await req.json().catch(() => ({}));
+  // Match the 6-char minimum enforced at signup — this endpoint previously accepted an
+  // empty or 1-character password.
+  if (!old_password || typeof new_password !== "string" || new_password.length < 6) {
+    return NextResponse.json({ detail: "New password must be at least 6 characters" }, { status: 400 });
+  }
   const admin = await prisma.admin.findUnique({ where: { id: user.sub } });
   if (!admin) return NextResponse.json({ detail: "Not found" }, { status: 404 });
   const valid = await bcrypt.compare(old_password, admin.password_hash);

@@ -171,6 +171,9 @@ model LabourWork {
   rate_per_piece Decimal  @default(2) @db.Decimal(10, 2)
   created_at     DateTime @default(now())
 
+  // One work row per labourer per day — the POST handler upserts on this, so concurrent
+  // submits can't create duplicate rows that double-count the labourer's pay.
+  @@unique([labour_id, work_date])
   @@map("labour_work")
 }
 

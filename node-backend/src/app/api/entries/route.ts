@@ -68,6 +68,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ detail: "At least one item is required" }, { status: 400 });
   }
 
+  // Guard against negative / NaN / fractional quantities and negative prices — otherwise a
+  // malformed request produces a negative or garbage total that corrupts the customer's balance.
+  for (const item of items) {
+    const q = Number(item.quantity), pr = Number(item.price_per_unit);
+    if (!Number.isInteger(q) || q < 1 || !Number.isFinite(pr) || pr < 0) {
+      return NextResponse.json({ detail: "Each item needs a whole quantity ≥ 1 and a price ≥ 0" }, { status: 400 });
+    }
+  }
+
   let total = 0;
   const entryItems = items.map((item: any) => {
     const subtotal = Number(item.price_per_unit) * Number(item.quantity);

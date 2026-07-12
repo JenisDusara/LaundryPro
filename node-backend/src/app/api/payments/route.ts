@@ -51,6 +51,10 @@ export async function GET(req: NextRequest) {
     if (r.method === "cash" || r.method === "upi" || r.method === "card") summary[r.method] += amt;
     else summary.other += amt;
   }
+  // Round the float8 accumulations to paise so the summary reconciles with per-row amounts.
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  summary.total = r2(summary.total); summary.cash = r2(summary.cash);
+  summary.upi = r2(summary.upi); summary.card = r2(summary.card); summary.other = r2(summary.other);
 
   return NextResponse.json({ payments: rows, summary });
 }

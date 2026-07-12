@@ -245,6 +245,12 @@ export default function AccountingPage() {
         .exp-row:hover{box-shadow:0 4px 16px rgba(0,0,0,0.1)!important;transform:translateY(-1px)}
         .day-row{transition:background 0.15s;cursor:pointer}
         .day-row:hover{background:var(--pressed)!important}
+        @media (max-width: 768px) {
+          /* Phone: 3-across summary cards overflow with large ₹ values → 2 columns; the
+             expense editor's fixed 280px side column stacks below the list. */
+          .acct-summary { grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
+          .acct-expense-grid { grid-template-columns: 1fr !important; }
+        }
       `}</style>
 
       {/* ── HEADER ── */}
@@ -258,7 +264,7 @@ export default function AccountingPage() {
       </div>
 
       {/* ── 3 SUMMARY CARDS ── */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14,marginBottom:20}}>
+      <div className="acct-summary" style={{display:"grid",gridTemplateColumns:"repeat(3, minmax(0,1fr))",gap:14,marginBottom:20}}>
         {[
           {label:"Total income",  value:income,       icon:<TrendingUp size={18}/>,   accent:"#22c55e", sub:`${MONTH_SHORT[month-1]} ${year}`},
           {label:"Total expense", value:totalExp,     icon:<TrendingDown size={18}/>, accent:"#ef4444", sub:`${expenses.length} record${expenses.length!==1?"s":""}`},
@@ -441,7 +447,7 @@ export default function AccountingPage() {
       {/* ══════════ DAY WISE TAB ══════════ */}
       {tab==="daywise"&&(
         <div style={{animation:"fadeUp 0.25s ease both"}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14,marginBottom:20}}>
+          <div className="acct-summary" style={{display:"grid",gridTemplateColumns:"repeat(3, minmax(0,1fr))",gap:14,marginBottom:20}}>
             {[
               {label:"Total Revenue", value:`₹${income.toLocaleString("en-IN")}`,          sub:`${entries.length} entries`,             iconColor:"#10b981", iconBg:"rgba(5,150,105,0.15)"},
               {label:"Total Entries", value:String(entries.length),                          sub:`${MONTH_SHORT[month-1]} ${year}`,        iconColor:"#3b82f6", iconBg:"rgba(37,99,235,0.15)"},

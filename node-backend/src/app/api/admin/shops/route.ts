@@ -80,6 +80,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ detail: "shop_id and shop_name are required" }, { status: 400 });
   }
 
+  // shop_id is the tenant key every query filters on. If a new client reuses an
+  // existing shop's id (a typo on approval, or copy-paste), the two businesses'
+  // customers, entries, payments and udhaar silently merge. Reject collisions.
+  const shopTaken = await prisma.admin.findFirst({ where: { shop_id, role: "admin" }, select: { id: true } });
+  if (shopTaken) {
+    return NextResponse.json({ detail: `Shop ID "${shop_id}" is already in use. Choose a unique Shop ID.` }, { status: 400 });
+  }
+
   // Approving a signup request just means: create the shop as usual, then link
   // the two records — copy the lead's contact details into ShopProfile and mark
   // the request approved, so the new admin's email is pre-filled (weekly report,
@@ -99,7 +107,17 @@ export async function POST(req: NextRequest) {
     if (existing) return NextResponse.json({ detail: "Username already taken" }, { status: 400 });
   }
 
-  const expiryDate = expires_at ? (() => { const d = new Date(expires_at); d.setHours(23,59,59,999); return d; })() : null;
+  const TRIAL_DAYS = 7;
+  let expiryDate = expires_at ? (() => { const d = new Date(expires_at); d.setHours(23,59,59,999); return d; })() : null;
+  let finalPlan: string | null = plan_type || null;
+  // Approving a signup must never create a permanently-free account: if no expiry/plan was
+  // supplied, fall back to a 7-day trial so the subscription clock always starts ticking.
+  if (signupRequest && !expiryDate) {
+    const d = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+    d.setHours(23, 59, 59, 999);
+    expiryDate = d;
+    finalPlan = finalPlan || "trial";
+  }
 
   // For a signup-request approval, the customer chooses their own username/password
   // via a setup link — the account starts with an unusable random password and a
@@ -115,7 +133,7 @@ export async function POST(req: NextRequest) {
     data: {
       username: finalUsername, password_hash: hash, name: name || finalUsername,
       shop_id, shop_name, role: "admin",
-      plan_type: plan_type || null,
+      plan_type: finalPlan,
       expires_at: expiryDate,
       setup_token: setupToken,
       setup_token_expires: setupTokenExpires,

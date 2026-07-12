@@ -64,6 +64,18 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (conflict) return NextResponse.json({ detail: "Username already taken" }, { status: 400 });
   }
 
+  // Moving a client onto a shop_id another business already owns would merge their
+  // data. Block it (ignore self so a no-op re-save is allowed).
+  if (shop_id) {
+    const shopConflict = await prisma.admin.findFirst({
+      where: { shop_id, role: "admin", NOT: { id: params.id } },
+      select: { id: true },
+    });
+    if (shopConflict) {
+      return NextResponse.json({ detail: `Shop ID "${shop_id}" is already in use by another client.` }, { status: 400 });
+    }
+  }
+
   const data: any = {};
   if (username)  data.username  = username;
   if (name)      data.name      = name;

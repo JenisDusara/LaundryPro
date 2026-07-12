@@ -160,12 +160,12 @@ export default function Dashboard() {
       {/* ── Stat Cards ── */}
       <div className="dash-stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 14 }}>
         {[
-          { icon: <Users size={16} />,       label: "Customers",  value: customers.length,   bg: "var(--grade-b-bg)", border: "var(--grade-b-border)", color: "var(--grade-b-text)" },
-          { icon: <Package size={16} />,      label: "Pending",    value: pendingCount,        bg: "var(--grade-c-bg)", border: "var(--grade-c-border)", color: "var(--grade-c-text)" },
-          { icon: <CheckCircle2 size={16} />, label: "Delivered",  value: deliveredCount,      bg: "var(--grade-a-bg)", border: "var(--grade-a-border)", color: "var(--grade-a-text)" },
-          { icon: <TrendingUp size={16} />,   label: "Rate",       value: `${deliveryRate}%`,  bg: "var(--grade-b-bg)", border: "var(--grade-b-border)", color: "var(--grade-b-text)" },
+          { icon: <Users size={16} />,       label: "Customers",  value: customers.length,   bg: "var(--grade-b-bg)", border: "var(--grade-b-border)", color: "var(--grade-b-text)", path: "/customers" },
+          { icon: <Package size={16} />,      label: "Pending",    value: pendingCount,        bg: "var(--grade-c-bg)", border: "var(--grade-c-border)", color: "var(--grade-c-text)", path: "/deliveries?filter=pending" },
+          { icon: <CheckCircle2 size={16} />, label: "Delivered",  value: deliveredCount,      bg: "var(--grade-a-bg)", border: "var(--grade-a-border)", color: "var(--grade-a-text)", path: "/deliveries?filter=delivered" },
+          { icon: <TrendingUp size={16} />,   label: "Rate",       value: `${deliveryRate}%`,  bg: "var(--grade-b-bg)", border: "var(--grade-b-border)", color: "var(--grade-b-text)", path: "/reports" },
         ].map((s, i) => (
-          <div key={i} className="web-card dash-stat-card" style={{ textAlign: "center", padding: "22px 16px" }}>
+          <div key={i} className="web-card dash-stat-card act-btn" onClick={() => router.push(s.path)} style={{ textAlign: "center", padding: "22px 16px", cursor: "pointer" }}>
             <span style={{ width: 38, height: 38, borderRadius: 10, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: s.bg, border: `1px solid ${s.border}`, color: s.color }}>
               {s.icon}
             </span>
@@ -279,7 +279,7 @@ export default function Dashboard() {
             {todayEntries.slice(0, 5).map((entry, i) => (
               <div key={entry.id} className="entry-row"
                 style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid var(--border-hard)", transition: "background .12s" }}
-                onClick={() => router.push("/new-entry")}>
+                onClick={() => router.push(`/entries?date=${today}&customer=${entry.customer_id}`)}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ width: 44, height: 44, borderRadius: 10, background: "linear-gradient(135deg,#6EA8FF,#3f7fe0)", display: "flex", alignItems: "center", justifyContent: "center", color: "#0b1830", fontWeight: 700, fontSize: 16, flexShrink: 0 }}>
                     {entry.customer?.name?.charAt(0).toUpperCase()}

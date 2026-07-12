@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Plus, Edit2, Trash2, X, Mail, Phone, Home, Building2, MapPin, User, ChevronDown, ChevronUp, FileText, Search, MessageCircle, IndianRupee, Wallet, Banknote, CreditCard, Smartphone } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Edit2, Trash2, X, Mail, Phone, Home, Building2, MapPin, User, ChevronDown, ChevronUp, FileText, Search, MessageCircle, IndianRupee, Wallet, Banknote, CreditCard, Smartphone, MoreVertical } from "lucide-react";
 import api from "@/lib/api";
 import { openAuthedFile } from "@/lib/download";
 import { openWhatsApp, paymentReminderMsg } from "@/lib/whatsapp";
@@ -50,6 +50,8 @@ export default function Customers() {
   const [payForm,    setPayForm]    = useState({ amount: "", method: "cash" as string, date: "", note: "" });
   const [paySaving,  setPaySaving]  = useState(false);
   const [shopInfo,   setShopInfo]   = useState<{ shop_name: string; upi_id: string }>({ shop_name: "", upi_id: "" });
+  // Mobile 3-dot action menu: which customer's menu is open + where to anchor it (fixed).
+  const [menu,       setMenu]       = useState<{ c: Customer; top: number; right: number } | null>(null);
 
   const loadCustomers = useCallback(async () => {
     const res = await api.get("/customers");
@@ -167,10 +169,16 @@ export default function Customers() {
 
   return (
     <ProtectedLayout>
-      <style>{`.cust-row:hover { background: var(--bg-elevated) !important; } .item-chip { transition: opacity 0.15s; } .item-chip:hover { opacity: 0.8; }`}</style>
+      <style>{`.cust-row:hover { background: var(--bg-elevated) !important; } .item-chip { transition: opacity 0.15s; } .item-chip:hover { opacity: 0.8; }
+        @media (max-width: 768px) {
+          /* Phone: replace the row of action buttons with a single ⋮ menu. The right side is
+             now tiny (amount + ⋮), so the info no longer gets squeezed to zero / overlaps. */
+          .cust-btns { display: none !important; }
+          .cust-kebab { display: flex !important; }
+        }`}</style>
 
       {/* ── Header ── */}
-      <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", gap:16, marginBottom:20 }}>
+      <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", flexWrap:"wrap", gap:16, marginBottom:20 }}>
         <div>
           <div style={{ fontSize:11, fontWeight:700, color:"var(--text-secondary)", textTransform:"uppercase", letterSpacing:"0.12em" }}>Directory</div>
           <h2 style={{ margin:"4px 0 0", fontSize:26, fontWeight:800, color:"var(--text-primary)", letterSpacing:"-.01em" }}>Customers</h2>
@@ -229,7 +237,7 @@ export default function Customers() {
             return (
               <div key={c.id} style={{ background: "var(--bg-card-solid)", borderRadius: 14, overflow: "hidden", boxShadow: "var(--shadow-web-lift)", border: `1px solid ${hasActivity ? "var(--border)" : "var(--border-hard)"}`, opacity: hasActivity ? 1 : 0.75 }}>
                 {/* Customer row */}
-                <div className="cust-row" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", cursor: hasActivity ? "pointer" : "default", transition: "background 0.15s" }}
+                <div className="cust-row" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "12px 14px", cursor: hasActivity ? "pointer" : "default", transition: "background 0.15s" }}
                   onClick={() => hasActivity && setExpanded(isOpen ? null : c.id)}>
                   {/* Avatar */}
                   <div style={{ width: 42, height: 42, borderRadius: 11, background: hasActivity ? color : "#e2e8f0", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: hasActivity ? "#fff" : "#94a3b8", fontWeight: 700, fontSize: 15 }}>
@@ -237,7 +245,7 @@ export default function Customers() {
                   </div>
 
                   {/* Info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="cust-info" style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
                       {/* Running balance (udhaar / advance) — auto-nets payments against all bills */}
@@ -266,7 +274,7 @@ export default function Customers() {
                   </div>
 
                   {/* Right side */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                  <div className="cust-right" style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                     {hasActivity ? (
                       <div style={{ textAlign: "right", marginRight: 4 }}>
                         <div style={{ fontWeight: 800, fontSize: 16, color: "var(--accent-primary)" }}>₹{custTotal.toLocaleString("en-IN")}</div>
@@ -278,6 +286,8 @@ export default function Customers() {
                       <span style={{ fontSize: 11, color: "var(--text-muted)", marginRight: 4 }}>No activity</span>
                     )}
 
+                    {/* Desktop: all actions inline. Hidden on phone — replaced by the ⋮ menu. */}
+                    <div className="cust-btns" style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     {/* Record payment button */}
                     <button onClick={e => { e.stopPropagation(); openPay(c); }}
                       style={{ width: 30, height: 30, borderRadius: 8, background: "var(--grade-c-bg)", border: "1px solid var(--grade-c-border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
@@ -305,6 +315,14 @@ export default function Customers() {
                     <button onClick={e => { e.stopPropagation(); del(c.id); }}
                       style={{ width: 30, height: 30, borderRadius: 8, background: "var(--grade-f-bg)", border: "1px solid var(--grade-f-border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <Trash2 size={13} color="var(--grade-f-text)" />
+                    </button>
+                    </div>
+
+                    {/* Phone: single 3-dot menu instead of the row of buttons above. */}
+                    <button className="cust-kebab" onClick={e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setMenu(menu?.c.id === c.id ? null : { c, top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) }); }}
+                      style={{ display: "none", width: 32, height: 32, borderRadius: 8, background: "var(--bg-input)", border: "1px solid var(--border-hard)", cursor: "pointer", alignItems: "center", justifyContent: "center" }}
+                      title="Actions">
+                      <MoreVertical size={16} color="var(--text-secondary)" />
                     </button>
                     {hasActivity && (isOpen ? <ChevronUp size={14} color="var(--text-muted)" /> : <ChevronDown size={14} color="var(--text-muted)" />)}
                   </div>
@@ -477,6 +495,30 @@ export default function Customers() {
           </div>
         </div>
       )}
+
+      {/* ── Mobile action menu (⋮) ── */}
+      {menu && (() => {
+        const c = menu.c;
+        const mAct = (entryMap.get(c.id) || []).length > 0;
+        const row = (label: string, icon: React.ReactNode, onClick: () => void, danger?: boolean) => (
+          <button onClick={() => { setMenu(null); onClick(); }}
+            style={{ display: "flex", alignItems: "center", gap: 11, width: "100%", padding: "13px 16px", background: "none", border: "none", borderBottom: "1px solid var(--border-hard)", cursor: "pointer", fontSize: 14, fontWeight: 600, color: danger ? "var(--grade-f-text)" : "var(--text-primary)", textAlign: "left" }}>
+            {icon}{label}
+          </button>
+        );
+        return (
+          <>
+            <div onClick={() => setMenu(null)} style={{ position: "fixed", inset: 0, zIndex: 300 }} />
+            <div style={{ position: "fixed", top: menu.top, right: menu.right, zIndex: 301, background: "var(--bg-card-solid)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "var(--shadow-web-lift)", minWidth: 210, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              {row("Record payment", <IndianRupee size={16} color="var(--grade-c-text)" />, () => openPay(c))}
+              {row("WhatsApp", <MessageCircle size={16} color="var(--grade-a-text)" />, () => waCustomer(c))}
+              {mAct && row("Invoice", <FileText size={16} color="var(--grade-b-text)" />, () => openAuthedFile(`/invoices/${c.id}`, { month, year }).catch(() => alert("Failed to open invoice")))}
+              {row("Edit customer", <Edit2 size={16} color="var(--grade-b-text)" />, () => { setForm({ name: c.name, phone: c.phone, flat_number: c.flat_number || "", society_name: c.society_name || "", address: c.address || "", email: c.email || "" }); setEditId(c.id); setPhoneError(""); setShowForm(true); })}
+              {row("Delete", <Trash2 size={16} color="var(--grade-f-text)" />, () => del(c.id), true)}
+            </div>
+          </>
+        );
+      })()}
 
       {/* ── Record Payment Modal ── */}
       {payFor && (() => {

@@ -4,6 +4,16 @@
   margin: 0;
 }
 
+/* Mobile: stop the accidental-zoom glitch. `touch-action: manipulation` kills double-tap
+   zoom, `overscroll-behavior: none` stops the rubber-band bounce, and text-size-adjust
+   stops iOS from re-scaling text on rotate. Works with the locked viewport in layout.tsx. */
+html, body {
+  touch-action: manipulation;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 /* ─── Light theme (default) ─── */
 :root {
   --font-sans: "Montserrat", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;

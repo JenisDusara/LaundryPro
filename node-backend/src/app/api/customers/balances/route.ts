@@ -27,10 +27,13 @@ export async function GET(req: NextRequest) {
     WHERE ${shopCond}
   `);
 
+  // Round to paise — the SUMs come back as float8, so subtracting them can leave artifacts
+  // like 149.99999999998 that make the same balance look different across pages.
+  const r2 = (n: number) => Math.round(n * 100) / 100;
   return NextResponse.json(rows.map(r => ({
     customer_id: r.customer_id,
-    billed: Number(r.billed),
-    paid: Number(r.paid),
-    outstanding: Number(r.billed) - Number(r.paid),
+    billed: r2(Number(r.billed)),
+    paid: r2(Number(r.paid)),
+    outstanding: r2(Number(r.billed) - Number(r.paid)),
   })));
 }
