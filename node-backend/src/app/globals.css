@@ -235,7 +235,7 @@ input, textarea, button { font-family: var(--font-sans); }
 
   /* Utility: hide/show elements on mobile */
   .mob-hide  { display: none !important; }
-  .mob-brand { display: flex !important; flex-direction: column; align-items: flex-start; }
+  .mob-brand { display: flex !important; flex-direction: row; align-items: center; gap: 9px; }
 
   /* Theme toggle: compact icon-only on mobile */
   .mob-theme-btn { padding: 8px !important; border-radius: 50% !important; gap: 0 !important; }

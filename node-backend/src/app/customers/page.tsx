@@ -87,6 +87,16 @@ export default function Customers() {
   useEffect(() => { loadEntries(); }, [loadEntries]);
   useEffect(() => { loadBalances(); }, [loadBalances]);
 
+  // The ⋮ action menu is fixed-positioned at the button's spot; once the page scrolls that
+  // spot is wrong, so close it on any scroll/resize (also fixes "menu won't dismiss on scroll").
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => { window.removeEventListener("scroll", close, true); window.removeEventListener("resize", close); };
+  }, [menu]);
+
   // Shop name + UPI for personalising WhatsApp payment reminders (best-effort)
   useEffect(() => {
     api.get("/admin/settings")

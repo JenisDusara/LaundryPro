@@ -39,9 +39,11 @@ Install:
 - `src/app/manifest.ts` — generates `/manifest.webmanifest`
   (`name`, `short_name`, `start_url: /dashboard`, `display: standalone`,
   `theme_color: #1e40af`, `background_color`, icon).
-- `public/app-icon.png` — the shop's actual logo, used as the home-screen /
-  install icon (`sizes: "716x590"`, `type: image/png`). Named `app-icon` (not
-  `icon`) to avoid colliding with the Next.js `app/icon.svg` favicon route.
+- `public/app-icon.svg` — the shop's logo **emblem only** (the "LAUNDRYPRO"
+  wordmark below it is cropped out via the SVG `viewBox`, measured from the
+  source PNG so the crop never clips the emblem or leaks the text), used as
+  the home-screen / install icon. Named `app-icon` (not `icon`) to avoid
+  colliding with the Next.js `app/icon.svg` favicon route.
 - `public/sw.js` — service worker. Network-first; skips `/api/*` so data is
   always fresh; falls back to a cached `/dashboard` shell when offline.
 - `src/components/PWARegister.tsx` — registers the service worker on load
@@ -54,10 +56,10 @@ Install:
 - **HTTPS required.** Service workers and the install prompt only work over
   HTTPS (or `localhost`). On the deployed site the prompt appears; on plain
   `http://` LAN IPs it won't.
-- The icon is the shop's logo PNG (`public/app-icon.png`). It isn't square
-  (716×590), so launchers letterbox/center it; swap in a square PNG later if a
-  tighter home-screen icon is wanted. iOS uses the same file as the `apple`
-  touch icon.
+- The icon is cropped from the logo, not re-drawn — same source art, just the
+  emblem (no wordmark). It isn't perfectly square, so launchers
+  letterbox/center it slightly; swap in a square version later if a tighter
+  home-screen icon is wanted. iOS uses the same file as the `apple` touch icon.
 - The service worker is intentionally simple (network-first) so the app never
   serves stale pages or cached API data. Bump the `CACHE` version in `sw.js`
   when you want to force-drop the old shell cache.

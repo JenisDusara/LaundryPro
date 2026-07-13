@@ -77,6 +77,12 @@ export default function Deliveries() {
       <style>{`
         @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
         .del-card:hover{background:var(--pressed)!important}
+        @media (max-width: 768px) {
+          /* Phone: keep the customer details readable and move the status + amount to their
+             own line instead of crowding/overlapping the name. */
+          .del-info { min-width: 60% !important; }
+          .del-right { width: 100%; justify-content: flex-end; margin-top: 8px; }
+        }
       `}</style>
 
       {/* Header */}
@@ -178,12 +184,12 @@ export default function Deliveries() {
               <div key={cid} style={{background:"var(--bg-card)",borderRadius:14,border:"1px solid var(--border-hard)",overflow:"hidden",animation:`fadeUp 0.3s ease ${ci*0.04}s both`}}>
                 {/* Customer row */}
                 <div className="del-card" onClick={()=>setExpandedCustomer(isOpen?null:cid)}
-                  style={{padding:"14px 16px",display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
+                  style={{padding:"14px 16px",display:"flex",alignItems:"center",flexWrap:"wrap",gap:12,cursor:"pointer"}}>
                   {/* Avatar box */}
                   <div style={{width:40,height:40,borderRadius:10,flexShrink:0,background:"var(--bg-elevated)",border:"1px solid var(--border-hard)",display:"flex",alignItems:"center",justifyContent:"center"}}>
                     <Home size={17} color="var(--text-secondary)"/>
                   </div>
-                  <div style={{flex:1,minWidth:0}}>
+                  <div className="del-info" style={{flex:1,minWidth:0}}>
                     <div style={{fontWeight:700,fontSize:15,color:"var(--text-primary)",marginBottom:3}}>{cust.name}</div>
                     <div style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"var(--text-muted)",flexWrap:"wrap"}}>
                       {(cust.flat||cust.society)&&(
@@ -199,7 +205,7 @@ export default function Deliveries() {
                       )}
                     </div>
                   </div>
-                  <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+                  <div className="del-right" style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
                     <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:20,fontSize:12,fontWeight:700,
                       background:allDel?"var(--grade-a-bg)":"var(--grade-c-bg)",
                       color:allDel?"var(--grade-a-text)":"var(--grade-c-text)",

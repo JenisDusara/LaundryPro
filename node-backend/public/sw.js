@@ -1,7 +1,7 @@
 // Minimal service worker — makes the app installable (standalone / home-screen) and gives a
 // tiny offline shell. Kept deliberately network-first so the app never serves stale data.
 const CACHE = "laundrypro-v1";
-const SHELL = ["/dashboard", "/app-icon.png"];
+const SHELL = ["/dashboard", "/app-icon.svg"];
 
 self.addEventListener("install", (e) => {
   self.skipWaiting();

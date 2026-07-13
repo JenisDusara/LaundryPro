@@ -249,13 +249,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
 
         {/* Brand */}
         <div style={{ padding: "18px 16px 14px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 11 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-            background: "linear-gradient(135deg,#6EA8FF,#3f7fe0)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontWeight: 800, fontSize: 14, color: "#0b1830",
-            boxShadow: "0 6px 16px -6px rgba(110,168,255,.7)",
-          }}>LP</div>
+          <img src="/app-icon.svg" alt="LaundryPro" style={{ height: 34, width: "auto", maxWidth: 44, objectFit: "contain", borderRadius: 8, flexShrink: 0 }} />
           <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: "-.01em", color: "var(--text-primary)" }}>LaundryPro</div>
         </div>
 
@@ -376,13 +370,10 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
           position: "sticky", top: 0, zIndex: 40,
         }}>
-          {/* Mobile: LP brand (desktop header keeps only the right-side actions) */}
-          <div style={{ display: "none" }} className="mob-brand">
+          {/* Mobile: logo + brand (desktop header keeps only the right-side actions) */}
+          <div style={{ display: "none", alignItems: "center", gap: 9 }} className="mob-brand">
+            <img src="/app-icon.svg" alt="LaundryPro" style={{ height: 30, width: "auto", maxWidth: 40, objectFit: "contain", borderRadius: 7, flexShrink: 0 }} />
             <div style={{ fontWeight: 800, fontSize: 17, color: "var(--text-primary)", letterSpacing: "-.01em" }}>LaundryPro</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2, fontSize: 11, color: "var(--text-secondary)" }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent-success)", display: "inline-block", flexShrink: 0 }} />
-              Synced just now
-            </div>
           </div>
 
           {/* Right actions */}

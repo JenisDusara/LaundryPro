@@ -15,7 +15,9 @@ export const metadata: Metadata = {
   title: "LaundryPro",
   description: "Laundry Management System",
   manifest: "/manifest.webmanifest",
-  icons: { apple: "/app-icon.png" },
+  // Setting `icons` at all disables Next's automatic file-convention favicon
+  // detection, so the favicon route has to be listed explicitly too.
+  icons: { icon: "/icon.svg", apple: "/app-icon.svg" },
   // iOS: run full-screen (no Safari chrome) when added to the home screen.
   appleWebApp: { capable: true, title: "LaundryPro", statusBarStyle: "default" },
 };
