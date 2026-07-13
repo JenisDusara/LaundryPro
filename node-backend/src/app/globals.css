@@ -225,8 +225,10 @@ input, textarea, button { font-family: var(--font-sans); }
   .main-content { margin-left: 0 !important; width: 100% !important; }
   .bottom-bar { display: flex !important; }
 
-  /* Main content: tighter padding, bottom gap for bottom-bar */
-  .main-content main { padding: 16px 14px 84px !important; }
+  /* Main content: tighter padding, plus enough bottom gap to clear the fixed bottom-bar
+     AND the phone's gesture-bar safe area — otherwise the last controls (e.g. the New Entry
+     "Save" button) end up hidden behind the nav and can't be tapped. */
+  .main-content main { padding: 16px 14px calc(104px + env(safe-area-inset-bottom)) !important; }
 
   /* Top header: shrink horizontal padding */
   .main-content header { padding: 0 12px !important; gap: 8px !important; }

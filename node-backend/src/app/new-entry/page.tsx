@@ -394,7 +394,7 @@ export default function NewEntry() {
                 </div>
                 {/* Row 2: qty controls + price + total */}
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <div style={{display:"flex",alignItems:"center",background:"var(--bg-input)",borderRadius:8,border:"1px solid var(--border-hard)",overflow:"hidden"}}>
+                  <div style={{display:"flex",alignItems:"center",background:"var(--bg-input)",borderRadius:8,border:"1px solid var(--border-hard)",overflow:"hidden",flexShrink:0}}>
                     <button onClick={()=>updateItem(item.id,"quantity",Math.max(1,Number(item.quantity)-1))} style={{width:32,height:34,background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-secondary)"}}>
                       <Minus size={14}/>
                     </button>
@@ -403,9 +403,9 @@ export default function NewEntry() {
                       <Plus size={14}/>
                     </button>
                   </div>
-                  <div style={{display:"flex",alignItems:"center",gap:3,background:"var(--bg-input)",border:"1px solid var(--border-hard)",borderRadius:8,padding:"0 10px",height:34,flex:1}}>
+                  <div style={{display:"flex",alignItems:"center",gap:3,background:"var(--bg-input)",border:"1px solid var(--border-hard)",borderRadius:8,padding:"0 10px",height:34,flex:1,minWidth:0}}>
                     <span style={{fontSize:12,color:"var(--text-muted)"}}>₹</span>
-                    <input type="number" style={{flex:1,border:"none",outline:"none",fontSize:13,fontWeight:600,background:"transparent",color:"var(--text-primary)"}} value={item.price} min={0} onChange={e=>updateItem(item.id,"price",e.target.value)}/>
+                    <input type="number" style={{flex:1,minWidth:0,width:"100%",border:"none",outline:"none",fontSize:13,fontWeight:600,background:"transparent",color:"var(--text-primary)"}} value={item.price} min={0} onChange={e=>updateItem(item.id,"price",e.target.value)}/>
                   </div>
                   <span style={{fontWeight:800,fontSize:15,color:"var(--accent-success)",minWidth:36,textAlign:"right"}}>₹{(Number(item.price)*Number(item.quantity)).toFixed(0)}</span>
                 </div>

@@ -112,7 +112,7 @@ export default function Dashboard() {
 
       {/* ── Header ── */}
       <div className="dash-header" style={{ marginBottom: 20 }}>
-        <p className="mob-hide" style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.12em" }}>{dateStr}</p>
+        <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.12em" }}>{dateStr}</p>
         <h1 className="dash-greeting-h1" style={{ margin: 0, fontSize: 28, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {greeting}{profile?.name ? `, ${profile.name.split(" ")[0]}` : ""}
         </h1>

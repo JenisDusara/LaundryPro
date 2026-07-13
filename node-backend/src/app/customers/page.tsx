@@ -2,7 +2,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight, Plus, Edit2, Trash2, X, Mail, Phone, Home, Building2, MapPin, User, ChevronDown, ChevronUp, FileText, Search, MessageCircle, IndianRupee, Wallet, Banknote, CreditCard, Smartphone, MoreVertical } from "lucide-react";
 import api from "@/lib/api";
-import { openAuthedFile } from "@/lib/download";
 import { openWhatsApp, paymentReminderMsg } from "@/lib/whatsapp";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import { todayIST } from "@/lib/dates";
@@ -52,6 +51,14 @@ export default function Customers() {
   const [shopInfo,   setShopInfo]   = useState<{ shop_name: string; upi_id: string }>({ shop_name: "", upi_id: "" });
   // Mobile 3-dot action menu: which customer's menu is open + where to anchor it (fixed).
   const [menu,       setMenu]       = useState<{ c: Customer; top: number; right: number } | null>(null);
+  // Invoice preview: rendered inline in an iframe (srcDoc) so it opens reliably on phones —
+  // the old "open blob in a new tab" approach was blocked by mobile popup blockers.
+  const [invoice,    setInvoice]    = useState<{ html: string; name: string } | null>(null);
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
+  // Customer statement: full bill + payment ledger with a running balance.
+  type StmtRow = { date: string; type: "bill" | "payment"; label: string; amount: number; balance: number };
+  const [statement, setStatement] = useState<{ c: Customer; rows: StmtRow[]; billed: number; paid: number; outstanding: number } | null>(null);
+  const [statementLoading, setStatementLoading] = useState(false);
 
   const loadCustomers = useCallback(async () => {
     const res = await api.get("/customers");
@@ -99,6 +106,71 @@ export default function Customers() {
   const openPay = (c: Customer) => {
     setPayFor(c);
     setPayForm({ amount: "", method: "cash", date: todayIST(), note: "" });
+  };
+
+  // Fetch the invoice HTML and show it in an in-app iframe modal (works on mobile, unlike
+  // opening a blob URL in a new tab).
+  const openInvoice = async (c: Customer) => {
+    setInvoiceLoading(true);
+    try {
+      const res = await api.get(`/invoices/${c.id}`, { params: { month, year }, responseType: "text" });
+      const html = typeof res.data === "string" ? res.data : String(res.data ?? "");
+      setInvoice({ html, name: `${c.name} — ${MONTHS[month - 1]} ${year}` });
+    } catch {
+      alert("Failed to open invoice");
+    } finally {
+      setInvoiceLoading(false);
+    }
+  };
+
+  // Build a full ledger (all bills + all payments, chronological, with running balance).
+  const openStatement = async (c: Customer) => {
+    setStatementLoading(true);
+    try {
+      const [entRes, payRes] = await Promise.all([
+        api.get("/entries", { params: { customer_id: c.id } }),
+        api.get("/payments", { params: { customer_id: c.id } }),
+      ]);
+      const bills = (entRes.data || []).map((e: any) => ({
+        date: e.entry_date, ts: e.created_at || e.entry_date, type: "bill" as const,
+        label: (e.items || []).map((i: any) => `${i.service_name}×${i.quantity}`).join(", ") || "Laundry",
+        amount: Number(e.total_amount),
+      }));
+      const pays = ((payRes.data && payRes.data.payments) || []).map((p: any) => ({
+        date: p.date, ts: p.created_at || p.date, type: "payment" as const,
+        label: `Payment · ${p.method}${p.note ? " · " + p.note : ""}`,
+        amount: -Number(p.amount),
+      }));
+      const all = [...bills, ...pays].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.ts < b.ts ? -1 : 1)));
+      const r2 = (n: number) => Math.round(n * 100) / 100;
+      let bal = 0;
+      const rows: StmtRow[] = all.map(r => { bal += r.amount; return { date: r.date, type: r.type, label: r.label, amount: r2(r.amount), balance: r2(bal) }; });
+      const billed = r2(bills.reduce((s: number, r: { amount: number }) => s + r.amount, 0));
+      const paid = r2(-pays.reduce((s: number, r: { amount: number }) => s + r.amount, 0));
+      setStatement({ c, rows, billed, paid, outstanding: r2(billed - paid) });
+    } catch {
+      alert("Failed to load statement");
+    } finally {
+      setStatementLoading(false);
+    }
+  };
+
+  const sendStatementWA = () => {
+    if (!statement) return;
+    const { c, billed, paid, outstanding } = statement;
+    const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+    const lines = [
+      `*${shopInfo.shop_name || "Laundry"}* — Statement`,
+      `Customer: ${c.name}`,
+      ``,
+      `Total billed: ${inr(billed)}`,
+      `Total paid: ${inr(paid)}`,
+      outstanding > 0.5 ? `*Balance due: ${inr(outstanding)}*`
+        : outstanding < -0.5 ? `Advance: ${inr(Math.abs(outstanding))}`
+        : `Fully settled ✓`,
+    ];
+    if (shopInfo.upi_id && outstanding > 0.5) lines.push(``, `Pay via UPI: ${shopInfo.upi_id}`);
+    openWhatsApp(c.phone, lines.join("\n"));
   };
 
   const savePayment = async () => {
@@ -237,8 +309,8 @@ export default function Customers() {
             return (
               <div key={c.id} style={{ background: "var(--bg-card-solid)", borderRadius: 14, overflow: "hidden", boxShadow: "var(--shadow-web-lift)", border: `1px solid ${hasActivity ? "var(--border)" : "var(--border-hard)"}`, opacity: hasActivity ? 1 : 0.75 }}>
                 {/* Customer row */}
-                <div className="cust-row" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "12px 14px", cursor: hasActivity ? "pointer" : "default", transition: "background 0.15s" }}
-                  onClick={() => hasActivity && setExpanded(isOpen ? null : c.id)}>
+                <div className="cust-row" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "12px 14px", cursor: "pointer", transition: "background 0.15s" }}
+                  onClick={() => setExpanded(isOpen ? null : c.id)}>
                   {/* Avatar */}
                   <div style={{ width: 42, height: 42, borderRadius: 11, background: hasActivity ? color : "#e2e8f0", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: hasActivity ? "#fff" : "#94a3b8", fontWeight: 700, fontSize: 15 }}>
                     {getInitials(c.name)}
@@ -267,10 +339,7 @@ export default function Customers() {
                         )
                       )}
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <span>📞 {c.phone}</span>
-                      {c.flat_number && <span>🏠 {c.flat_number}{c.society_name && `, ${c.society_name}`}</span>}
-                    </div>
+                    {/* Phone & address are hidden here and revealed in the expanded view on tap. */}
                   </div>
 
                   {/* Right side */}
@@ -303,7 +372,7 @@ export default function Customers() {
                     </button>
                     {/* Invoice button */}
                     {hasActivity && (
-                      <button onClick={e => { e.stopPropagation(); openAuthedFile(`/invoices/${c.id}`, { month, year }).catch(() => alert("Failed to open invoice")); }}
+                      <button onClick={e => { e.stopPropagation(); openInvoice(c); }}
                         style={{ width: 30, height: 30, borderRadius: 8, background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <FileText size={13} color="var(--grade-b-text)" />
                       </button>
@@ -324,13 +393,23 @@ export default function Customers() {
                       title="Actions">
                       <MoreVertical size={16} color="var(--text-secondary)" />
                     </button>
-                    {hasActivity && (isOpen ? <ChevronUp size={14} color="var(--text-muted)" /> : <ChevronDown size={14} color="var(--text-muted)" />)}
+                    {isOpen ? <ChevronUp size={14} color="var(--text-muted)" /> : <ChevronDown size={14} color="var(--text-muted)" />}
                   </div>
                 </div>
 
-                {/* Expanded: entries for this month */}
-                {isOpen && hasActivity && (
+                {/* Expanded: contact details (revealed on tap) + this month's entries */}
+                {isOpen && (
                   <div style={{ borderTop: "1px solid var(--border-hard)" }}>
+                    <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, color: "var(--text-secondary)", borderBottom: hasActivity ? "1px solid var(--border-hard)" : "none" }}>
+                      <span>📞 {c.phone}</span>
+                      {(c.flat_number || c.society_name) && <span>🏠 {c.flat_number}{c.flat_number && c.society_name ? ", " : ""}{c.society_name}</span>}
+                      {c.address && <span>📍 {c.address}</span>}
+                      {c.email && <span>✉️ {c.email}</span>}
+                      <button onClick={(e) => { e.stopPropagation(); openStatement(c); }}
+                        style={{ marginTop: 6, alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, background: "var(--grade-b-bg)", color: "var(--grade-b-text)", border: "1px solid var(--grade-b-border)", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                        <Wallet size={13} /> View statement
+                      </button>
+                    </div>
                     {custEntries.map(entry => {
                       const dateItems = entry.items;
                       const entryDone = dateItems.every(i => i.item_status === "delivered");
@@ -370,7 +449,7 @@ export default function Customers() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "var(--web-bg-band)", borderTop: "1px solid var(--border-hard)" }}>
                       <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>{custEntries.length} {custEntries.length === 1 ? "entry" : "entries"} this month</span>
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                        <button onClick={() => openAuthedFile(`/invoices/${c.id}`, { month, year }).catch(() => alert("Failed to open invoice"))}
+                        <button onClick={() => openInvoice(c)}
                           style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", background: "var(--accent-primary)", color: "#0b1830", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                           <FileText size={12} /> View Invoice
                         </button>
@@ -512,11 +591,89 @@ export default function Customers() {
             <div style={{ position: "fixed", top: menu.top, right: menu.right, zIndex: 301, background: "var(--bg-card-solid)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "var(--shadow-web-lift)", minWidth: 210, overflow: "hidden", display: "flex", flexDirection: "column" }}>
               {row("Record payment", <IndianRupee size={16} color="var(--grade-c-text)" />, () => openPay(c))}
               {row("WhatsApp", <MessageCircle size={16} color="var(--grade-a-text)" />, () => waCustomer(c))}
-              {mAct && row("Invoice", <FileText size={16} color="var(--grade-b-text)" />, () => openAuthedFile(`/invoices/${c.id}`, { month, year }).catch(() => alert("Failed to open invoice")))}
+              {mAct && row("Invoice", <FileText size={16} color="var(--grade-b-text)" />, () => openInvoice(c))}
+              {row("Statement", <Wallet size={16} color="var(--grade-b-text)" />, () => openStatement(c))}
               {row("Edit customer", <Edit2 size={16} color="var(--grade-b-text)" />, () => { setForm({ name: c.name, phone: c.phone, flat_number: c.flat_number || "", society_name: c.society_name || "", address: c.address || "", email: c.email || "" }); setEditId(c.id); setPhoneError(""); setShowForm(true); })}
               {row("Delete", <Trash2 size={16} color="var(--grade-f-text)" />, () => del(c.id), true)}
             </div>
           </>
+        );
+      })()}
+
+      {/* ── Invoice loading + preview ── */}
+      {invoiceLoading && !invoice && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)", zIndex: 399, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "var(--bg-card-solid)", padding: "14px 22px", borderRadius: 12, fontSize: 14, fontWeight: 600, color: "var(--text-primary)", border: "1px solid var(--border-hard)" }}>Opening invoice…</div>
+        </div>
+      )}
+      {invoice && (
+        <div onClick={() => setInvoice(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.6)", zIndex: 400, display: "flex", padding: 12 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: "var(--bg-card-solid)", borderRadius: 12, margin: "auto", width: "100%", maxWidth: 820, height: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "12px 14px", borderBottom: "1px solid var(--border-hard)" }}>
+              <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{invoice.name}</span>
+              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                <button onClick={() => { const f = document.getElementById("cust-invoice-frame") as HTMLIFrameElement | null; f?.contentWindow?.focus(); f?.contentWindow?.print(); }}
+                  style={{ padding: "7px 14px", background: "var(--grade-b-bg)", color: "var(--grade-b-text)", border: "1px solid var(--grade-b-border)", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  Print
+                </button>
+                <button onClick={() => setInvoice(null)}
+                  style={{ width: 34, height: 34, borderRadius: 8, background: "var(--bg-input)", border: "1px solid var(--border-hard)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <X size={17} color="var(--text-secondary)" />
+                </button>
+              </div>
+            </div>
+            <iframe id="cust-invoice-frame" srcDoc={invoice.html} title="Invoice" style={{ flex: 1, border: "none", width: "100%", background: "#fff" }} />
+          </div>
+        </div>
+      )}
+
+      {/* ── Statement loading + ledger modal ── */}
+      {statementLoading && !statement && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)", zIndex: 399, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "var(--bg-card-solid)", padding: "14px 22px", borderRadius: 12, fontSize: 14, fontWeight: 600, color: "var(--text-primary)", border: "1px solid var(--border-hard)" }}>Loading statement…</div>
+        </div>
+      )}
+      {statement && (() => {
+        const s = statement;
+        const inr = (n: number) => `₹${Math.abs(n).toLocaleString("en-IN")}`;
+        return (
+          <div onClick={() => setStatement(null)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.6)", zIndex: 400, display: "flex", padding: 12 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: "var(--bg-card-solid)", borderRadius: 14, margin: "auto", width: "100%", maxWidth: 560, maxHeight: "88vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "14px 16px", borderBottom: "1px solid var(--border-hard)" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: "var(--text-primary)" }}>Statement</div>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.c.name} · 📞 {s.c.phone}</div>
+                </div>
+                <button onClick={() => setStatement(null)} style={{ width: 34, height: 34, borderRadius: 8, background: "var(--bg-input)", border: "1px solid var(--border-hard)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><X size={17} color="var(--text-secondary)" /></button>
+              </div>
+              <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderBottom: "1px solid var(--border-hard)" }}>
+                <div style={{ flex: 1, textAlign: "center" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>Billed</div><div style={{ fontWeight: 800, fontSize: 15, color: "var(--text-primary)" }}>{inr(s.billed)}</div></div>
+                <div style={{ flex: 1, textAlign: "center" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>Paid</div><div style={{ fontWeight: 800, fontSize: 15, color: "var(--grade-a-text)" }}>{inr(s.paid)}</div></div>
+                <div style={{ flex: 1, textAlign: "center" }}><div style={{ fontSize: 11, color: "var(--text-muted)" }}>{s.outstanding < -0.5 ? "Advance" : "Due"}</div><div style={{ fontWeight: 800, fontSize: 15, color: s.outstanding > 0.5 ? "var(--grade-f-text)" : "var(--grade-a-text)" }}>{inr(s.outstanding)}</div></div>
+              </div>
+              <div style={{ flex: 1, overflowY: "auto" }}>
+                {s.rows.length === 0 ? (
+                  <div style={{ padding: "28px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>No transactions yet</div>
+                ) : s.rows.map((r, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: "1px solid var(--border-hard)" }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{new Date(r.date + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</div>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: r.type === "payment" ? "var(--grade-a-text)" : "var(--text-primary)" }}>{r.type === "payment" ? "−" : "+"}{inr(r.amount)}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Bal {inr(r.balance)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border-hard)" }}>
+                <button onClick={sendStatementWA} style={{ width: "100%", padding: "11px", borderRadius: 10, background: "var(--grade-a-bg)", color: "var(--grade-a-text)", border: "1px solid var(--grade-a-border)", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Send on WhatsApp</button>
+              </div>
+            </div>
+          </div>
         );
       })()}
 

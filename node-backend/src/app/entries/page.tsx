@@ -33,7 +33,7 @@ export default function Entries() {
   const [emailEntry,       setEmailEntry]       = useState<{cid:string;name:string;email:string;dateStr:string}|null>(null);
   const [emailSending,     setEmailSending]     = useState(false);
   const [emailMsg,         setEmailMsg]         = useState("");
-  const [invoiceModal,     setInvoiceModal]     = useState<{url:string;name:string;blob:Blob;cid:string;params:Record<string,any>}|null>(null);
+  const [invoiceModal,     setInvoiceModal]     = useState<{html:string;name:string;cid:string;params:Record<string,any>}|null>(null);
   const [invoiceLoading,   setInvoiceLoading]   = useState(false);
   const [invoiceDiscount,  setInvoiceDiscount]  = useState("");
 
@@ -83,13 +83,12 @@ export default function Entries() {
     setInvoiceLoading(true);
     setInvoiceDiscount("");
     try {
-      const res = await api.get(`/invoices/${cid}`, { params, responseType: "blob" });
-      const blob = new Blob([res.data], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
+      const res = await api.get(`/invoices/${cid}`, { params, responseType: "text" });
+      const html = typeof res.data === "string" ? res.data : String(res.data ?? "");
       const m = params.month || parseInt(params.entry_date?.slice(5,7));
       const y = params.year  || params.entry_date?.slice(0,4);
       const monthName = new Date(y, m - 1, 1).toLocaleString("en-IN", { month: "long" });
-      setInvoiceModal({ url, name: `${custName} - ${monthName} ${y}`, blob, cid, params });
+      setInvoiceModal({ html, name: `${custName} - ${monthName} ${y}`, cid, params });
     } catch { alert("Failed to load invoice"); }
     finally { setInvoiceLoading(false); }
   };
@@ -100,17 +99,14 @@ export default function Entries() {
     const discount = Math.max(0, Number(invoiceDiscount) || 0);
     setInvoiceLoading(true);
     try {
-      const res = await api.get(`/invoices/${invoiceModal.cid}`, { params: { ...invoiceModal.params, discount }, responseType: "blob" });
-      const blob = new Blob([res.data], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      URL.revokeObjectURL(invoiceModal.url);
-      setInvoiceModal({ ...invoiceModal, url, blob });
+      const res = await api.get(`/invoices/${invoiceModal.cid}`, { params: { ...invoiceModal.params, discount }, responseType: "text" });
+      const html = typeof res.data === "string" ? res.data : String(res.data ?? "");
+      setInvoiceModal({ ...invoiceModal, html });
     } catch { alert("Failed to apply discount"); }
     finally { setInvoiceLoading(false); }
   };
 
   const closeInvoice = () => {
-    if (invoiceModal) URL.revokeObjectURL(invoiceModal.url);
     setInvoiceModal(null);
     setInvoiceDiscount("");
   };
@@ -149,10 +145,8 @@ export default function Entries() {
         .date-row:hover { background: var(--pressed) !important; }
         .item-row:hover { background: var(--pressed) !important; }
         @media (max-width: 768px) {
-          .entry-invoice-btn { display: none !important; }
           .entry-amount { font-size: 14px !important; min-width: 36px !important; }
           .date-row-actions { gap: 4px !important; }
-          .date-row-inv { display: none !important; }
         }
       `}</style>
 
@@ -445,7 +439,7 @@ export default function Entries() {
               </div>
             </div>
             {/* Invoice (HTML) */}
-            <iframe id="invoice-frame" src={invoiceModal.url} style={{flex:1,border:"none",width:"100%",background:"#fff"}} title="Invoice"/>
+            <iframe id="invoice-frame" srcDoc={invoiceModal.html} style={{flex:1,border:"none",width:"100%",background:"#fff"}} title="Invoice"/>
           </div>
         </div>
       )}

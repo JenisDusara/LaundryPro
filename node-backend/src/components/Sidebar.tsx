@@ -425,9 +425,10 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
       {/* ── Mobile Bottom Bar ── */}
       <nav className="bottom-bar" style={{
         display: "none", position: "fixed", bottom: 0, left: 0, right: 0,
-        background: "var(--bg-card)", borderTop: "1px solid var(--border)",
+        background: "var(--bg-card-solid)", borderTop: "1px solid var(--border)",
         justifyContent: "space-around", alignItems: "center",
-        padding: "6px 0 16px", zIndex: 100,
+        // Include the phone's gesture-bar safe area so the nav sits above it.
+        padding: "6px 0 calc(16px + env(safe-area-inset-bottom))", zIndex: 100,
       }}>
         {/* Left: Home + Entries */}
         {mobileNavLeft.map(item => {
