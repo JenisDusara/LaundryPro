@@ -13,6 +13,7 @@ const {
   default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
+  fetchLatestBaileysVersion,
 } = require("@whiskeysockets/baileys");
 
 const PORT = process.env.PORT || 8088;
@@ -34,7 +35,20 @@ async function startSession(shopId) {
 
   const dir = path.join(SESSIONS_DIR, shopId);
   const { state, saveCreds } = await useMultiFileAuthState(dir);
+
+  // Use the current WhatsApp Web version — without this the bundled version can be stale and
+  // WhatsApp keeps closing the socket (stuck "connecting", no QR).
+  let version;
+  try {
+    const info = await fetchLatestBaileysVersion();
+    version = info.version;
+    console.log(`[${shopId}] using WA version ${version}`);
+  } catch (e) {
+    console.log(`[${shopId}] version fetch failed, using default:`, (e && e.message) || e);
+  }
+
   const sock = makeWASocket({
+    ...(version ? { version } : {}),
     auth: state,
     logger: pino({ level: "silent" }),
     browser: ["LaundryPro", "Chrome", "1.0.0"],
@@ -49,10 +63,12 @@ async function startSession(shopId) {
     const { connection, lastDisconnect, qr } = u;
     const cur = sessions.get(shopId);
     if (!cur) return;
+    if (connection) console.log(`[${shopId}] connection: ${connection}${qr ? " (+qr)" : ""}`);
 
     if (qr) {
       cur.state = "qr";
       cur.qr = await qrcode.toDataURL(qr).catch(() => null);
+      console.log(`[${shopId}] QR generated`);
     }
     if (connection === "open") {
       cur.state = "open";
@@ -65,6 +81,7 @@ async function startSession(shopId) {
       cur.starting = false;
       const code = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output
         ? lastDisconnect.error.output.statusCode : undefined;
+      console.log(`[${shopId}] closed, code: ${code}, msg: ${lastDisconnect && lastDisconnect.error ? lastDisconnect.error.message : ""}`);
       if (code === DisconnectReason.loggedOut) {
         // Number unlinked — wipe session so the next /connect shows a fresh QR.
         cur.state = "logged_out";
