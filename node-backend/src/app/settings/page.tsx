@@ -84,6 +84,18 @@ export default function Settings() {
   };
   // Go back from the QR / pairing view to the choice screen (so the user can switch method).
   const resetWaChoice = () => { stopWaPoll(); setWa({ state: "disconnected" }); };
+  // Auto-send toggle saves immediately (no separate "Save changes" needed).
+  const toggleWaAuto = async () => {
+    const next = !form.wa_auto_enabled;
+    setForm(f => ({ ...f, wa_auto_enabled: next }));
+    try {
+      await api.put("/admin/settings", { ...form, wa_auto_enabled: next });
+      setMsg({ text: next ? "WhatsApp auto-send ON" : "WhatsApp auto-send OFF", ok: true });
+    } catch (e: any) {
+      setForm(f => ({ ...f, wa_auto_enabled: !next })); // revert on failure
+      setMsg({ text: e?.response?.data?.detail || "Save failed", ok: false });
+    }
+  };
   const disconnectWa = async () => {
     if (!confirm("Is shop ka WhatsApp disconnect karein?")) return;
     setWaBusy(true);
@@ -346,13 +358,13 @@ export default function Settings() {
                   ✅ Connected{wa.number ? ` · ${wa.number}` : ""}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                  <div onClick={() => setForm(f => ({ ...f, wa_auto_enabled: !f.wa_auto_enabled }))} style={{ cursor: "pointer" }}>
+                  <div onClick={toggleWaAuto} style={{ cursor: "pointer" }}>
                     <div style={{ width: 44, height: 24, borderRadius: 12, position: "relative", transition: "background 0.2s", background: form.wa_auto_enabled ? "#16a34a" : "var(--bg-elevated)" }}>
                       <div style={{ position: "absolute", top: 2, left: form.wa_auto_enabled ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.25)", transition: "left 0.2s" }} />
                     </div>
                   </div>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
-                    Auto-send bill on new entry {form.wa_auto_enabled ? "ON" : "OFF"}
+                    Auto-send bill on new entry {form.wa_auto_enabled ? "ON" : "OFF"} <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>(turant save)</span>
                   </span>
                 </div>
                 <button onClick={disconnectWa} disabled={waBusy}
