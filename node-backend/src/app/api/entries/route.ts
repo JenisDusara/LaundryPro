@@ -60,7 +60,16 @@ export async function POST(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
   const ro = requireWrite(user); if (ro) return ro;
-  const { customer_id, notes, items, delivery_date } = await req.json();
+  const { customer_id, notes, items, delivery_date, delivered } = await req.json();
+  // `delivered` (optional): items from earlier orders handed back to the customer in this
+  // same visit (new-entry page marks them delivered "silently" so pickup + delivery go out
+  // as ONE message instead of two). Shape: [{ service_name, quantity, pickup_date }].
+  const deliveredNotice: { service_name: string; quantity: number; pickup_date: string }[] =
+    Array.isArray(delivered)
+      ? delivered
+          .filter((d: any) => d && d.service_name && d.pickup_date)
+          .map((d: any) => ({ service_name: String(d.service_name), quantity: Number(d.quantity) || 0, pickup_date: String(d.pickup_date) }))
+      : [];
 
   const customer = await prisma.customer.findFirst({ where: { id: customer_id, ...shopFilter(user, req) } });
   if (!customer) return NextResponse.json({ detail: "Customer not found" }, { status: 404 });
@@ -116,18 +125,31 @@ export async function POST(req: NextRequest) {
 
   const profile = await getShopProfile(customer.shop_id);
   const shopName = profile.shop_name || "LaundryPro";
+
+  // Group any just-delivered items by their original pickup date, for the "Delivered" section.
+  const fmtDate = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  const deliveredByDate = new Map<string, { service_name: string; quantity: number }[]>();
+  for (const d of deliveredNotice) {
+    if (!deliveredByDate.has(d.pickup_date)) deliveredByDate.set(d.pickup_date, []);
+    deliveredByDate.get(d.pickup_date)!.push(d);
+  }
+  const hasDelivered = deliveredNotice.length > 0;
+
   if (customer.email) {
-    sendEmail(customer.email, `Laundry Pickup - ${shopName}`,
-      pickupEmailHtml(customer.name, entryItems, total, shopName)
+    sendEmail(customer.email, `Laundry ${hasDelivered ? "Update" : "Pickup"} - ${shopName}`,
+      pickupEmailHtml(customer.name, entryItems, total, shopName, hasDelivered ? deliveredNotice : undefined)
     ).catch(() => {});
   }
   if (customer.phone) {
-    sendSms(customer.phone, `Dear ${customer.name}, your laundry has been picked up. Total: Rs.${total}. - ${shopName}`).catch(() => {});
+    const smsDelivered = hasDelivered ? `Your earlier order has been delivered. ` : "";
+    sendSms(customer.phone, `Dear ${customer.name}, ${smsDelivered}your laundry has been picked up. Total: Rs.${total}. - ${shopName}`).catch(() => {});
   }
 
   // Auto-send a WhatsApp bill from the shop's OWN number (via the WA-Service), if the shop
   // turned it on in Settings. Best-effort and defensive: a failure or a missing column
-  // never blocks the entry that was already created.
+  // never blocks the entry that was already created. When items were also delivered in the
+  // same visit, both the delivery note (with its pickup dates) and the new pickup go out as
+  // ONE combined message instead of two.
   if (customer.phone) {
     let waOn = false;
     try {
@@ -137,8 +159,22 @@ export async function POST(req: NextRequest) {
       waOn = !!rows[0]?.wa_auto_enabled;
     } catch { /* column not present yet → feature off */ }
     if (waOn) {
-      const lines = entryItems.map(i => `• ${i.service_name} ×${i.quantity} — ₹${Number(i.subtotal).toFixed(0)}`).join("\n");
-      const msg = `Hi ${customer.name}! 🙏\n\n*${shopName}*\n🧺 New pickup:\n${lines}\n\nTotal: ₹${total}\n\nThank you!`;
+      const prettyDate = fmtDate(today);
+      const totalQty = entryItems.reduce((s, i) => s + Number(i.quantity), 0);
+      const lines = entryItems.map(i => `• ${i.service_name} ×${i.quantity}`).join("\n");
+      let msg = `Hello ${customer.name},\n\n` + `Thank you for choosing *${shopName}*.\n\n`;
+      if (hasDelivered) {
+        const deliveredBlock = Array.from(deliveredByDate.entries())
+          .map(([date, its]) => `_(Pickup: ${fmtDate(date)})_\n${its.map(i => `• ${i.service_name} ×${i.quantity}`).join("\n")}`)
+          .join("\n\n");
+        msg += `✅ *Delivered*\n${deliveredBlock}\n\n`;
+      }
+      msg +=
+        `🧺 *New Pickup*\n` +
+        `📅 ${prettyDate}\n\n` +
+        `*Items received:*\n${lines}\n\n` +
+        `Total items: ${totalQty}\n\n` +
+        `Warm regards,\n*${shopName}* 🙏`;
       await waSend(customer.shop_id, customer.phone, msg);
     }
   }

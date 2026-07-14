@@ -30,7 +30,29 @@ export async function sendEmail(to: string, subject: string, html: string, attac
   });
 }
 
-export function pickupEmailHtml(customerName: string, items: { service_name: string; quantity: number; subtotal: number }[], total: number, shopName: string) {
+export interface DeliveredNotice { service_name: string; quantity: number; pickup_date: string; }
+
+// Renders an optional "Delivered" block, grouped by the date the items were picked up,
+// so the customer sees exactly which earlier order was handed back.
+function deliveredSectionHtml(delivered?: DeliveredNotice[]): string {
+  if (!delivered || delivered.length === 0) return "";
+  const byDate = new Map<string, DeliveredNotice[]>();
+  for (const d of delivered) {
+    if (!byDate.has(d.pickup_date)) byDate.set(d.pickup_date, []);
+    byDate.get(d.pickup_date)!.push(d);
+  }
+  const fmt = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  const groups = Array.from(byDate.entries()).map(([date, items]) => {
+    const li = items.map(i => `<li style="margin:2px 0">${i.service_name} ×${i.quantity}</li>`).join("");
+    return `<p style="margin:8px 0 2px;color:#475569;font-size:13px"><strong>Pickup: ${fmt(date)}</strong></p>
+      <ul style="margin:0 0 8px 18px;padding:0;color:#334155;font-size:14px">${li}</ul>`;
+  }).join("");
+  return `<p style="color:#059669;font-weight:600;margin:16px 0 4px">✅ Delivered (returned to you)</p>
+    ${groups}
+    <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0" />`;
+}
+
+export function pickupEmailHtml(customerName: string, items: { service_name: string; quantity: number; subtotal: number }[], total: number, shopName: string, delivered?: DeliveredNotice[]) {
   const rows = items.map(i =>
     `<tr><td style="padding:6px 12px;border-bottom:1px solid #f1f5f9">${i.service_name}</td>
      <td style="padding:6px 12px;border-bottom:1px solid #f1f5f9;text-align:center">${i.quantity}</td>
@@ -38,7 +60,9 @@ export function pickupEmailHtml(customerName: string, items: { service_name: str
   ).join("");
   return `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
     ${logoHeader(shopName)}
-    <p>Dear <strong>${customerName}</strong>, your laundry has been picked up.</p>
+    <p>Dear <strong>${customerName}</strong>,</p>
+    ${deliveredSectionHtml(delivered)}
+    <p>🧺 Your laundry has been picked up.</p>
     <table style="width:100%;border-collapse:collapse;margin:16px 0">
       <tr style="background:#f8fafc"><th style="padding:8px 12px;text-align:left">Item</th><th style="padding:8px 12px">Qty</th><th style="padding:8px 12px;text-align:right">Amount</th></tr>
       ${rows}

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Trash2, Check, ChevronDown, ChevronUp, Clock, CheckCircle2, Truck, Phone, X, Minus, Plus } from "lucide-react";
 import api from "@/lib/api";
@@ -42,9 +42,22 @@ export default function NewEntry() {
   const [showDropdown,     setShowDropdown]     = useState(false);
   const [updatingId,       setUpdatingId]       = useState<string|null>(null);
   const [justDelivered,    setJustDelivered]    = useState<{service_name:string;quantity:number;pickup_date:string}[]>([]);
+  // Entries marked delivered "silently" on this page but not yet folded into a combined
+  // pickup message. Kept in a ref so an unmount flush can still notify the customer if the
+  // user navigates away without saving a new entry (otherwise the delivery note is lost).
+  const [pendingDeliverIds, setPendingDeliverIds] = useState<string[]>([]);
+  const pendingDeliverRef = useRef<string[]>([]);
   const [deliveryDate,     setDeliveryDate]     = useState("");
   const [shopName,         setShopName]         = useState("");
   const router = useRouter();
+
+  useEffect(() => { pendingDeliverRef.current = pendingDeliverIds; }, [pendingDeliverIds]);
+  useEffect(() => () => {
+    // On unmount: any still-deferred delivery gets its own (non-silent) notification so
+    // the customer is always informed, even if no combined pickup was saved.
+    pendingDeliverRef.current.forEach(id =>
+      api.patch(`/entries/${id}/status`, null, { params: { status: "delivered" } }).catch(() => {}));
+  }, []);
 
   useEffect(() => {
     api.get("/customers").then(r=>setCustomers(r.data));
@@ -106,12 +119,6 @@ export default function NewEntry() {
 
   const today = () => new Date().toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"});
 
-  const openWhatsApp = (customer: Customer, msgItems: ManualItem[]) => {
-    const lines = msgItems.map(i=>`• ${i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name} ×${i.quantity}`).join("\n");
-    const msg = `Hi ${customer.name}! 🙏\n\n*${SHOP_NAME}*\n${today()}\n\n🧺 *New Pickup:*\n${lines}\n\nThank you for your business! 🙏\n— ${SHOP_NAME}`;
-    sendWAMsg(customer.phone, msg);
-  };
-
   const openDeliveryWhatsApp = (entryItems: {service_name:string;quantity:number}[]) => {
     if (!selectedCustomer) return;
     const lines = entryItems.map(i=>`• ${i.service_name} ×${i.quantity}`).join("\n");
@@ -119,39 +126,20 @@ export default function NewEntry() {
     sendWAMsg(selectedCustomer.phone, msg);
   };
 
-  const save = async (withWA = false) => {
+  const save = async () => {
     if(!selectedCustomer||items.length===0) return;
     setSaving(true);
-    const savedItems = [...items];
-    const savedCustomer = selectedCustomer;
     try {
-      await api.post("/entries",{customer_id:selectedCustomer.id,notes,delivery_date:deliveryDate||null,items:items.map(i=>({service_id:i.service_id,service_name:i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name,quantity:Number(i.quantity),price_per_unit:Number(i.price)}))});
+      // Pass any just-delivered items so the backend sends ONE combined message
+      // (delivery note with pickup dates + new pickup) instead of two separate ones.
+      await api.post("/entries",{customer_id:selectedCustomer.id,notes,delivery_date:deliveryDate||null,delivered:justDelivered,items:items.map(i=>({service_id:i.service_id,service_name:i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name,quantity:Number(i.quantity),price_per_unit:Number(i.price)}))});
       setSuccess(true); setItems([]); setNotes(""); setDeliveryDate("");
+      // These deliveries are now covered by the combined message — clear so the unmount
+      // flush doesn't re-notify.
+      setJustDelivered([]); setPendingDeliverIds([]);
       const res = await api.get("/entries", { params: { customer_id: selectedCustomer.id } });
       setPastEntries(res.data);
       setTimeout(()=>setSuccess(false), 3000);
-      if (withWA) {
-        const jd = justDelivered;
-        if (jd.length > 0) {
-          const byDate = new Map<string, string[]>();
-          jd.forEach(i => {
-            if (!byDate.has(i.pickup_date)) byDate.set(i.pickup_date, []);
-            byDate.get(i.pickup_date)!.push(`• ${i.service_name} ×${i.quantity}`);
-          });
-          const formatDate = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" });
-          const deliveredLines = Array.from(byDate.entries())
-            .map(([date, lines]) => `_(Pickup: ${formatDate(date)})_\n${lines.join("\n")}`)
-            .join("\n\n");
-          let msg = `Hi ${savedCustomer.name}! 🙏\n\n*${SHOP_NAME}*\n${today()}\n\n`;
-          msg += `✅ *Delivered:*\n${deliveredLines}\n\n`;
-          msg += `🧺 *New Pickup:*\n${savedItems.map(i=>`• ${i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name} ×${i.quantity}`).join("\n")}\n\n`;
-          msg += `Thank you for your business! 🙏\n— ${SHOP_NAME}`;
-          sendWAMsg(savedCustomer.phone, msg);
-        } else {
-          openWhatsApp(savedCustomer, savedItems);
-        }
-        setJustDelivered([]);
-      }
     } finally { setSaving(false); }
   };
 
@@ -164,13 +152,16 @@ export default function NewEntry() {
   const markDelivered = async (entryId: string) => {
     setUpdatingId(entryId);
     try {
-      await api.patch(`/entries/${entryId}/status`, null, { params: { status: "delivered" } });
+      // Mark delivered silently — the delivery note is folded into the combined pickup
+      // message sent on save (or flushed on unmount if the user leaves without saving).
+      await api.patch(`/entries/${entryId}/status`, null, { params: { status: "delivered", silent: "1" } });
       const entry = pastEntries.find(e => e.id === entryId);
       if (entry) {
         const newItems = entry.items
           .filter(i => i.item_status !== "delivered")
           .map(i => ({ service_name: i.service_name, quantity: i.quantity, pickup_date: entry.entry_date }));
         setJustDelivered(jd => [...jd, ...newItems]);
+        setPendingDeliverIds(ids => ids.includes(entryId) ? ids : [...ids, entryId]);
       }
       setPastEntries(prev => prev.map(e => e.id === entryId
         ? { ...e, delivery_status: "delivered", items: e.items.map(i => ({ ...i, item_status: "delivered" })) }
@@ -454,7 +445,7 @@ export default function NewEntry() {
           </div>
 
           {/* Actions */}
-          <button onClick={()=>save(false)} disabled={isDisabled}
+          <button onClick={()=>save()} disabled={isDisabled}
             style={{marginTop:16,width:"100%",padding:"12px",borderRadius:10,fontSize:14,fontWeight:700,cursor:isDisabled?"not-allowed":"pointer",transition:"all 0.15s",
               ...(isDisabled ? {background:"var(--bg-input)",border:"1.5px solid var(--border)",color:"var(--text-secondary)",opacity:0.55}
                              : {background:"var(--accent-primary)",border:"none",color:"#0b1830",boxShadow:"var(--shadow-glow-blue)"})}}>

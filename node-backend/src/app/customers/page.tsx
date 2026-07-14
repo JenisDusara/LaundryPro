@@ -478,15 +478,15 @@ export default function Customers() {
       {showForm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 16, backdropFilter: "blur(4px)" }}
           onClick={() => setShowForm(false)}>
-          <div style={{ background: "#fff", borderRadius: 16, padding: 28, width: "100%", maxWidth: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}
+          <div style={{ background: "var(--bg-card-solid)", border: "1px solid var(--border-hard)", borderRadius: 16, padding: 28, width: "100%", maxWidth: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.28)" }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#1e293b" }}>{editId ? "Edit" : "New"} Customer</h3>
-                <p style={{ margin: "4px 0 0", fontSize: 13, color: "#94a3b8" }}>{editId ? "Update customer details" : "Add a new customer"}</p>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "var(--text-primary)" }}>{editId ? "Edit" : "New"} Customer</h3>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-muted)" }}>{editId ? "Update customer details" : "Add a new customer"}</p>
               </div>
-              <button onClick={() => setShowForm(false)} style={{ background: "#f1f5f9", border: "none", borderRadius: 8, padding: 8, cursor: "pointer", display: "flex" }}>
-                <X size={18} color="#64748b" />
+              <button onClick={() => setShowForm(false)} style={{ background: "var(--bg-input)", border: "none", borderRadius: 8, padding: 8, cursor: "pointer", display: "flex" }}>
+                <X size={18} color="var(--text-secondary)" />
               </button>
             </div>
 
@@ -499,11 +499,11 @@ export default function Customers() {
                 const showDrop       = showSuggestion === f.key && filteredSugg.length > 0;
                 return (
                   <div key={f.key} style={{ position: "relative" }}>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
                       {f.icon} {f.label} {f.required && <span style={{ color: "#ef4444" }}>*</span>}
                     </label>
                     <input
-                      style={{ ...inputStyle, borderColor: f.key === "phone" && phoneError ? "#ef4444" : focusField === f.key ? "#3b82f6" : "#e2e8f0" }}
+                      style={{ ...inputStyle, borderColor: f.key === "phone" && phoneError ? "#ef4444" : focusField === f.key ? "var(--accent-primary)" : "var(--border)" }}
                       placeholder={f.key === "phone" ? "10-digit number" : `Enter ${f.label.toLowerCase()}`}
                       value={val}
                       inputMode={f.key === "phone" ? "numeric" : "text"}
@@ -522,13 +522,13 @@ export default function Customers() {
                       onBlur={() => { setFocusField(""); setTimeout(() => setShowSuggestion(null), 150); }}
                     />
                     {showDrop && (
-                      <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#fff", border: "1.5px solid #bfdbfe", borderRadius: 10, zIndex: 300, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", overflow: "hidden" }}>
+                      <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "var(--bg-card-solid)", border: "1.5px solid var(--border-active)", borderRadius: 10, zIndex: 300, boxShadow: "0 8px 24px rgba(0,0,0,0.18)", overflow: "hidden" }}>
                         {filteredSugg.map(s => (
                           <div key={s} onMouseDown={() => { setForm({ ...form, [f.key]: s }); setShowSuggestion(null); }}
-                            style={{ padding: "10px 14px", fontSize: 13, cursor: "pointer", color: "#1e293b", borderBottom: "1px solid #f1f5f9" }}
-                            onMouseEnter={e => e.currentTarget.style.background = "#eff6ff"}
+                            style={{ padding: "10px 14px", fontSize: 13, cursor: "pointer", color: "var(--text-primary)", borderBottom: "1px solid var(--border-hard)" }}
+                            onMouseEnter={e => e.currentTarget.style.background = "var(--bg-elevated)"}
                             onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                            <Building2 size={13} color="#3b82f6" style={{ marginRight: 6 }} />{s}
+                            <Building2 size={13} color="var(--accent-primary)" style={{ marginRight: 6 }} />{s}
                           </div>
                         ))}
                       </div>
@@ -536,7 +536,7 @@ export default function Customers() {
                     {f.key === "phone" && (
                       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
                         {phoneError ? <span style={{ fontSize: 11, color: "#ef4444" }}>{phoneError}</span> : <span />}
-                        <span style={{ fontSize: 11, color: form.phone.length === 10 ? "#16a34a" : "#94a3b8" }}>{form.phone.length}/10</span>
+                        <span style={{ fontSize: 11, color: form.phone.length === 10 ? "#16a34a" : "var(--text-muted)" }}>{form.phone.length}/10</span>
                       </div>
                     )}
                   </div>
@@ -561,7 +561,7 @@ export default function Customers() {
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
               <button
                 onClick={() => setShowForm(false)}
-                style={{ padding: "10px 22px", background: "#f1f5f9", color: "#64748b", border: "1.5px solid #e2e8f0", borderRadius: 9, fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+                style={{ padding: "10px 22px", background: "var(--bg-input)", color: "var(--text-secondary)", border: "1.5px solid var(--border-hard)", borderRadius: 9, fontSize: 14, fontWeight: 600, cursor: "pointer" }}
               >
                 Cancel
               </button>
