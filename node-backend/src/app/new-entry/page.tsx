@@ -460,13 +460,8 @@ export default function NewEntry() {
                              : {background:"var(--accent-primary)",border:"none",color:"#0b1830",boxShadow:"var(--shadow-glow-blue)"})}}>
             {saving ? "Saving…" : total > 0 ? `Save entry · ₹${total}` : "Save entry"}
           </button>
-          <button onClick={()=>save(true)} disabled={isDisabled} title="Save & send on WhatsApp"
-            style={{marginTop:10,width:"100%",padding:"12px",borderRadius:10,fontSize:14,fontWeight:700,cursor:isDisabled?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"all 0.15s",
-              ...(isDisabled ? {background:"var(--bg-input)",border:"1.5px solid var(--border)",color:"var(--text-secondary)",opacity:0.55}
-                             : {background:"var(--accent-success)",border:"none",color:"#0b1830",boxShadow:"var(--shadow-glow-green)"})}}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d={WA_PATH}/></svg>
-            Save &amp; send on WhatsApp
-          </button>
+          {/* Bill goes to WhatsApp automatically (if the shop enabled auto-send in Settings),
+              so the old manual "Save & send on WhatsApp" button was removed. */}
         </aside>
       </div>
     </ProtectedLayout>
