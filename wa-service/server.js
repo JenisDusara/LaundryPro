@@ -29,9 +29,15 @@ app.use(express.json());
 // state: "connecting" | "qr" | "open" | "logged_out"
 const sessions = new Map();
 
-async function startSession(shopId) {
+// Start (or restart) a shop's session. Pass `pairPhone` to link via an 8-char pairing code
+// (WhatsApp → Linked Devices → "Link with phone number") instead of a QR — works on a single
+// phone. Omit it for the QR flow.
+async function startSession(shopId, pairPhone) {
   const existing = sessions.get(shopId);
-  if (existing && (existing.state === "open" || existing.starting)) return existing;
+  if (existing && existing.state === "open") return existing;
+  // Tear down any half-open socket before recreating (removed from map first so its close
+  // handler doesn't touch the new session).
+  if (existing && existing.sock) { sessions.delete(shopId); try { existing.sock.end(); } catch {} }
 
   const dir = path.join(SESSIONS_DIR, shopId);
   const { state, saveCreds } = await useMultiFileAuthState(dir);
@@ -40,8 +46,7 @@ async function startSession(shopId) {
   // WhatsApp keeps closing the socket (stuck "connecting", no QR).
   let version;
   try {
-    const info = await fetchLatestBaileysVersion();
-    version = info.version;
+    version = (await fetchLatestBaileysVersion()).version;
     console.log(`[${shopId}] using WA version ${version}`);
   } catch (e) {
     console.log(`[${shopId}] version fetch failed, using default:`, (e && e.message) || e);
@@ -55,47 +60,58 @@ async function startSession(shopId) {
     syncFullHistory: false,
   });
 
-  const entry = { sock, state: "connecting", qr: null, number: null, starting: true };
+  const entry = { sock, state: "connecting", qr: null, pairingCode: null, number: null };
   sessions.set(shopId, entry);
   sock.ev.on("creds.update", saveCreds);
 
   sock.ev.on("connection.update", async (u) => {
     const { connection, lastDisconnect, qr } = u;
     const cur = sessions.get(shopId);
-    if (!cur) return;
+    if (!cur || cur.sock !== sock) return; // ignore events from a superseded socket
     if (connection) console.log(`[${shopId}] connection: ${connection}${qr ? " (+qr)" : ""}`);
 
-    if (qr) {
+    if (qr && !pairPhone) { // only surface a QR in QR mode
       cur.state = "qr";
       cur.qr = await qrcode.toDataURL(qr).catch(() => null);
       console.log(`[${shopId}] QR generated`);
     }
     if (connection === "open") {
       cur.state = "open";
-      cur.qr = null;
-      cur.starting = false;
+      cur.qr = null; cur.pairingCode = null;
       cur.number = sock.user && sock.user.id ? sock.user.id.split(":")[0].split("@")[0] : null;
       console.log(`[${shopId}] connected as ${cur.number}`);
     }
     if (connection === "close") {
-      cur.starting = false;
       const code = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output
         ? lastDisconnect.error.output.statusCode : undefined;
       console.log(`[${shopId}] closed, code: ${code}, msg: ${lastDisconnect && lastDisconnect.error ? lastDisconnect.error.message : ""}`);
       if (code === DisconnectReason.loggedOut) {
-        // Number unlinked — wipe session so the next /connect shows a fresh QR.
         cur.state = "logged_out";
-        cur.qr = null; cur.number = null;
+        cur.qr = null; cur.pairingCode = null; cur.number = null;
         sessions.delete(shopId);
         try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
         console.log(`[${shopId}] logged out`);
       } else {
-        // Transient drop — reconnect.
         cur.state = "connecting";
-        setTimeout(() => startSession(shopId).catch(() => {}), 2000);
+        setTimeout(() => startSession(shopId).catch(() => {}), 2000); // reconnect (QR mode)
       }
     }
   });
+
+  // Pairing-code mode: request the code once the socket is up.
+  if (pairPhone && !state.creds.registered) {
+    const num = String(pairPhone).replace(/\D/g, "");
+    const full = num.length === 10 ? "91" + num : num;
+    try {
+      await new Promise((r) => setTimeout(r, 1500)); // let the socket initialise
+      const pcode = await sock.requestPairingCode(full);
+      const cur = sessions.get(shopId);
+      if (cur && cur.sock === sock) { cur.pairingCode = pcode; cur.state = "pairing"; }
+      console.log(`[${shopId}] pairing code: ${pcode}`);
+    } catch (e) {
+      console.log(`[${shopId}] pairing code failed:`, (e && e.message) || e);
+    }
+  }
 
   return entry;
 }
@@ -123,11 +139,24 @@ app.post("/connect", async (req, res) => {
   }
 });
 
+// Link with an 8-char pairing code instead of a QR (single-phone friendly).
+app.post("/pair", async (req, res) => {
+  const { shop_id, phone } = req.body || {};
+  if (!shop_id || !phone) return res.status(400).json({ error: "shop_id and phone required" });
+  try {
+    await startSession(shop_id, phone);
+    const s = sessions.get(shop_id);
+    res.json({ state: s ? s.state : "connecting", pairingCode: s ? s.pairingCode : null });
+  } catch (e) {
+    res.status(500).json({ error: "pair_failed", detail: String((e && e.message) || e) });
+  }
+});
+
 app.get("/status", (req, res) => {
   const shopId = req.query.shop_id;
   const s = sessions.get(shopId);
-  if (!s) return res.json({ state: "disconnected", qr: null, number: null });
-  res.json({ state: s.state, qr: s.qr || null, number: s.number || null });
+  if (!s) return res.json({ state: "disconnected", qr: null, pairingCode: null, number: null });
+  res.json({ state: s.state, qr: s.qr || null, pairingCode: s.pairingCode || null, number: s.number || null });
 });
 
 app.post("/send", async (req, res) => {

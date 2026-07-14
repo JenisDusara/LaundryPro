@@ -1,0 +1,20 @@
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, denyStaff } from "@/lib/auth";
+import { waPair, waConfigured } from "@/lib/waAuto";
+
+function shopOf(req: NextRequest, user: { role: string; shop_id: string }): string {
+  if (user.role === "superadmin") return req.headers.get("x-selected-shop") || "shop1";
+  return user.shop_id;
+}
+
+// Link this shop's WhatsApp via an 8-char pairing code (single-phone friendly) instead of a QR.
+export async function POST(req: NextRequest) {
+  const user = requireAuth(req);
+  if (user instanceof NextResponse) return user;
+  const staff = denyStaff(user); if (staff) return staff;
+  if (!waConfigured()) return NextResponse.json({ state: "not_configured" });
+  const { phone } = await req.json().catch(() => ({}));
+  if (!phone) return NextResponse.json({ detail: "phone required" }, { status: 400 });
+  const result = await waPair(shopOf(req, user), String(phone));
+  return NextResponse.json(result);
+}

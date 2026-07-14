@@ -36,6 +36,11 @@ export async function waConnect(shopId: string): Promise<{ state: string; qr?: s
   return r?.data ?? { state: "unavailable" };
 }
 
+export async function waPair(shopId: string, phone: string): Promise<{ state: string; pairingCode?: string | null }> {
+  const r = await waFetch(`/pair`, "POST", { shop_id: shopId, phone });
+  return r?.data ?? { state: "unavailable" };
+}
+
 export async function waDisconnect(shopId: string): Promise<{ ok?: boolean }> {
   const r = await waFetch(`/disconnect`, "POST", { shop_id: shopId });
   return r?.data ?? {};

@@ -52,8 +52,9 @@ export default function Settings() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   // WhatsApp (Baileys via WA-Service) connection state for this shop.
-  const [wa, setWa] = useState<{ state: string; qr?: string | null; number?: string | null }>({ state: "loading" });
+  const [wa, setWa] = useState<{ state: string; qr?: string | null; pairingCode?: string | null; number?: string | null }>({ state: "loading" });
   const [waBusy, setWaBusy] = useState(false);
+  const [waPhone, setWaPhone] = useState("");
   const waPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopWaPoll = () => { if (waPollRef.current) { clearInterval(waPollRef.current); waPollRef.current = null; } };
@@ -72,6 +73,13 @@ export default function Settings() {
     setWaBusy(true);
     try { const r = await api.post("/whatsapp/connect"); setWa(r.data); startWaPoll(); }
     catch { setMsg({ text: "WhatsApp connect failed", ok: false }); }
+    finally { setWaBusy(false); }
+  };
+  const pairWa = async () => {
+    if (waPhone.replace(/\D/g, "").length < 10) { setMsg({ text: "Sahi WhatsApp number daalo (10 digit)", ok: false }); return; }
+    setWaBusy(true);
+    try { const r = await api.post("/whatsapp/pair", { phone: waPhone }); setWa(r.data); startWaPoll(); }
+    catch { setMsg({ text: "Pairing code lene mein dikkat", ok: false }); }
     finally { setWaBusy(false); }
   };
   const disconnectWa = async () => {
@@ -351,17 +359,48 @@ export default function Settings() {
                 </button>
                 <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 10 }}>Toggle change ke baad upar "Save changes" dabana.</div>
               </>
+            ) : wa.state === "pairing" && wa.pairingCode ? (
+              <div>
+                <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 8 }}>
+                  Phone pe: <b>WhatsApp → Linked Devices → "Link with phone number"</b> → yeh code daalo:
+                </div>
+                <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: 4, color: "var(--text-primary)", background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", borderRadius: 10, padding: "12px 16px", textAlign: "center", fontFamily: "monospace" }}>
+                  {wa.pairingCode}
+                </div>
+                <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8 }}>Code daalte hi apne aap connect ho jayega…</div>
+              </div>
             ) : wa.state === "qr" && wa.qr ? (
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 10 }}>WhatsApp → Linked Devices → is QR ko scan karo:</div>
+                <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 10 }}>Doosri screen pe QR dikhaakar phone se: WhatsApp → Linked Devices → scan:</div>
                 <img src={wa.qr} alt="WhatsApp QR" style={{ width: 220, height: 220, borderRadius: 12, border: "1px solid var(--border-hard)", background: "#fff", padding: 8 }} />
                 <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8 }}>Scan hote hi apne aap connect ho jayega…</div>
               </div>
             ) : (
-              <button onClick={connectWa} disabled={waBusy}
-                style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", border: "none", borderRadius: 10, background: "#16a34a", color: "#fff", fontSize: 13.5, fontWeight: 700, cursor: waBusy ? "not-allowed" : "pointer", opacity: waBusy ? 0.6 : 1 }}>
-                <MessageCircle size={15} /> {waBusy ? "…" : wa.state === "connecting" ? "Connecting…" : "Connect WhatsApp"}
-              </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Option 1 — pairing code (ek hi phone pe kaam karta hai) */}
+                <div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-primary)", marginBottom: 6 }}>Phone number se link karo <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>(ek hi phone pe)</span></div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <input value={waPhone} onChange={e => setWaPhone(e.target.value)} placeholder="WhatsApp number (10 digit)" inputMode="numeric"
+                      style={{ ...inp, flex: 1, minWidth: 160 }} />
+                    <button onClick={pairWa} disabled={waBusy}
+                      style={{ padding: "10px 18px", border: "none", borderRadius: 10, background: "#16a34a", color: "#fff", fontSize: 13.5, fontWeight: 700, cursor: waBusy ? "not-allowed" : "pointer", opacity: waBusy ? 0.6 : 1, whiteSpace: "nowrap" }}>
+                      {waBusy ? "…" : "Get code"}
+                    </button>
+                  </div>
+                </div>
+                {/* divider */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ flex: 1, height: 1, background: "var(--border-hard)" }} />
+                  <span style={{ fontSize: 11, color: "var(--text-muted)" }}>ya QR se</span>
+                  <div style={{ flex: 1, height: 1, background: "var(--border-hard)" }} />
+                </div>
+                {/* Option 2 — QR (doosri screen chahiye) */}
+                <button onClick={connectWa} disabled={waBusy}
+                  style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", border: "1px solid var(--border-hard)", borderRadius: 10, background: "var(--bg-input)", color: "var(--text-primary)", fontSize: 13.5, fontWeight: 700, cursor: waBusy ? "not-allowed" : "pointer", opacity: waBusy ? 0.6 : 1 }}>
+                  <MessageCircle size={15} /> {wa.state === "connecting" ? "Connecting…" : "QR se connect karo"}
+                </button>
+              </div>
             )}
           </div>
         </div>
