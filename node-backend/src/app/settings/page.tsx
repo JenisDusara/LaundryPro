@@ -82,6 +82,8 @@ export default function Settings() {
     catch { setMsg({ text: "Pairing code lene mein dikkat", ok: false }); }
     finally { setWaBusy(false); }
   };
+  // Go back from the QR / pairing view to the choice screen (so the user can switch method).
+  const resetWaChoice = () => { stopWaPoll(); setWa({ state: "disconnected" }); };
   const disconnectWa = async () => {
     if (!confirm("Is shop ka WhatsApp disconnect karein?")) return;
     setWaBusy(true);
@@ -368,12 +370,14 @@ export default function Settings() {
                   {wa.pairingCode}
                 </div>
                 <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8 }}>Code daalte hi apne aap connect ho jayega…</div>
+                <button onClick={resetWaChoice} style={{ marginTop: 12, background: "none", border: "none", color: "var(--accent-primary)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", padding: 0 }}>← Dusra tareeka (QR / number badlo)</button>
               </div>
             ) : wa.state === "qr" && wa.qr ? (
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 10 }}>Doosri screen pe QR dikhaakar phone se: WhatsApp → Linked Devices → scan:</div>
                 <img src={wa.qr} alt="WhatsApp QR" style={{ width: 220, height: 220, borderRadius: 12, border: "1px solid var(--border-hard)", background: "#fff", padding: 8 }} />
                 <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8 }}>Scan hote hi apne aap connect ho jayega…</div>
+                <div><button onClick={resetWaChoice} style={{ marginTop: 12, background: "none", border: "none", color: "var(--accent-primary)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", padding: 0 }}>← Dusra tareeka (phone number se link karo)</button></div>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
