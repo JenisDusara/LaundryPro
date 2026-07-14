@@ -14,6 +14,7 @@ export interface ShopProfile {
   default_labour_rate: number;
   logo_data: string | null;
   weekly_report_enabled: boolean;
+  wa_auto_enabled: boolean;
 }
 
 // Fields a client is allowed to write. id / shop_id / timestamps are never accepted from the request.
@@ -40,13 +41,28 @@ function defaults(shopName = ""): ShopProfile {
     default_labour_rate: 2,
     logo_data: null,
     weekly_report_enabled: true,
+    wa_auto_enabled: false,
   };
+}
+
+// wa_auto_enabled lives in a column the generated Prisma client may not know yet, so it is
+// read/written via raw SQL (same pattern as delivery_date / labour). Defensive: if the
+// column doesn't exist, reads return false and writes are skipped.
+async function readWaAuto(shopId: string): Promise<boolean> {
+  try {
+    const r = await prisma.$queryRawUnsafe<{ wa_auto_enabled: boolean }[]>(
+      `SELECT wa_auto_enabled FROM shop_profiles WHERE shop_id = $1`, shopId
+    );
+    return !!r[0]?.wa_auto_enabled;
+  } catch { return false; }
 }
 
 export async function getShopProfile(shopId: string): Promise<ShopProfile> {
   const row = await withRetry(() => prisma.shopProfile.findUnique({ where: { shop_id: shopId } }));
-  if (!row) return defaults();
+  const wa_auto_enabled = await readWaAuto(shopId);
+  if (!row) return { ...defaults(), wa_auto_enabled };
   return {
+    wa_auto_enabled,
     shop_name: row.shop_name,
     tagline: row.tagline,
     phone: row.phone,
@@ -79,5 +95,13 @@ export async function upsertShopProfile(shopId: string, data: Record<string, unk
     update: clean,
     create: { shop_id: shopId, ...clean },
   }));
+  // wa_auto_enabled handled separately via raw SQL (see readWaAuto note above).
+  if ("wa_auto_enabled" in data) {
+    try {
+      await prisma.$executeRawUnsafe(
+        `UPDATE shop_profiles SET wa_auto_enabled = $1 WHERE shop_id = $2`, Boolean(data.wa_auto_enabled), shopId
+      );
+    } catch { /* column not present yet */ }
+  }
   return getShopProfile(shopId);
 }

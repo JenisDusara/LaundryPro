@@ -41,6 +41,7 @@ model ShopProfile {
   default_labour_rate Float  @default(2) // pre-fills the labour work rate (₹/piece)
   logo_data  String?  @db.Text // base64 data-URL, embedded in invoice header
   weekly_report_enabled Boolean @default(true) // auto-email the Sunday weekly report to `email`
+  wa_auto_enabled       Boolean @default(false) // auto-send a WhatsApp bill on new entry (via WA-Service)
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 

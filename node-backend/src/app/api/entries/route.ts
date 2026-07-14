@@ -3,6 +3,7 @@ import prisma, { withRetry } from "@/lib/prisma";
 import { requireAuth, shopFilter, requireWrite } from "@/lib/auth";
 import { sendEmail, pickupEmailHtml } from "@/lib/email";
 import { sendSms } from "@/lib/sms";
+import { waSend } from "@/lib/waAuto";
 import { getShopProfile } from "@/lib/settings";
 import { todayIST, monthRange } from "@/lib/dates";
 
@@ -122,6 +123,24 @@ export async function POST(req: NextRequest) {
   }
   if (customer.phone) {
     sendSms(customer.phone, `Dear ${customer.name}, your laundry has been picked up. Total: Rs.${total}. - ${shopName}`).catch(() => {});
+  }
+
+  // Auto-send a WhatsApp bill from the shop's OWN number (via the WA-Service), if the shop
+  // turned it on in Settings. Best-effort and defensive: a failure or a missing column
+  // never blocks the entry that was already created.
+  if (customer.phone) {
+    let waOn = false;
+    try {
+      const rows = await prisma.$queryRawUnsafe<{ wa_auto_enabled: boolean }[]>(
+        `SELECT wa_auto_enabled FROM shop_profiles WHERE shop_id = $1`, customer.shop_id
+      );
+      waOn = !!rows[0]?.wa_auto_enabled;
+    } catch { /* column not present yet → feature off */ }
+    if (waOn) {
+      const lines = entryItems.map(i => `• ${i.service_name} ×${i.quantity} — ₹${Number(i.subtotal).toFixed(0)}`).join("\n");
+      const msg = `Hi ${customer.name}! 🙏\n\n*${shopName}*\n🧺 New pickup:\n${lines}\n\nTotal: ₹${total}\n\nThank you!`;
+      await waSend(customer.shop_id, customer.phone, msg);
+    }
   }
 
   return NextResponse.json({

@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { Store, Save, Upload, Trash2, ImageIcon, Download, DatabaseBackup, Mail, Send } from "lucide-react";
+import { Store, Save, Upload, Trash2, ImageIcon, Download, DatabaseBackup, Mail, Send, MessageCircle } from "lucide-react";
 import api from "@/lib/api";
 import { downloadAuthedFile } from "@/lib/download";
 import { todayIST } from "@/lib/dates";
@@ -20,13 +20,14 @@ type Profile = {
   default_labour_rate: number | string;
   logo_data: string | null;
   weekly_report_enabled: boolean;
+  wa_auto_enabled: boolean;
 };
 
 const EMPTY: Profile = {
   shop_name: "", tagline: "", phone: "", address: "",
   email: "", upi_id: "", gst_number: "", gst_rate: 0,
   invoice_terms: "", footer_note: "", default_labour_rate: 2, logo_data: null,
-  weekly_report_enabled: true,
+  weekly_report_enabled: true, wa_auto_enabled: false,
 };
 
 const LOGO_MAX_BYTES = 150 * 1024; // ~150 KB — logo is embedded in every invoice, keep it small
@@ -49,6 +50,38 @@ export default function Settings() {
   const [backupBusy, setBackupBusy] = useState(false);
   const [reportBusy, setReportBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // WhatsApp (Baileys via WA-Service) connection state for this shop.
+  const [wa, setWa] = useState<{ state: string; qr?: string | null; number?: string | null }>({ state: "loading" });
+  const [waBusy, setWaBusy] = useState(false);
+  const waPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopWaPoll = () => { if (waPollRef.current) { clearInterval(waPollRef.current); waPollRef.current = null; } };
+  const loadWaStatus = async () => {
+    try { const r = await api.get("/whatsapp/status"); setWa(r.data); return r.data?.state as string; }
+    catch { setWa({ state: "unavailable" }); return "unavailable"; }
+  };
+  const startWaPoll = () => {
+    if (waPollRef.current) return;
+    waPollRef.current = setInterval(async () => {
+      const st = await loadWaStatus();
+      if (st === "open" || st === "unavailable" || st === "not_configured" || st === "disconnected") stopWaPoll();
+    }, 2500);
+  };
+  const connectWa = async () => {
+    setWaBusy(true);
+    try { const r = await api.post("/whatsapp/connect"); setWa(r.data); startWaPoll(); }
+    catch { setMsg({ text: "WhatsApp connect failed", ok: false }); }
+    finally { setWaBusy(false); }
+  };
+  const disconnectWa = async () => {
+    if (!confirm("Is shop ka WhatsApp disconnect karein?")) return;
+    setWaBusy(true);
+    try { await api.post("/whatsapp/disconnect"); await loadWaStatus(); }
+    finally { setWaBusy(false); }
+  };
+
+  useEffect(() => { loadWaStatus(); return () => stopWaPoll(); }, []);
 
   const downloadBackup = async () => {
     setBackupBusy(true);
@@ -281,6 +314,55 @@ export default function Settings() {
             <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 10 }}>
               Toggle change karne ke baad, upar "Save changes" dabana na bhoolein. "Send now" turant bhejta hai, toggle ki state se independent.
             </div>
+          </div>
+
+          {/* WhatsApp auto-send card */}
+          <div style={{ background: "var(--bg-card)", borderRadius: 14, border: "1px solid var(--border-hard)", padding: 20, marginTop: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, color: "var(--text-primary)" }}>
+              <MessageCircle size={16} color="#16a34a" />
+              <span style={{ fontWeight: 700, fontSize: 14 }}>WhatsApp auto-send</span>
+            </div>
+            <p style={{ fontSize: 12.5, color: "var(--text-muted)", margin: "0 0 14px" }}>
+              Apna WhatsApp number connect karo — phir har naye bill par customer ko automatically WhatsApp message chala jayega.
+            </p>
+
+            {wa.state === "not_configured" || wa.state === "unavailable" ? (
+              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                WhatsApp service abhi configure nahi hai. (Admin: <b style={{ color: "var(--text-secondary)" }}>WA_SERVICE_URL</b> set karein.)
+              </div>
+            ) : wa.state === "open" ? (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, color: "#16a34a", fontWeight: 700, fontSize: 13 }}>
+                  ✅ Connected{wa.number ? ` · ${wa.number}` : ""}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                  <div onClick={() => setForm(f => ({ ...f, wa_auto_enabled: !f.wa_auto_enabled }))} style={{ cursor: "pointer" }}>
+                    <div style={{ width: 44, height: 24, borderRadius: 12, position: "relative", transition: "background 0.2s", background: form.wa_auto_enabled ? "#16a34a" : "var(--bg-elevated)" }}>
+                      <div style={{ position: "absolute", top: 2, left: form.wa_auto_enabled ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.25)", transition: "left 0.2s" }} />
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
+                    Auto-send bill on new entry {form.wa_auto_enabled ? "ON" : "OFF"}
+                  </span>
+                </div>
+                <button onClick={disconnectWa} disabled={waBusy}
+                  style={{ padding: "9px 16px", border: "1px solid var(--grade-f-border)", borderRadius: 10, background: "var(--grade-f-bg)", color: "var(--grade-f-text)", fontSize: 13, fontWeight: 700, cursor: waBusy ? "not-allowed" : "pointer" }}>
+                  Disconnect
+                </button>
+                <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 10 }}>Toggle change ke baad upar "Save changes" dabana.</div>
+              </>
+            ) : wa.state === "qr" && wa.qr ? (
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 10 }}>WhatsApp → Linked Devices → is QR ko scan karo:</div>
+                <img src={wa.qr} alt="WhatsApp QR" style={{ width: 220, height: 220, borderRadius: 12, border: "1px solid var(--border-hard)", background: "#fff", padding: 8 }} />
+                <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8 }}>Scan hote hi apne aap connect ho jayega…</div>
+              </div>
+            ) : (
+              <button onClick={connectWa} disabled={waBusy}
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", border: "none", borderRadius: 10, background: "#16a34a", color: "#fff", fontSize: 13.5, fontWeight: 700, cursor: waBusy ? "not-allowed" : "pointer", opacity: waBusy ? 0.6 : 1 }}>
+                <MessageCircle size={15} /> {waBusy ? "…" : wa.state === "connecting" ? "Connecting…" : "Connect WhatsApp"}
+              </button>
+            )}
           </div>
         </div>
       )}

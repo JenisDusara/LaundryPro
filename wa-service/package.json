@@ -1,0 +1,16 @@
+{
+  "name": "laundrypro-wa-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Always-on multi-session WhatsApp (Baileys) sender for LaundryPro — one session per shop.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.9",
+    "express": "^4.19.2",
+    "pino": "^9.5.0",
+    "qrcode": "^1.5.4"
+  }
+}
