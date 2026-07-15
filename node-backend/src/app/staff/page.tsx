@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, X, Check, Eye, EyeOff, RefreshCw } from "lucide-react";
 import ProtectedLayout from "@/components/ProtectedLayout";
+import EmptyState from "@/components/EmptyState";
 import api from "@/lib/api";
 
 interface StaffMember {
@@ -103,10 +104,7 @@ export default function StaffPage() {
           <div style={{ fontWeight: 600 }}>Loading staff…</div>
         </div>
       ) : staff.length === 0 ? (
-        <div style={{ padding: "60px 20px", textAlign: "center", color: "var(--text-muted)" }}>
-          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>No staff members yet</div>
-          <div style={{ fontSize: 13 }}>Add your first staff member above</div>
-        </div>
+        <EmptyState title="No staff members yet" subtitle="Add your first staff member above." />
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 14 }}>
           {staff.map((s, i) => {

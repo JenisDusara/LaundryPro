@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
+import EmptyState from "@/components/EmptyState";
 
 interface Client {
   id: string; username: string; name: string;
@@ -321,11 +322,7 @@ export default function SuperAdminPage() {
           <div style={{fontWeight:600,fontSize:14}}>Loading clients…</div>
         </div>
       ) : filtered.length === 0 ? (
-        <div style={{textAlign:"center",padding:"80px 20px",color:"var(--text-muted)"}}>
-          <Building2 size={44} style={{margin:"0 auto 16px",display:"block",opacity:0.2}}/>
-          <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{search?"No results found":"No clients yet"}</div>
-          <div style={{fontSize:13}}>{search?"Try a different search":"Add your first client above"}</div>
-        </div>
+        <EmptyState title={search?"No results found":"No clients yet"} subtitle={search?"Try a different search.":"Add your first client above."}/>
       ) : (
         <div className="mob-scroll" style={{borderRadius:14}}>
         <div style={{background:"var(--bg-card)",border:"1px solid var(--border-hard)",borderRadius:14,overflow:"hidden",minWidth:700}}>

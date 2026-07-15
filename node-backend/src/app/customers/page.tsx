@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Plus, Edit2, Trash2, X, Mail, Phone, Home, B
 import api from "@/lib/api";
 import { openWhatsApp, paymentReminderMsg } from "@/lib/whatsapp";
 import ProtectedLayout from "@/components/ProtectedLayout";
+import EmptyState from "@/components/EmptyState";
 import { todayIST } from "@/lib/dates";
 import type { Customer, LaundryEntry, CustomerBalance } from "@/types";
 
@@ -298,10 +299,7 @@ export default function Customers() {
 
       {/* ── Customer List ── */}
       {sorted.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "60px 0" }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>👥</div>
-          <p style={{ color: "#94a3b8", fontSize: 15 }}>No customers found</p>
-        </div>
+        <EmptyState title="No customers found" subtitle="Add your first customer to start billing." />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {sorted.map(c => {

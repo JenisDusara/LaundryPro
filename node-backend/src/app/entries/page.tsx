@@ -4,6 +4,7 @@ import { Calendar, Filter, Trash2, ChevronDown, ChevronUp, ChevronRight, Pencil,
 import api from "@/lib/api";
 import { isEntryDelivered } from "@/lib/entry-status";
 import ProtectedLayout from "@/components/ProtectedLayout";
+import EmptyState from "@/components/EmptyState";
 import type { LaundryEntry, Service } from "@/types";
 
 interface EditItem { localId:string; service_id:string; service_name:string; price_per_unit:number; quantity:number; item_status:string; }
@@ -129,10 +130,8 @@ export default function Entries() {
   const customerMap = new Map<string,{name:string;phone:string;flat:string;society:string;entries:LaundryEntry[]}>();
   entries.forEach(e=>{ if(!customerMap.has(e.customer_id)) customerMap.set(e.customer_id,{name:e.customer?.name||"Unknown",phone:e.customer?.phone||"",flat:e.customer?.flat_number||"",society:e.customer?.society_name||"",entries:[]}); customerMap.get(e.customer_id)!.entries.push(e); });
 
-  const invSearch = search.trim().replace(/^#/, "");
   const filteredCustomers = Array.from(customerMap.entries()).filter(([,c])=>
     !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search) || c.flat.toLowerCase().includes(search.toLowerCase())
-    || (!!invSearch && /^\d+$/.test(invSearch) && c.entries.some(e => String(e.invoice_no ?? "") === invSearch))
   );
 
   const editTotal   = editItems.reduce((s,i)=>s+Number(i.price_per_unit)*Number(i.quantity),0);
@@ -181,7 +180,7 @@ export default function Entries() {
       {/* ── Search ── */}
       <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--bg-card)",border:"1.5px solid var(--border-hard)",borderRadius:10,padding:"9px 14px",marginBottom:14}}>
         <Search size={14} color="#94a3b8"/>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name, phone, flat or invoice #..."
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name, phone or flat..."
           style={{flex:1,border:"none",outline:"none",fontSize:13,background:"transparent",color:"var(--text-primary)"}}/>
         {search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:16}}>×</button>}
       </div>
@@ -197,7 +196,7 @@ export default function Entries() {
 
       {/* ── Customer Cards ── */}
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {filteredCustomers.length===0&&!loading&&<div style={{textAlign:"center",padding:40,color:"#94a3b8"}}>No entries found</div>}
+        {filteredCustomers.length===0&&!loading&&<EmptyState title="No entries found" subtitle={search?"Try a different name, phone or flat.":"No entries for this period yet."}/>}
         {filteredCustomers.map(([cid,cust],ci)=>{
           const custOpen   = expandedCustomer===cid;
           const custTotal  = cust.entries.reduce((s,e)=>s+Number(e.total_amount),0);
@@ -292,16 +291,11 @@ export default function Entries() {
                               const bal  = Math.max(0, Number(entry.total_amount) - paid);
                               return (
                               <div key={entry.id}>
-                                {(entry.invoice_no || paid > 0) && (
-                                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"2px 4px 8px",flexWrap:"wrap"}}>
-                                    {entry.invoice_no
-                                      ? <span style={{fontSize:11,fontWeight:800,color:"var(--text-secondary)",background:"var(--bg-card)",border:"1px solid var(--border-hard)",borderRadius:6,padding:"2px 8px"}}>🧾 Invoice #{entry.invoice_no}</span>
-                                      : <span/>}
-                                    {paid > 0 && (
-                                      <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:20,background:bal>0?"#fef3c7":"#dcfce7",color:bal>0?"#d97706":"#16a34a"}}>
-                                        {bal>0?`Paid ₹${paid} · Due ₹${bal}`:`Paid ₹${paid}`}{entry.payment_method?` · ${entry.payment_method}`:""}
-                                      </span>
-                                    )}
+                                {paid > 0 && (
+                                  <div style={{display:"flex",justifyContent:"flex-end",padding:"2px 4px 8px"}}>
+                                    <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:20,background:bal>0?"#fef3c7":"#dcfce7",color:bal>0?"#d97706":"#16a34a"}}>
+                                      {bal>0?`Paid ₹${paid} · Due ₹${bal}`:`Paid ₹${paid}`}{entry.payment_method?` · ${entry.payment_method}`:""}
+                                    </span>
                                   </div>
                                 )}
                                 {entry.notes&&<div style={{fontSize:12,color:"#64748b",padding:"4px 4px 8px",display:"flex",alignItems:"center",gap:4}}>📝 <span>{entry.notes}</span></div>}

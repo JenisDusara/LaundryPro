@@ -41,7 +41,6 @@ export interface LaundryEntry {
   entry_date: string;
   delivery_date: string | null;
   total_amount: number;       // grand total the customer owes = items − discount + extra_charge
-  invoice_no?: number | null; // per-shop running bill number
   discount?: number;
   extra_charge?: number;
   amount_paid?: number;       // collected at billing

@@ -4,6 +4,7 @@ import { IndianRupee, TrendingUp, ShoppingBag, Users, Download } from "lucide-re
 import api from "@/lib/api";
 import { downloadAuthedFile } from "@/lib/download";
 import ProtectedLayout from "@/components/ProtectedLayout";
+import EmptyState from "@/components/EmptyState";
 import type { LaundryEntry } from "@/types";
 
 export default function Reports() {
@@ -89,7 +90,7 @@ export default function Reports() {
       <div style={{background:"var(--bg-card)",borderRadius:14,padding:24,border:"1px solid var(--border-hard)"}}>
         {activeTab==="daily"&&<div>
           <h3 style={{margin:"0 0 20px",color:"var(--text-primary)",fontSize:16,fontWeight:700}}>Daily Earnings — {monthName}</h3>
-          {dailyData.length===0?<p style={{color:"var(--text-muted)",textAlign:"center",padding:40}}>No data</p>:<div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {dailyData.length===0?<EmptyState compact title="No data" subtitle={`Nothing for ${monthName} yet.`}/>:<div style={{display:"flex",flexDirection:"column",gap:10}}>
             {dailyData.map(([date,amount])=>(
               <div key={date} style={{display:"flex",alignItems:"center",gap:12}}>
                 <div style={{width:32,fontSize:12,fontWeight:700,color:"var(--text-muted)",textAlign:"right"}}>{new Date(date+"T00:00:00").getDate()}</div>
@@ -105,7 +106,7 @@ export default function Reports() {
         </div>}
         {activeTab==="services"&&<div>
           <h3 style={{margin:"0 0 20px",fontSize:16,fontWeight:700,color:"var(--text-primary)"}}>Service-wise Revenue</h3>
-          {serviceData.length===0?<p style={{color:"var(--text-muted)",textAlign:"center",padding:40}}>No data</p>:<div>
+          {serviceData.length===0?<EmptyState compact title="No data" subtitle={`Nothing for ${monthName} yet.`}/>:<div>
             <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:20}}>
               {serviceData.map(([name,data],i)=><div key={name} style={{display:"flex",alignItems:"center",gap:6,background:"var(--bg-input)",padding:"6px 12px",borderRadius:20,border:"1px solid var(--border-hard)"}}><div style={{width:10,height:10,borderRadius:"50%",background:PALETTE[i%PALETTE.length]}}/><span style={{fontSize:12,fontWeight:600,color:"var(--text-secondary)"}}>{name}</span><span style={{fontSize:12,fontWeight:800,color:PALETTE[i%PALETTE.length]}}>{Math.round((data.revenue/totalSvcRev)*100)}%</span></div>)}
             </div>
@@ -116,7 +117,7 @@ export default function Reports() {
         </div>}
         {activeTab==="society"&&<div>
           <h3 style={{margin:"0 0 20px",fontSize:16,fontWeight:700,color:"var(--text-primary)"}}>Society-wise Revenue</h3>
-          {societyData.length===0?<p style={{color:"var(--text-muted)",textAlign:"center",padding:40}}>No data</p>:<div style={{display:"flex",flexDirection:"column",gap:14}}>
+          {societyData.length===0?<EmptyState compact title="No data" subtitle={`Nothing for ${monthName} yet.`}/>:<div style={{display:"flex",flexDirection:"column",gap:14}}>
             {societyData.map(([name,data],i)=>{ const color=PALETTE[i%PALETTE.length]; const exp=expandedSociety===name; const custList=[...data.customers.values()].sort((a,b)=>b.revenue-a.revenue); return (
               <div key={name}>
                 <div onClick={()=>setExpandedSociety(exp?null:name)} style={{display:"flex",alignItems:"center",gap:14,cursor:"pointer",padding:"8px 10px",borderRadius:10,background:exp?`${color}10`:"transparent",border:exp?`1px solid ${color}30`:"1px solid transparent"}}>
@@ -130,7 +131,7 @@ export default function Reports() {
         </div>}
         {activeTab==="customers"&&<div>
           <h3 style={{margin:"0 0 20px",fontSize:16,fontWeight:700,color:"var(--text-primary)"}}>Top Customers</h3>
-          {customerData.length===0?<p style={{color:"var(--text-muted)",textAlign:"center",padding:40}}>No data</p>:<div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {customerData.length===0?<EmptyState compact title="No data" subtitle={`Nothing for ${monthName} yet.`}/>:<div style={{display:"flex",flexDirection:"column",gap:10}}>
             {customerData.slice(0,10).map((cust,i)=>(
               <div key={i} style={{display:"flex",alignItems:"center",gap:14,padding:"12px 16px",background:i===0?"var(--grade-c-bg)":"var(--bg-input)",borderRadius:10,border:i===0?"1px solid var(--grade-c-border)":"1px solid var(--border-hard)"}}>
                 <div style={{width:32,height:32,borderRadius:"50%",background:i===0?"#f59e0b":i===1?"#94a3b8":i===2?"#cd7c2e":"var(--bg-elevated)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:i<3?"#fff":"var(--text-muted)",flexShrink:0}}>{i<3?["🥇","🥈","🥉"][i]:i+1}</div>

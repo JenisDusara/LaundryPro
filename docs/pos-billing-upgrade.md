@@ -64,16 +64,21 @@ multi-tenant, invoices (PDF/HTML) — untouched; only billing/catalog is upgrade
 
 ## Status
 - [x] Phase 1 — catalog category (schema + Services page category selector + chip)
-- [x] Phase 2 — POS new-entry (category tabs + service-type tabs + searchable tap-to-add item grid; tapping an item bumps its qty)
+- [ ] ~~Phase 2 — POS new-entry (category/type tabs + item grid)~~ **dropped** — the
+  existing New Entry service selector is kept as-is (per owner's preference).
 - [x] Phase 3 — discount / extra charge / payment-at-billing (Cash/UPI/Online/Later → records a Payment so udhaar stays correct; live grand total + balance)
-- [x] Phase 4 — per-shop running invoice number (advisory-locked, race-safe) shown on save + in Entries; Entries search by invoice #
+- [ ] ~~Phase 4 — running invoice number + search~~ **dropped** — not needed for now.
+
+Kept: **Phase 1 (category)** and **Phase 3 (discount / charges / payment at billing)**.
+Dropped: **Phase 2 (POS grid rebuild)** and **Phase 4 (invoice numbers)** — the New
+Entry item selector and the no-invoice-number flow that were already in place are fine.
 
 ## Implementation notes
-- New billing columns on `laundry_entries` (`invoice_no`, `discount`, `extra_charge`,
-  `amount_paid`, `payment_method`) + `services.category` were added via additive
+- Billing columns on `laundry_entries` (`discount`, `extra_charge`, `amount_paid`,
+  `payment_method`) + `services.category` were added via additive
   `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` and are read/written with raw SQL, so
-  nothing breaks before the Prisma client is regenerated.
+  nothing breaks before the Prisma client is regenerated. (`invoice_no` column exists
+  but is unused since Phase 4 was dropped — harmless, no data written to it.)
 - `total_amount` now stores the **grand total** (items − discount + extra charge), so
   the existing udhaar / statement math (billed − paid) stays correct with no changes.
-- WhatsApp auto-send bill now includes the amount breakdown, amount paid / balance,
-  and the invoice number.
+- WhatsApp auto-send bill now includes the amount breakdown + amount paid / balance.

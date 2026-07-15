@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
+import EmptyState from "@/components/EmptyState";
 
 interface SignupRequestItem {
   id: string; shop_name: string; owner_name: string;
@@ -122,7 +123,7 @@ export default function SignupRequestsPage() {
         {loading ? (
           <div style={{padding:"30px 20px",textAlign:"center",color:"var(--text-muted)",fontSize:13}}>Loading…</div>
         ) : pending.length === 0 ? (
-          <div style={{padding:"30px 20px",textAlign:"center",color:"var(--text-muted)",fontSize:13}}>No pending requests</div>
+          <EmptyState compact title="No pending requests" subtitle="New trial signups will show up here." />
         ) : (
           <div>
             {pending.map((r, i) => (

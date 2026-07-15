@@ -5,6 +5,7 @@ import api from "@/lib/api";
 import { isEntryDelivered } from "@/lib/entry-status";
 import { todayIST } from "@/lib/dates";
 import ProtectedLayout from "@/components/ProtectedLayout";
+import EmptyState from "@/components/EmptyState";
 import ItemDeliver from "@/components/ItemDeliver";
 import type { LaundryEntry } from "@/types";
 
@@ -165,13 +166,7 @@ export default function Deliveries() {
           <div style={{fontWeight:600}}>Loading...</div>
         </div>
       ) : customers.length === 0 ? (
-        <div style={{textAlign:"center",padding:"60px 16px",color:"var(--text-muted)"}}>
-          <div style={{width:52,height:52,borderRadius:14,background:"var(--bg-elevated)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
-            <Truck size={24} color="var(--text-muted)"/>
-          </div>
-          <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>No entries found</div>
-          <div style={{fontSize:13}}>{selectedDate?`No entries on ${fmtDate(selectedDate)}`:"No entries this month"}</div>
-        </div>
+        <EmptyState title="No entries found" subtitle={selectedDate?`No entries on ${fmtDate(selectedDate)}`:"No entries this month"}/>
       ) : (
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           {customers.map(([cid,cust],ci)=>{

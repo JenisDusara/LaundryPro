@@ -10,6 +10,7 @@ import api from "@/lib/api";
 import { isEntryDelivered, isEntryPending } from "@/lib/entry-status";
 import { todayIST } from "@/lib/dates";
 import ProtectedLayout from "@/components/ProtectedLayout";
+import EmptyState from "@/components/EmptyState";
 import CollectionsChart from "@/components/CollectionsChart";
 import type { LaundryEntry, Customer, Payment } from "@/types";
 
@@ -267,13 +268,13 @@ export default function Dashboard() {
         </div>
 
         {todayEntries.length === 0 ? (
-          <div style={{ padding: "36px 20px", textAlign: "center" }}>
-            <p style={{ color: "var(--text-muted)", fontSize: 13, margin: "0 0 14px", fontStyle: "italic" }}>No pickups today — start a new entry to track laundry</p>
-            <button onClick={() => router.push("/new-entry")}
-              style={{ background: "var(--accent-primary)", color: "#0b1830", border: "none", borderRadius: 8, padding: "11px 24px", fontSize: 13.5, fontWeight: 700, cursor: "pointer", boxShadow: "var(--shadow-glow-blue)" }}>
-              + New Entry
-            </button>
-          </div>
+          <EmptyState compact title="No pickups today" subtitle="Start a new entry to track laundry."
+            action={
+              <button onClick={() => router.push("/new-entry")}
+                style={{ background: "var(--accent-primary)", color: "#0b1830", border: "none", borderRadius: 8, padding: "11px 24px", fontSize: 13.5, fontWeight: 700, cursor: "pointer", boxShadow: "var(--shadow-glow-blue)" }}>
+                + New Entry
+              </button>
+            }/>
         ) : (
           <div style={{ display: "flex", flexDirection: "column" }}>
             {todayEntries.slice(0, 5).map((entry, i) => (
