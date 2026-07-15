@@ -20,6 +20,7 @@ export interface Service {
   name: string;
   parent_id: string | null;
   price: number | null;
+  category?: string | null;
   is_active: boolean;
   children: Service[];
 }

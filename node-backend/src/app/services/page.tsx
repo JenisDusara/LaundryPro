@@ -12,11 +12,13 @@ const COLORS = [
   {bg:"#fefce8",border:"#fef08a",icon:"#eab308"},{bg:"#f8fafc",border:"#e2e8f0",icon:"#64748b"},
 ];
 
+const CATEGORIES = ["", "MEN", "WOMEN", "KIDS", "HOUSEHOLD", "INSTITUTIONAL", "OTHERS"];
+
 export default function Services() {
   const [services, setServices] = useState<Service[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({name:"",price:"",parent_id:""});
+  const [form, setForm] = useState({name:"",price:"",parent_id:"",category:""});
   const [editId, setEditId] = useState<string|null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -28,7 +30,7 @@ export default function Services() {
   const save = async () => {
     setLoading(true);
     try {
-      const body: any={name:form.name};
+      const body: any={name:form.name, category:form.category||null};
       if(form.price) body.price=parseFloat(form.price);
       if(form.parent_id) body.parent_id=form.parent_id;
       if(editId) await api.put(`/services/${editId}`,body);
@@ -49,7 +51,7 @@ export default function Services() {
           <h2 style={{color:"var(--text-primary)",margin:"0 0 4px",fontSize:26,fontWeight:900,letterSpacing:-0.5}}>Services & pricing</h2>
           <p style={{color:"var(--text-muted)",fontSize:13,margin:0}}>{services.length} services</p>
         </div>
-        <button onClick={()=>{setForm({name:"",price:"",parent_id:""});setEditId(null);setShowForm(true);}}
+        <button onClick={()=>{setForm({name:"",price:"",parent_id:"",category:""});setEditId(null);setShowForm(true);}}
           style={{display:"flex",alignItems:"center",gap:6,background:"#2563eb",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"0 4px 14px rgba(37,99,235,0.28)"}}>
           <Plus size={16}/> Add service
         </button>
@@ -81,12 +83,12 @@ export default function Services() {
               <div style={{display:"flex",alignItems:"center",gap:6,padding:"10px 12px",borderTop:"1px solid var(--border-hard)"}}>
                 {!svc.parent_id&&(
                   <button style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px",border:"1px solid var(--border-hard)",borderRadius:8,background:"transparent",cursor:"pointer",fontSize:12,fontWeight:600,color:"var(--text-secondary)"}}
-                    onClick={()=>{setForm({name:"",price:"",parent_id:svc.id});setEditId(null);setShowForm(true);}}>
+                    onClick={()=>{setForm({name:"",price:"",parent_id:svc.id,category:svc.category||""});setEditId(null);setShowForm(true);}}>
                     <Plus size={13}/> Sub-item
                   </button>
                 )}
                 <button style={{width:32,height:32,border:"1px solid var(--border-hard)",borderRadius:8,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
-                  onClick={()=>{setForm({name:svc.name,price:svc.price?.toString()||"",parent_id:svc.parent_id||""});setEditId(svc.id);setShowForm(true);}}>
+                  onClick={()=>{setForm({name:svc.name,price:svc.price?.toString()||"",parent_id:svc.parent_id||"",category:svc.category||""});setEditId(svc.id);setShowForm(true);}}>
                   <Edit2 size={14} color="var(--text-secondary)"/>
                 </button>
                 <button style={{width:32,height:32,border:"1px solid var(--border-hard)",borderRadius:8,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
@@ -109,11 +111,12 @@ export default function Services() {
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
                         <div style={{width:6,height:6,borderRadius:3,background:color.icon,flexShrink:0}}/>
                         <span style={{fontSize:13,color:"var(--text-primary)",fontWeight:600}}>{child.name}</span>
+                        {child.category&&<span style={{fontSize:10,fontWeight:700,color:"var(--text-muted)",background:"var(--bg-elevated)",border:"1px solid var(--border-hard)",borderRadius:20,padding:"1px 7px"}}>{child.category}</span>}
                         <span style={{fontSize:13,fontWeight:700,color:color.icon}}>₹{child.price}</span>
                       </div>
                       <div style={{display:"flex",gap:4}}>
                         <button style={{width:28,height:28,border:"1px solid var(--border-hard)",borderRadius:6,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
-                          onClick={()=>{setForm({name:child.name,price:child.price?.toString()||"",parent_id:child.parent_id||""});setEditId(child.id);setShowForm(true);}}>
+                          onClick={()=>{setForm({name:child.name,price:child.price?.toString()||"",parent_id:child.parent_id||"",category:child.category||""});setEditId(child.id);setShowForm(true);}}>
                           <Edit2 size={12} color="var(--text-secondary)"/>
                         </button>
                         <button style={{width:28,height:28,border:"1px solid var(--border-hard)",borderRadius:6,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
@@ -147,6 +150,13 @@ export default function Services() {
                 <label style={{display:"block",fontSize:13,fontWeight:600,color:"var(--text-secondary)",marginBottom:6}}>Price (₹)</label>
                 <input style={{width:"100%",padding:"10px 14px",border:"1px solid var(--border-hard)",borderRadius:8,fontSize:14,outline:"none",boxSizing:"border-box",background:"var(--bg-input)",color:"var(--text-primary)"}} type="number" placeholder="0" value={form.price} onChange={e=>setForm({...form,price:e.target.value})}/>
               </div>
+            </div>
+            <div style={{marginBottom:22}}>
+              <label style={{display:"block",fontSize:13,fontWeight:600,color:"var(--text-secondary)",marginBottom:6}}>Category <span style={{fontSize:11,fontWeight:400,color:"var(--text-muted)"}}>(optional — for POS filter)</span></label>
+              <select value={form.category} onChange={e=>setForm({...form,category:e.target.value})}
+                style={{width:"100%",padding:"10px 14px",border:"1px solid var(--border-hard)",borderRadius:8,fontSize:14,outline:"none",boxSizing:"border-box",background:"var(--bg-input)",color:"var(--text-primary)"}}>
+                {CATEGORIES.map(c => <option key={c} value={c}>{c || "— None —"}</option>)}
+              </select>
             </div>
             <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
               <button onClick={()=>setShowForm(false)}
