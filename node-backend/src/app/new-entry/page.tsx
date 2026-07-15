@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Trash2, Check, ChevronDown, ChevronUp, Clock, CheckCircle2, Truck, Phone, X, Minus, Plus } from "lucide-react";
+import { Search, Trash2, Check, Clock, CheckCircle2, Truck, Phone, X, Minus, Plus } from "lucide-react";
 import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import ItemDeliver from "@/components/ItemDeliver";
@@ -35,8 +35,6 @@ export default function NewEntry() {
   const [notes,            setNotes]            = useState("");
   const [saving,           setSaving]           = useState(false);
   const [success,          setSuccess]          = useState(false);
-  const [expandedGroups,   setExpandedGroups]   = useState<Set<string>>(new Set());
-  const [openServices,     setOpenServices]     = useState<Set<string>>(new Set());
   const [pastEntries,      setPastEntries]      = useState<LaundryEntry[]>([]);
   const [pastLoading,      setPastLoading]      = useState(false);
   const [showDropdown,     setShowDropdown]     = useState(false);
@@ -49,6 +47,16 @@ export default function NewEntry() {
   const pendingDeliverRef = useRef<string[]>([]);
   const [deliveryDate,     setDeliveryDate]     = useState("");
   const [shopName,         setShopName]         = useState("");
+  // POS catalog filters
+  const [catFilter,        setCatFilter]        = useState("");   // "" = all categories
+  const [typeFilter,       setTypeFilter]       = useState("");   // "" = all service types (parent id)
+  const [itemSearch,       setItemSearch]       = useState("");
+  // POS billing
+  const [discount,         setDiscount]         = useState("");
+  const [extraCharge,      setExtraCharge]      = useState("");
+  const [payMethod,        setPayMethod]        = useState<"cash"|"upi"|"online"|"later">("later");
+  const [amountPaid,       setAmountPaid]       = useState("");   // received now; blank until a method is picked
+  const [lastInvoiceNo,    setLastInvoiceNo]    = useState<number|null>(null);
   const router = useRouter();
 
   useEffect(() => { pendingDeliverRef.current = pendingDeliverIds; }, [pendingDeliverIds]);
@@ -99,12 +107,43 @@ export default function NewEntry() {
     setSelectedCustomer(null); setSearch(""); setPastEntries([]); setShowDropdown(false); setJustDelivered([]);
   };
 
-  const addItem      = (svc:Service) => setItems(prev=>[...prev,{id:Math.random().toString(),service_id:svc.id,service_name:svc.name,item_name:"",price:Number(svc.price)||0,quantity:1}]);
+  // POS add: tapping an item that's already in the cart (with no custom note) just bumps its
+  // quantity instead of stacking duplicate lines — the fast till-style flow.
+  const addItem = (svc:Service) => setItems(prev=>{
+    const idx = prev.findIndex(i=>i.service_id===svc.id && !i.item_name);
+    if (idx>=0) { const copy=[...prev]; copy[idx]={...copy[idx],quantity:Number(copy[idx].quantity)+1}; return copy; }
+    return [...prev,{id:Math.random().toString(),service_id:svc.id,service_name:svc.name,item_name:"",price:Number(svc.price)||0,quantity:1}];
+  });
   const updateItem   = (id:string,field:keyof ManualItem,value:string|number) => setItems(prev=>prev.map(item=>item.id===id?{...item,[field]:value}:item));
   const removeItem   = (id:string) => setItems(prev=>prev.filter(item=>item.id!==id));
-  const toggleGroup  = (id:string) => { const s=new Set(expandedGroups); s.has(id)?s.delete(id):s.add(id); setExpandedGroups(s); };
 
   const total = items.reduce((s,i)=>s+(Number(i.price)*Number(i.quantity)),0);
+  // Billing (Phase 3)
+  const discountN  = Math.max(0, Number(discount) || 0);
+  const extraN     = Math.max(0, Number(extraCharge) || 0);
+  const grandTotal = Math.max(0, total - discountN + extraN);
+  const paidN      = payMethod === "later" ? 0 : Math.max(0, Number(amountPaid) || 0);
+  const balance    = Math.max(0, grandTotal - paidN);
+
+  // POS catalog (Phase 2): flatten services into tappable "leaves" — each child item, or a
+  // childless parent standing in as its own item — then filter by category + service-type + search.
+  const CATEGORY_ORDER = ["MEN","WOMEN","KIDS","HOUSEHOLD","INSTITUTIONAL","OTHERS"];
+  type Leaf = { key:string; svc:Service; typeId:string; typeName:string; category:string };
+  const leaves: Leaf[] = [];
+  for (const p of services) {
+    const kids = p.children || [];
+    if (kids.length) kids.forEach(c => leaves.push({ key:c.id, svc:c, typeId:p.id, typeName:p.name, category:(c.category||p.category||"") }));
+    else leaves.push({ key:p.id, svc:p, typeId:p.id, typeName:p.name, category:(p.category||"") });
+  }
+  const presentCats  = CATEGORY_ORDER.filter(c => leaves.some(l => l.category === c));
+  const catLeaves    = leaves.filter(l => !catFilter || l.category === catFilter);
+  const presentTypes = Array.from(new Map(catLeaves.map(l => [l.typeId, l.typeName])).entries());
+  const gridLeaves   = catLeaves.filter(l =>
+    (!typeFilter || l.typeId === typeFilter) &&
+    (!itemSearch || `${l.typeName} ${l.svc.name}`.toLowerCase().includes(itemSearch.toLowerCase()))
+  );
+  const cartQty = (sid:string) => items.filter(i=>i.service_id===sid).reduce((s,i)=>s+Number(i.quantity),0);
+  const pickMethod = (m:"cash"|"upi"|"online"|"later") => { setPayMethod(m); setAmountPaid(m==="later" ? "" : String(grandTotal)); };
 
   const SHOP_NAME = shopName || "Your Laundry";
 
@@ -132,8 +171,9 @@ export default function NewEntry() {
     try {
       // Pass any just-delivered items so the backend sends ONE combined message
       // (delivery note with pickup dates + new pickup) instead of two separate ones.
-      await api.post("/entries",{customer_id:selectedCustomer.id,notes,delivery_date:deliveryDate||null,delivered:justDelivered,items:items.map(i=>({service_id:i.service_id,service_name:i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name,quantity:Number(i.quantity),price_per_unit:Number(i.price)}))});
-      setSuccess(true); setItems([]); setNotes(""); setDeliveryDate("");
+      const res0 = await api.post("/entries",{customer_id:selectedCustomer.id,notes,delivery_date:deliveryDate||null,delivered:justDelivered,discount:discountN,extra_charge:extraN,amount_paid:paidN,payment_method:payMethod,items:items.map(i=>({service_id:i.service_id,service_name:i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name,quantity:Number(i.quantity),price_per_unit:Number(i.price)}))});
+      setLastInvoiceNo(res0.data?.invoice_no ?? null);
+      setSuccess(true); setItems([]); setNotes(""); setDeliveryDate(""); setDiscount(""); setExtraCharge(""); setPayMethod("later"); setAmountPaid("");
       // These deliveries are now covered by the combined message — clear so the unmount
       // flush doesn't re-notify.
       setJustDelivered([]); setPendingDeliverIds([]);
@@ -142,8 +182,6 @@ export default function NewEntry() {
       setTimeout(()=>setSuccess(false), 3000);
     } finally { setSaving(false); }
   };
-
-  const topServices = services;
 
   const pendingEntries = pastEntries.filter(e =>
     e.delivery_status !== "delivered" && !e.items.every(i => i.item_status === "delivered")
@@ -172,7 +210,7 @@ export default function NewEntry() {
   const isDisabled = !selectedCustomer || items.length === 0 || saving;
   const cardStyle: React.CSSProperties = { background:"var(--bg-card-solid)", borderRadius:14, boxShadow:"var(--shadow-web-lift)", border:"1px solid var(--border-hard)" };
   const label: React.CSSProperties = { fontSize:11, fontWeight:700, color:"var(--text-secondary)", textTransform:"uppercase", letterSpacing:"0.1em" };
-  const resetForm = () => { setItems([]); setSelectedCustomer(null); setSearch(""); setNotes(""); setDeliveryDate(""); setPastEntries([]); setJustDelivered([]); };
+  const resetForm = () => { setItems([]); setSelectedCustomer(null); setSearch(""); setNotes(""); setDeliveryDate(""); setPastEntries([]); setJustDelivered([]); setDiscount(""); setExtraCharge(""); setPayMethod("later"); setAmountPaid(""); setCatFilter(""); setTypeFilter(""); setItemSearch(""); };
 
   return (
     <ProtectedLayout>
@@ -202,7 +240,7 @@ export default function NewEntry() {
 
       {success && (
         <div style={{background:"var(--grade-a-bg)",color:"var(--grade-a-text)",padding:"12px 16px",borderRadius:10,marginBottom:16,fontWeight:600,display:"flex",alignItems:"center",gap:8,border:"1px solid var(--grade-a-border)"}}>
-          <Check size={18}/> Entry saved successfully!
+          <Check size={18}/> Entry saved successfully!{lastInvoiceNo ? <span style={{marginLeft:4,fontWeight:800}}>· Invoice #{lastInvoiceNo}</span> : null}
         </div>
       )}
 
@@ -320,45 +358,71 @@ export default function NewEntry() {
             )}
           </div>
 
-          {/* Add services */}
-          <div style={{...cardStyle,padding:"18px 20px"}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-              <div style={label}>Add services</div>
-              <span style={{fontSize:11,color:"var(--text-muted)"}}>Tap to add an item</span>
+          {/* POS catalog — category tabs + service-type tabs + tap-to-add item grid */}
+          <div style={{...cardStyle,padding:"16px 18px"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:12,flexWrap:"wrap"}}>
+              <div style={label}>Catalog <span style={{fontWeight:400,textTransform:"none",letterSpacing:0,color:"var(--text-muted)"}}>· tap to add</span></div>
+              <div style={{display:"flex",alignItems:"center",gap:8,flex:"1 1 180px",minWidth:0,maxWidth:280,border:"1.5px solid var(--border)",borderRadius:10,padding:"7px 12px",background:"var(--bg-input)"}}>
+                <Search size={14} style={{color:"var(--text-muted)",flexShrink:0}}/>
+                <input value={itemSearch} onChange={e=>setItemSearch(e.target.value)} placeholder="Search item…"
+                  style={{flex:1,minWidth:0,border:"none",outline:"none",fontSize:13,background:"transparent",color:"var(--text-primary)"}}/>
+                {itemSearch && <button onClick={()=>setItemSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-muted)",display:"flex",padding:0}}><X size={14}/></button>}
+              </div>
             </div>
-            <div className="ne-svc-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))",gap:10}}>
-              {topServices.map((svc)=>{
-                const children = svc.children || [];
-                const isOpen = openServices.has(svc.id);
-                const toggle = () => setOpenServices(prev=>{ const s=new Set(prev); s.has(svc.id)?s.delete(svc.id):s.add(svc.id); return s; });
-                const hasChildren = children.length > 0;
-                return (
-                  <div key={svc.id} style={{position:"relative"}}>
-                    <button className="svc-btn" onClick={()=> hasChildren ? toggle() : addItem(svc)}
-                      style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:isOpen?"var(--grade-b-bg)":"var(--bg-input)",border:`1px solid ${isOpen?"var(--grade-b-border)":"var(--border-hard)"}`,borderRadius:12,cursor:"pointer",transition:"border-color 0.15s",textAlign:"left"}}>
-                      <span style={{width:28,height:28,borderRadius:8,flexShrink:0,background:"var(--grade-b-bg)",border:"1px solid var(--grade-b-border)",color:"var(--grade-b-text)",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                        {hasChildren ? (isOpen ? <ChevronUp size={15}/> : <ChevronDown size={15}/>) : <Plus size={15}/>}
-                      </span>
-                      <span style={{flex:1,minWidth:0,fontSize:13.5,fontWeight:700,color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{svc.name}</span>
-                      <span style={{fontSize:12,fontWeight:600,color:"var(--text-muted)",flexShrink:0}}>{hasChildren ? "Choose" : `₹${Number(svc.price)||0}`}</span>
-                    </button>
-                    {hasChildren && isOpen && (
-                      <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"var(--bg-card-solid)",border:"1px solid var(--border)",borderRadius:10,zIndex:50,maxHeight:"min(55vh, 300px)",overflowY:"auto",overflowX:"hidden",boxShadow:"var(--shadow-web-lift)"}}>
-                        {children.map(child=>(
-                          <div key={child.id} onClick={()=>{ addItem(child); toggle(); }}
-                            style={{padding:"10px 14px",fontSize:13,cursor:"pointer",display:"flex",justifyContent:"space-between",gap:12,color:"var(--text-primary)"}}
-                            onMouseEnter={e=>e.currentTarget.style.background="var(--bg-input)"}
-                            onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                            <span>{child.name}</span>
-                            <span style={{color:"var(--text-muted)",fontSize:12}}>₹{child.price}</span>
-                          </div>
-                        ))}
+
+            {/* Category tabs (only when the catalog uses categories) */}
+            {presentCats.length>0 && (
+              <div className="pos-tabs" style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:8,marginBottom:8}}>
+                {["",...presentCats].map(c=>(
+                  <button key={c||"all"} onClick={()=>{setCatFilter(c);setTypeFilter("");}}
+                    style={{flexShrink:0,padding:"6px 14px",borderRadius:20,fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",
+                      border:`1px solid ${catFilter===c?"var(--accent-primary)":"var(--border-hard)"}`,
+                      background:catFilter===c?"var(--accent-primary)":"var(--bg-input)",
+                      color:catFilter===c?"#0b1830":"var(--text-secondary)"}}>
+                    {c===""?"All":c.charAt(0)+c.slice(1).toLowerCase()}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Service-type tabs */}
+            {presentTypes.length>1 && (
+              <div className="pos-tabs" style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:8,marginBottom:12}}>
+                {([["","All types"],...presentTypes] as [string,string][]).map(([tid,tname])=>(
+                  <button key={tid||"all"} onClick={()=>setTypeFilter(tid)}
+                    style={{flexShrink:0,padding:"5px 12px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",
+                      border:`1px solid ${typeFilter===tid?"var(--grade-b-border)":"var(--border-hard)"}`,
+                      background:typeFilter===tid?"var(--grade-b-bg)":"transparent",
+                      color:typeFilter===tid?"var(--grade-b-text)":"var(--text-secondary)"}}>
+                    {tname}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Item grid */}
+            {gridLeaves.length===0 ? (
+              <div style={{fontSize:13,color:"var(--text-muted)",padding:"18px 0",textAlign:"center"}}>
+                {leaves.length===0 ? "No services yet — add them in the Services page." : "No items match this filter."}
+              </div>
+            ) : (
+              <div className="ne-svc-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(150px, 1fr))",gap:10}}>
+                {gridLeaves.map(l=>{
+                  const qty = cartQty(l.svc.id);
+                  return (
+                    <button key={l.key} className="svc-btn" onClick={()=>addItem(l.svc)}
+                      style={{position:"relative",display:"flex",flexDirection:"column",alignItems:"flex-start",gap:4,padding:"12px 14px",background:qty>0?"var(--grade-b-bg)":"var(--bg-input)",border:`1px solid ${qty>0?"var(--grade-b-border)":"var(--border-hard)"}`,borderRadius:12,cursor:"pointer",transition:"border-color 0.15s",textAlign:"left",minHeight:66}}>
+                      {qty>0 && <span style={{position:"absolute",top:8,right:8,minWidth:20,height:20,padding:"0 5px",borderRadius:10,background:"var(--accent-primary)",color:"#0b1830",fontSize:11,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center"}}>{qty}</span>}
+                      <span style={{fontSize:13.5,fontWeight:700,color:"var(--text-primary)",lineHeight:1.2,paddingRight:qty>0?22:0}}>{l.svc.name}</span>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",gap:6,marginTop:"auto"}}>
+                        <span style={{fontSize:10.5,fontWeight:600,color:"var(--text-muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{l.typeName}</span>
+                        <span style={{fontSize:13,fontWeight:800,color:"var(--grade-a-text)",flexShrink:0}}>₹{Number(l.svc.price)||0}</span>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Items */}
@@ -425,9 +489,66 @@ export default function NewEntry() {
             </div>
           )}
 
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:12,marginTop:12,borderTop:"1px solid var(--border-hard)"}}>
-            <span style={{fontSize:15,fontWeight:700,color:"var(--text-primary)"}}>Total</span>
-            <span style={{fontWeight:800,fontSize:22,color:"var(--accent-success)"}}>₹{total.toFixed(0)}</span>
+          {/* Billing — subtotal, discount, extra charge, grand total */}
+          <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid var(--border-hard)",display:"flex",flexDirection:"column",gap:8}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13}}>
+              <span style={{color:"var(--text-secondary)"}}>Subtotal</span>
+              <span style={{fontWeight:700,color:"var(--text-primary)"}}>₹{total.toFixed(0)}</span>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+              <span style={{fontSize:13,color:"var(--text-secondary)"}}>Discount</span>
+              <div style={{display:"flex",alignItems:"center",gap:2,background:"var(--bg-input)",border:"1px solid var(--border-hard)",borderRadius:8,padding:"0 8px",height:32,width:100}}>
+                <span style={{fontSize:12,color:"var(--text-muted)"}}>−₹</span>
+                <input type="number" min={0} value={discount} onChange={e=>setDiscount(e.target.value)} placeholder="0"
+                  style={{flex:1,minWidth:0,width:"100%",border:"none",outline:"none",fontSize:13,fontWeight:600,background:"transparent",color:"var(--text-primary)",textAlign:"right"}}/>
+              </div>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+              <span style={{fontSize:13,color:"var(--text-secondary)"}}>Extra charge</span>
+              <div style={{display:"flex",alignItems:"center",gap:2,background:"var(--bg-input)",border:"1px solid var(--border-hard)",borderRadius:8,padding:"0 8px",height:32,width:100}}>
+                <span style={{fontSize:12,color:"var(--text-muted)"}}>+₹</span>
+                <input type="number" min={0} value={extraCharge} onChange={e=>setExtraCharge(e.target.value)} placeholder="0"
+                  style={{flex:1,minWidth:0,width:"100%",border:"none",outline:"none",fontSize:13,fontWeight:600,background:"transparent",color:"var(--text-primary)",textAlign:"right"}}/>
+              </div>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:10,marginTop:2,borderTop:"1px solid var(--border-hard)"}}>
+              <span style={{fontSize:15,fontWeight:700,color:"var(--text-primary)"}}>Grand total</span>
+              <span style={{fontWeight:800,fontSize:22,color:"var(--accent-success)"}}>₹{grandTotal.toFixed(0)}</span>
+            </div>
+          </div>
+
+          {/* Payment at billing */}
+          <div style={{marginTop:14}}>
+            <div style={{...label,marginBottom:8}}>Payment</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+              {([["cash","Cash"],["upi","UPI"],["online","Online"],["later","Later"]] as [typeof payMethod,string][]).map(([m,lbl])=>(
+                <button key={m} onClick={()=>pickMethod(m)}
+                  style={{padding:"8px 4px",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",
+                    border:`1px solid ${payMethod===m?"var(--accent-primary)":"var(--border-hard)"}`,
+                    background:payMethod===m?"var(--accent-primary)":"var(--bg-input)",
+                    color:payMethod===m?"#0b1830":"var(--text-secondary)"}}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+            {payMethod!=="later" && (
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginTop:10}}>
+                <span style={{fontSize:13,color:"var(--text-secondary)"}}>Amount received</span>
+                <div style={{display:"flex",alignItems:"center",gap:2,background:"var(--bg-input)",border:"1px solid var(--border-hard)",borderRadius:8,padding:"0 8px",height:34,width:112}}>
+                  <span style={{fontSize:12,color:"var(--text-muted)"}}>₹</span>
+                  <input type="number" min={0} value={amountPaid} onChange={e=>setAmountPaid(e.target.value)} placeholder="0"
+                    style={{flex:1,minWidth:0,width:"100%",border:"none",outline:"none",fontSize:14,fontWeight:700,background:"transparent",color:"var(--text-primary)",textAlign:"right"}}/>
+                </div>
+              </div>
+            )}
+            {grandTotal>0 && (
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,fontSize:13}}>
+                <span style={{color:"var(--text-secondary)"}}>{balance>0?"Balance (udhaar)":"Fully paid"}</span>
+                <span style={{fontWeight:800,color:balance>0?"var(--grade-c-text)":"var(--grade-a-text)"}}>
+                  {balance>0 ? `₹${balance.toFixed(0)}` : (paidN>grandTotal ? `Change ₹${(paidN-grandTotal).toFixed(0)}` : "✓")}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Expected delivery */}
@@ -449,7 +570,7 @@ export default function NewEntry() {
             style={{marginTop:16,width:"100%",padding:"12px",borderRadius:10,fontSize:14,fontWeight:700,cursor:isDisabled?"not-allowed":"pointer",transition:"all 0.15s",
               ...(isDisabled ? {background:"var(--bg-input)",border:"1.5px solid var(--border)",color:"var(--text-secondary)",opacity:0.55}
                              : {background:"var(--accent-primary)",border:"none",color:"#0b1830",boxShadow:"var(--shadow-glow-blue)"})}}>
-            {saving ? "Saving…" : total > 0 ? `Save entry · ₹${total}` : "Save entry"}
+            {saving ? "Saving…" : grandTotal > 0 ? `Save entry · ₹${grandTotal}` : "Save entry"}
           </button>
           {/* Bill goes to WhatsApp automatically (if the shop enabled auto-send in Settings),
               so the old manual "Save & send on WhatsApp" button was removed. */}

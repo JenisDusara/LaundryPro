@@ -26,15 +26,15 @@ export async function GET(req: NextRequest) {
       include: { customer: true, items: true },
       orderBy: { entry_date: "desc" },
     }));
-    // Fetch delivery_date separately via raw SQL (Prisma client may not include it yet)
+    // Fetch delivery_date + POS billing columns via raw SQL (Prisma client may not include them yet)
     const ids = entries.map(e => e.id);
-    const ddRows: { id: string; delivery_date: string | null }[] = ids.length > 0
+    const ddRows: { id: string; delivery_date: string | null; invoice_no: number | null; discount: any; extra_charge: any; amount_paid: any; payment_method: string | null }[] = ids.length > 0
       ? await prisma.$queryRawUnsafe(
-          `SELECT id::text, delivery_date FROM laundry_entries WHERE id::text = ANY($1::text[])`,
+          `SELECT id::text, delivery_date, invoice_no, discount, extra_charge, amount_paid, payment_method FROM laundry_entries WHERE id::text = ANY($1::text[])`,
           ids
         )
       : [];
-    const ddMap = new Map(ddRows.map(r => [r.id, r.delivery_date ?? null]));
+    const ddMap = new Map(ddRows.map(r => [r.id, r]));
     // Fetch delivered_qty per item the same way (column may not be in the client yet).
     const itemIds = entries.flatMap(e => e.items.map(i => i.id));
     const dqRows: { id: string; delivered_qty: number }[] = itemIds.length > 0
@@ -44,12 +44,20 @@ export async function GET(req: NextRequest) {
         )
       : [];
     const dqMap = new Map(dqRows.map(r => [r.id, Number(r.delivered_qty) || 0]));
-    return NextResponse.json(entries.map(e => ({
-      ...e,
-      delivery_date: ddMap.get(e.id) ?? null,
-      total_amount: Number(e.total_amount),
-      items: e.items.map(i => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal), delivered_qty: dqMap.get(i.id) ?? 0 })),
-    })));
+    return NextResponse.json(entries.map(e => {
+      const extra = ddMap.get(e.id);
+      return {
+        ...e,
+        delivery_date: extra?.delivery_date ?? null,
+        invoice_no: extra?.invoice_no ?? null,
+        discount: extra?.discount != null ? Number(extra.discount) : 0,
+        extra_charge: extra?.extra_charge != null ? Number(extra.extra_charge) : 0,
+        amount_paid: extra?.amount_paid != null ? Number(extra.amount_paid) : 0,
+        payment_method: extra?.payment_method ?? "",
+        total_amount: Number(e.total_amount),
+        items: e.items.map(i => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal), delivered_qty: dqMap.get(i.id) ?? 0 })),
+      };
+    }));
   } catch (err: any) {
     console.error("Entries GET error:", err?.message);
     return NextResponse.json({ detail: "Database is waking up, please try again in a moment." }, { status: 503 });
@@ -60,7 +68,12 @@ export async function POST(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
   const ro = requireWrite(user); if (ro) return ro;
-  const { customer_id, notes, items, delivery_date, delivered } = await req.json();
+  const { customer_id, notes, items, delivery_date, delivered, discount, extra_charge, amount_paid, payment_method } = await req.json();
+  // POS billing fields (all optional; default to 0 / empty so old callers keep working).
+  const discountN = Math.max(0, Number(discount) || 0);
+  const extraN    = Math.max(0, Number(extra_charge) || 0);
+  const paidN     = Math.max(0, Number(amount_paid) || 0);
+  const payMethodRaw = typeof payment_method === "string" ? payment_method.trim().toLowerCase() : "";
   // `delivered` (optional): items from earlier orders handed back to the customer in this
   // same visit (new-entry page marks them delivered "silently" so pickup + delivery go out
   // as ONE message instead of two). Shape: [{ service_name, quantity, pickup_date }].
@@ -101,12 +114,17 @@ export async function POST(req: NextRequest) {
     };
   });
 
+  // Grand total the customer actually owes = items − discount + extra charge (never below 0).
+  // Stored as total_amount so the udhaar/statement math (billed − paid) stays correct.
+  const itemsTotal = total;
+  const grandTotal = Math.max(0, itemsTotal - discountN + extraN);
+
   const today = todayIST();
   const entry = await prisma.laundryEntry.create({
     data: {
       customer_id,
       entry_date: today,
-      total_amount: total,
+      total_amount: grandTotal,
       delivery_status: "pending",
       notes: notes || "",
       // Bind the entry to the customer's shop — for a regular admin this equals
@@ -121,6 +139,46 @@ export async function POST(req: NextRequest) {
   // Set delivery_date via raw SQL (Prisma client may not have this field yet)
   if (delivery_date) {
     await prisma.$executeRawUnsafe(`UPDATE laundry_entries SET delivery_date = $1 WHERE id::text = $2`, delivery_date, entry.id);
+  }
+
+  // Assign a per-shop running invoice number + persist the POS billing fields. A transaction
+  // with a per-shop advisory lock serialises numbering so two concurrent entries can't grab
+  // the same invoice_no. Defensive: if the columns/lock aren't available, the entry (already
+  // created above) is untouched and we just skip the number.
+  let invoiceNo: number | null = null;
+  try {
+    invoiceNo = await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`, `invoice:${customer.shop_id}`);
+      const rows = await tx.$queryRawUnsafe<{ n: bigint }[]>(
+        `SELECT COALESCE(MAX(invoice_no), 0) + 1 AS n FROM laundry_entries WHERE shop_id = $1`, customer.shop_id);
+      const n = Number(rows[0]?.n ?? 1);
+      await tx.$executeRawUnsafe(
+        `UPDATE laundry_entries SET invoice_no = $1, discount = $2, extra_charge = $3, amount_paid = $4, payment_method = $5 WHERE id::text = $6`,
+        n, discountN, extraN, paidN, payMethodRaw, entry.id);
+      return n;
+    });
+  } catch (err: any) {
+    console.error("invoice_no/billing update failed:", err?.message);
+  }
+
+  // Payment taken at billing → record it as a Payment so the customer's balance (udhaar) is
+  // immediately correct. "Pay later" leaves paidN = 0, so no payment row is created.
+  if (paidN > 0) {
+    const method = payMethodRaw === "cash" || payMethodRaw === "upi" || payMethodRaw === "card" ? payMethodRaw : "other";
+    try {
+      await prisma.payment.create({
+        data: {
+          customer_id,
+          amount: paidN,
+          method,
+          date: today,
+          note: `Paid at billing${payMethodRaw && method === "other" ? ` (${payMethodRaw})` : ""}`,
+          shop_id: customer.shop_id,
+        },
+      });
+    } catch (err: any) {
+      console.error("billing payment create failed:", err?.message);
+    }
   }
 
   const profile = await getShopProfile(customer.shop_id);
@@ -169,11 +227,29 @@ export async function POST(req: NextRequest) {
           .join("\n\n");
         msg += `✅ *Delivered*\n${deliveredBlock}\n\n`;
       }
+      // Bill summary — show the breakdown only when a discount/charge applies, else just the total.
+      let bill = `*Total: ₹${grandTotal}*`;
+      if (discountN > 0 || extraN > 0) {
+        bill =
+          `Subtotal: ₹${itemsTotal}\n` +
+          (discountN > 0 ? `Discount: −₹${discountN}\n` : ``) +
+          (extraN > 0 ? `Extra charge: +₹${extraN}\n` : ``) +
+          `*Total: ₹${grandTotal}*`;
+      }
+      if (paidN > 0) {
+        bill += `\nPaid: ₹${paidN}${payMethodRaw ? ` (${payMethodRaw})` : ``}`;
+        const bal = Math.max(0, grandTotal - paidN);
+        bill += bal > 0 ? `\nBalance due: ₹${bal}` : `\n✅ Fully paid`;
+      } else if (grandTotal > 0) {
+        bill += `\nBalance due: ₹${grandTotal}`;
+      }
       msg +=
         `🧺 *New Pickup*\n` +
-        `📅 ${prettyDate}\n\n` +
-        `*Items received:*\n${lines}\n\n` +
+        `📅 ${prettyDate}\n` +
+        (invoiceNo ? `🧾 Invoice #${invoiceNo}\n` : ``) +
+        `\n*Items received:*\n${lines}\n\n` +
         `Total items: ${totalQty}\n\n` +
+        `${bill}\n\n` +
         `Warm regards,\n*${shopName}* 🙏`;
       await waSend(customer.shop_id, customer.phone, msg);
     }
@@ -182,6 +258,11 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ...entry,
     delivery_date: (entry as any).delivery_date ?? null,
+    invoice_no: invoiceNo,
+    discount: discountN,
+    extra_charge: extraN,
+    amount_paid: paidN,
+    payment_method: payMethodRaw,
     total_amount: Number(entry.total_amount),
     items: entry.items.map(i => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal) })),
   }, { status: 201 });

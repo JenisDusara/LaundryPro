@@ -40,7 +40,12 @@ export interface LaundryEntry {
   customer_id: string;
   entry_date: string;
   delivery_date: string | null;
-  total_amount: number;
+  total_amount: number;       // grand total the customer owes = items − discount + extra_charge
+  invoice_no?: number | null; // per-shop running bill number
+  discount?: number;
+  extra_charge?: number;
+  amount_paid?: number;       // collected at billing
+  payment_method?: string;    // cash | upi | online | later | ""
   delivery_status: string;
   notes: string;
   items: EntryItem[];

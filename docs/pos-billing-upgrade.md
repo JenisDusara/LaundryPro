@@ -63,7 +63,17 @@ Udhaar + customer statement, accounting, labour, WhatsApp auto-send, PWA,
 multi-tenant, invoices (PDF/HTML) — untouched; only billing/catalog is upgraded.
 
 ## Status
-- [ ] Phase 1 — catalog category (schema + Services page)
-- [ ] Phase 2 — POS new-entry
-- [ ] Phase 3 — discount / charges / payment-at-billing
-- [ ] Phase 4 — invoice number + search
+- [x] Phase 1 — catalog category (schema + Services page category selector + chip)
+- [x] Phase 2 — POS new-entry (category tabs + service-type tabs + searchable tap-to-add item grid; tapping an item bumps its qty)
+- [x] Phase 3 — discount / extra charge / payment-at-billing (Cash/UPI/Online/Later → records a Payment so udhaar stays correct; live grand total + balance)
+- [x] Phase 4 — per-shop running invoice number (advisory-locked, race-safe) shown on save + in Entries; Entries search by invoice #
+
+## Implementation notes
+- New billing columns on `laundry_entries` (`invoice_no`, `discount`, `extra_charge`,
+  `amount_paid`, `payment_method`) + `services.category` were added via additive
+  `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` and are read/written with raw SQL, so
+  nothing breaks before the Prisma client is regenerated.
+- `total_amount` now stores the **grand total** (items − discount + extra charge), so
+  the existing udhaar / statement math (billed − paid) stays correct with no changes.
+- WhatsApp auto-send bill now includes the amount breakdown, amount paid / balance,
+  and the invoice number.
