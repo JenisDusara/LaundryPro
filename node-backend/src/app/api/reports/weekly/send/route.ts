@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, denyStaff, requireWrite } from "@/lib/auth";
+import { requireAuth, requireWrite } from "@/lib/auth";
 import { lastWeekRange } from "@/lib/dates";
 import { sendWeeklyReportForShop } from "@/lib/weeklyReport";
 
@@ -8,10 +8,15 @@ import { sendWeeklyReportForShop } from "@/lib/weeklyReport";
 export async function POST(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
-  const staff = denyStaff(user); if (staff) return staff;
   const ro = requireWrite(user); if (ro) return ro;
 
-  const shopId = user.role === "superadmin" ? req.headers.get("x-selected-shop") : user.shop_id;
+  // Weekly report is a superadmin-managed feature — regular shop admins (and staff) still
+  // RECEIVE the Sunday email, but cannot trigger/manage it themselves.
+  if (user.role !== "superadmin") {
+    return NextResponse.json({ detail: "Only superadmin can send weekly reports" }, { status: 403 });
+  }
+
+  const shopId = req.headers.get("x-selected-shop");
   if (!shopId) return NextResponse.json({ detail: "Select a shop first" }, { status: 400 });
 
   const { start, end } = lastWeekRange();

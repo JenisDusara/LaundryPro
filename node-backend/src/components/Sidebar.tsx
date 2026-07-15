@@ -476,55 +476,63 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
           <div style={{ background: "var(--bg-card)", borderRadius: 18, width: "100%", maxWidth: 360, boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}
             onClick={e => e.stopPropagation()}>
 
-            {/* Modal header */}
-            <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12, borderRadius: "18px 18px 0 0" }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: "50%", flexShrink: 0,
-                background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)",
-                color: "var(--grade-b-text)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontWeight: 800, fontSize: 18,
-              }}>
-                {(profile.name || "?").charAt(0).toUpperCase()}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text-primary)" }}>{profile.name}</div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>@{profile.username}</div>
-                <div style={{ display: "inline-block", marginTop: 4, fontSize: 10, fontWeight: 700, color: "var(--grade-b-text)", background: "var(--grade-b-bg)", borderRadius: 4, padding: "2px 7px", textTransform: "capitalize" }}>{profile.role}</div>
-              </div>
+            {/* Modal header — accent band with avatar */}
+            <div style={{ position: "relative", padding: "26px 20px 20px", borderRadius: "18px 18px 0 0", overflow: "hidden", background: "linear-gradient(135deg, var(--grade-b-bg), var(--bg-elevated))", borderBottom: "1px solid var(--border)" }}>
               <button onClick={() => setShowProfile(false)}
-                style={{ width: 28, height: 28, borderRadius: 7, background: "var(--bg-input)", border: "1px solid var(--border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <X size={13} color="var(--text-secondary)" />
+                style={{ position: "absolute", top: 14, right: 14, width: 28, height: 28, borderRadius: 8, background: "var(--bg-card)", border: "1px solid var(--border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <X size={14} color="var(--text-secondary)" />
               </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <div style={{
+                  width: 56, height: 56, borderRadius: "50%", flexShrink: 0,
+                  background: "linear-gradient(135deg, var(--accent-primary), var(--grade-b-text))",
+                  color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+                  fontWeight: 800, fontSize: 24, boxShadow: "0 4px 14px rgba(0,0,0,0.18)",
+                  border: "3px solid var(--bg-card)",
+                }}>
+                  {(profile.name || "?").charAt(0).toUpperCase()}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 800, fontSize: 17, color: "var(--text-primary)", letterSpacing: "-0.01em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{profile.name}</div>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>@{profile.username}</div>
+                  <div style={{ display: "inline-flex", alignItems: "center", marginTop: 7, fontSize: 10, fontWeight: 800, color: "var(--grade-b-text)", background: "var(--bg-card)", border: "1px solid var(--grade-b-border)", borderRadius: 20, padding: "3px 10px", textTransform: "capitalize", letterSpacing: "0.03em" }}>{profile.role}</div>
+                </div>
+              </div>
             </div>
 
             {/* Modal body */}
-            <div style={{ padding: "18px 20px 16px", borderRadius: "0 0 18px 18px" }}>
+            <div style={{ padding: "14px 16px 16px", borderRadius: "0 0 18px 18px" }}>
 
               {/* Theme switcher dropdown */}
-              <div style={{ position: "relative", marginBottom: 10 }}>
+              <div style={{ position: "relative", marginBottom: 8 }}>
                 <button onClick={() => setShowThemeMenu(v => !v)}
-                  style={{ width: "100%", padding: "11px", border: "1.5px solid var(--border)", borderRadius: 9, background: "var(--bg-input)", color: "var(--text-primary)", fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    {theme === "light"  && <><Sun     size={14} color="var(--accent-primary)" /> Appearance — Light</>}
-                    {theme === "dark"   && <><Moon    size={14} color="var(--accent-primary)" /> Appearance — Dark</>}
-                    {theme === "system" && <><Monitor size={14} color="var(--accent-primary)" /> Appearance — System</>}
+                  style={{ width: "100%", padding: "11px 12px", border: "1px solid var(--border)", borderRadius: 12, background: "var(--bg-input)", color: "var(--text-primary)", fontWeight: 600, fontSize: 13.5, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}
+                  onMouseEnter={e => e.currentTarget.style.background = "var(--bg-elevated)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "var(--bg-input)"}>
+                  <span style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0, background: "var(--grade-b-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {theme === "light"  && <Sun     size={16} color="var(--grade-b-text)" />}
+                    {theme === "dark"   && <Moon    size={16} color="var(--grade-b-text)" />}
+                    {theme === "system" && <Monitor size={16} color="var(--grade-b-text)" />}
+                  </span>
+                  <div style={{ flex: 1, textAlign: "left" }}>
+                    <div>Appearance</div>
+                    <div style={{ fontSize: 11, fontWeight: 500, color: "var(--text-muted)", marginTop: 1, textTransform: "capitalize" }}>{theme}</div>
                   </div>
-                  <ChevronRight size={14} color="var(--text-muted)" style={{ transform: showThemeMenu ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
+                  <ChevronRight size={15} color="var(--text-muted)" style={{ transform: showThemeMenu ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
                 </button>
                 {showThemeMenu && (
-                  <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 9, zIndex: 10, overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,.12)" }}>
+                  <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, zIndex: 10, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,.16)" }}>
                     {([
-                      { value: "light",  label: "Light",  icon: <Sun     size={14} /> },
-                      { value: "dark",   label: "Dark",   icon: <Moon    size={14} /> },
-                      { value: "system", label: "System", icon: <Monitor size={14} /> },
+                      { value: "light",  label: "Light",  icon: <Sun     size={15} /> },
+                      { value: "dark",   label: "Dark",   icon: <Moon    size={15} /> },
+                      { value: "system", label: "System", icon: <Monitor size={15} /> },
                     ] as { value: Theme; label: string; icon: React.ReactNode }[]).map(t => (
                       <div key={t.value} onClick={() => { setTheme(t.value); setShowThemeMenu(false); }}
-                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", fontSize: 13, fontWeight: theme === t.value ? 600 : 400, color: theme === t.value ? "var(--grade-b-text)" : "var(--text-primary)", background: theme === t.value ? "var(--grade-b-bg)" : "transparent" }}
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", cursor: "pointer", fontSize: 13, fontWeight: theme === t.value ? 700 : 400, color: theme === t.value ? "var(--grade-b-text)" : "var(--text-primary)", background: theme === t.value ? "var(--grade-b-bg)" : "transparent" }}
                         onMouseEnter={e => { if (theme !== t.value) e.currentTarget.style.background = "var(--pressed)"; }}
                         onMouseLeave={e => { if (theme !== t.value) e.currentTarget.style.background = "transparent"; }}>
                         {t.icon} {t.label}
-                        {theme === t.value && <Check size={13} style={{ marginLeft: "auto" }} />}
+                        {theme === t.value && <Check size={14} style={{ marginLeft: "auto" }} />}
                       </div>
                     ))}
                   </div>
@@ -534,12 +542,23 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
               {!showPassForm ? (
                 <>
                   <button onClick={() => setShowPassForm(true)}
-                    style={{ width: "100%", padding: "11px", border: "1.5px solid var(--border)", borderRadius: 9, background: "var(--bg-input)", color: "var(--text-primary)", fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 }}>
-                    <Key size={14} color="var(--accent-primary)" /> Change Password
+                    style={{ width: "100%", padding: "11px 12px", border: "1px solid var(--border)", borderRadius: 12, background: "var(--bg-input)", color: "var(--text-primary)", fontWeight: 600, fontSize: 13.5, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}
+                    onMouseEnter={e => e.currentTarget.style.background = "var(--bg-elevated)"}
+                    onMouseLeave={e => e.currentTarget.style.background = "var(--bg-input)"}>
+                    <span style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0, background: "var(--grade-b-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Key size={16} color="var(--grade-b-text)" />
+                    </span>
+                    <span style={{ flex: 1, textAlign: "left" }}>Change Password</span>
+                    <ChevronRight size={15} color="var(--text-muted)" />
                   </button>
                   <button onClick={() => { setShowProfile(false); logout(); }}
-                    style={{ width: "100%", padding: "11px", border: "1.5px solid var(--grade-f-border)", borderRadius: 9, background: "var(--grade-f-bg)", color: "var(--grade-f-text)", fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                    <LogOut size={14} /> Logout
+                    style={{ width: "100%", padding: "11px 12px", border: "1px solid var(--grade-f-border)", borderRadius: 12, background: "var(--grade-f-bg)", color: "var(--grade-f-text)", fontWeight: 700, fontSize: 13.5, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = "0.85"}
+                    onMouseLeave={e => e.currentTarget.style.opacity = "1"}>
+                    <span style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0, background: "var(--grade-f-border)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <LogOut size={16} color="var(--grade-f-text)" />
+                    </span>
+                    <span style={{ flex: 1, textAlign: "left" }}>Logout</span>
                   </button>
                 </>
               ) : (

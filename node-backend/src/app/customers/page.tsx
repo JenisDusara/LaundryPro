@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Plus, Edit2, Trash2, X, Mail, Phone, Home, Building2, MapPin, User, ChevronDown, ChevronUp, FileText, Search, MessageCircle, IndianRupee, Wallet, Banknote, CreditCard, Smartphone, MoreVertical } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Edit2, Trash2, X, Mail, Phone, Home, Building2, MapPin, User, ChevronDown, ChevronUp, FileText, Search, MessageCircle, IndianRupee, Wallet, Banknote, CreditCard, Smartphone, MoreVertical, Send } from "lucide-react";
 import api from "@/lib/api";
 import { openWhatsApp, paymentReminderMsg } from "@/lib/whatsapp";
 import ProtectedLayout from "@/components/ProtectedLayout";
@@ -59,6 +59,22 @@ export default function Customers() {
   type StmtRow = { date: string; type: "bill" | "payment"; label: string; amount: number; balance: number };
   const [statement, setStatement] = useState<{ c: Customer; rows: StmtRow[]; billed: number; paid: number; outstanding: number } | null>(null);
   const [statementLoading, setStatementLoading] = useState(false);
+
+  // Bulk monthly billing — send every customer with activity this month their invoice at once.
+  const [showBulk,     setShowBulk]     = useState(false);
+  const [bulkChannel,  setBulkChannel]  = useState<"both" | "whatsapp" | "email">("both");
+  const [bulkSending,  setBulkSending]  = useState(false);
+  const [bulkResult,   setBulkResult]   = useState<{ customers: number; waSent: number; emailSent: number; skipped: number; failed: number; monthName: string } | null>(null);
+
+  const bulkSend = async () => {
+    setBulkSending(true); setBulkResult(null);
+    try {
+      const res = await api.post("/invoices/bulk-send", null, { params: { month, year, channel: bulkChannel } });
+      setBulkResult(res.data);
+    } catch (e: any) {
+      alert(e.response?.data?.detail || "Bulk send failed");
+    } finally { setBulkSending(false); }
+  };
 
   const loadCustomers = useCallback(async () => {
     const res = await api.get("/customers");
@@ -281,6 +297,11 @@ export default function Customers() {
               <ChevronRight size={15}/>
             </button>
           </div>
+          <button onClick={() => { setBulkResult(null); setBulkChannel("both"); setShowBulk(true); }}
+            title="Send this month's invoice to all active customers"
+            style={{ display:"flex", alignItems:"center", gap:6, background:"var(--grade-a-bg)", color:"var(--grade-a-text)", border:"1px solid var(--grade-a-border)", borderRadius:10, padding:"10px 16px", fontSize:13, fontWeight:700, cursor:"pointer" }}>
+            <Send size={14}/> Send bills
+          </button>
           <button onClick={() => { setForm(empty); setEditId(null); setPhoneError(""); setShowForm(true); }}
             style={{ display:"flex", alignItems:"center", gap:6, background:"var(--accent-primary)", color:"#0b1830", border:"none", borderRadius:10, padding:"10px 18px", fontSize:13, fontWeight:700, cursor:"pointer", boxShadow:"var(--shadow-glow-blue)" }}>
             <Plus size={15}/> Add customer
@@ -584,6 +605,94 @@ export default function Customers() {
           </div>
         </div>
       )}
+
+      {/* ── Bulk monthly billing modal ── */}
+      {showBulk && (() => {
+        const activeCount = entryMap.size;
+        const CH = [
+          { key: "both",     label: "WhatsApp + Email" },
+          { key: "whatsapp", label: "WhatsApp only" },
+          { key: "email",    label: "Email only" },
+        ] as const;
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 16, backdropFilter: "blur(4px)" }}
+            onClick={() => !bulkSending && setShowBulk(false)}>
+            <div style={{ background: "var(--bg-card-solid)", border: "1px solid var(--border-hard)", borderRadius: 16, padding: 24, width: "100%", maxWidth: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.28)" }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>Send monthly bills</h3>
+                  <p style={{ margin: "3px 0 0", fontSize: 13, color: "var(--text-muted)" }}>{MONTHS[month - 1]} {year}</p>
+                </div>
+                <button onClick={() => !bulkSending && setShowBulk(false)} style={{ background: "var(--bg-input)", border: "none", borderRadius: 8, padding: 8, cursor: "pointer", display: "flex" }}>
+                  <X size={18} color="var(--text-secondary)" />
+                </button>
+              </div>
+
+              {!bulkResult ? (
+                <>
+                  <div style={{ padding: "12px 14px", borderRadius: 10, marginBottom: 16, background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", fontSize: 13.5, color: "var(--text-primary)", fontWeight: 600 }}>
+                    <b style={{ color: "var(--accent-primary)" }}>{activeCount}</b> customer{activeCount === 1 ? "" : "s"} ki is mahine entries hain — sabko unka {MONTHS[month - 1]} ka bill jayega.
+                  </div>
+
+                  <label style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", display: "block", marginBottom: 6 }}>Kaha bhejein?</label>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 18 }}>
+                    {CH.map(c => {
+                      const active = bulkChannel === c.key;
+                      return (
+                        <button key={c.key} onClick={() => setBulkChannel(c.key)}
+                          style={{ padding: "10px 4px", borderRadius: 10, cursor: "pointer", fontWeight: 700, fontSize: 12,
+                            border: `1.5px solid ${active ? "var(--accent-primary)" : "var(--border-hard)"}`,
+                            background: active ? "var(--grade-b-bg)" : "var(--bg-input)",
+                            color: active ? "var(--grade-b-text)" : "var(--text-secondary)" }}>
+                          {c.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                    <button onClick={() => setShowBulk(false)} disabled={bulkSending}
+                      style={{ padding: "10px 22px", background: "var(--bg-input)", color: "var(--text-secondary)", border: "1.5px solid var(--border-hard)", borderRadius: 9, fontSize: 14, fontWeight: 600, cursor: bulkSending ? "not-allowed" : "pointer" }}>
+                      Cancel
+                    </button>
+                    <button onClick={bulkSend} disabled={bulkSending || activeCount === 0}
+                      style={{ padding: "10px 24px", borderRadius: 9, fontSize: 14, fontWeight: 700, border: "none", display: "flex", alignItems: "center", gap: 7,
+                        cursor: (bulkSending || activeCount === 0) ? "not-allowed" : "pointer",
+                        background: activeCount === 0 ? "var(--bg-input)" : "var(--accent-primary)",
+                        color: activeCount === 0 ? "var(--text-secondary)" : "#0b1830",
+                        opacity: (bulkSending || activeCount === 0) ? 0.6 : 1 }}>
+                      <Send size={14} /> {bulkSending ? "Bhej rahe hain…" : `Send to ${activeCount}`}
+                    </button>
+                  </div>
+                  {bulkSending && <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 10, textAlign: "center" }}>WhatsApp ek-ek karke ja rahe hain, thoda ruko — band mat karo.</div>}
+                </>
+              ) : (
+                <>
+                  <div style={{ padding: "14px", borderRadius: 10, marginBottom: 16, background: "var(--grade-a-bg)", border: "1px solid var(--grade-a-border)" }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--grade-a-text)", marginBottom: 8 }}>✅ {bulkResult.monthName} ke bill bhej diye</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, color: "var(--text-primary)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}><span>WhatsApp sent</span><b>{bulkResult.waSent}</b></div>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}><span>Email sent</span><b>{bulkResult.emailSent}</b></div>
+                      {bulkResult.failed > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--grade-f-text)" }}><span>Failed</span><b>{bulkResult.failed}</b></div>}
+                      {bulkResult.skipped > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-muted)" }}><span>No contact (skipped)</span><b>{bulkResult.skipped}</b></div>}
+                    </div>
+                  </div>
+                  {bulkResult.waSent === 0 && (bulkChannel === "both" || bulkChannel === "whatsapp") && (
+                    <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 14 }}>WhatsApp 0 gaye — shayad WhatsApp connect nahi hai (Settings me connect karo).</div>
+                  )}
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <button onClick={() => setShowBulk(false)}
+                      style={{ padding: "10px 24px", borderRadius: 9, fontSize: 14, fontWeight: 700, border: "none", background: "var(--accent-primary)", color: "#0b1830", cursor: "pointer" }}>
+                      Done
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Mobile action menu (⋮) ── */}
       {menu && (() => {

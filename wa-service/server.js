@@ -14,6 +14,7 @@ const {
   useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion,
+  Browsers,
 } = require("@whiskeysockets/baileys");
 
 const PORT = process.env.PORT || 8088;
@@ -52,15 +53,21 @@ async function startSession(shopId, pairPhone) {
     console.log(`[${shopId}] version fetch failed, using default:`, (e && e.message) || e);
   }
 
+  // IMPORTANT: use a standard browser identifier. A custom name here (e.g.
+  // ["LaundryPro","Chrome","1.0.0"]) is the #1 reason WhatsApp rejects the pairing code
+  // as "incorrect". Browsers.ubuntu("Chrome") is the known-good value for pairing + QR.
+  const browser = (Browsers && Browsers.ubuntu) ? Browsers.ubuntu("Chrome") : ["Ubuntu", "Chrome", "22.04.4"];
   const sock = makeWASocket({
     ...(version ? { version } : {}),
     auth: state,
     logger: pino({ level: "silent" }),
-    browser: ["LaundryPro", "Chrome", "1.0.0"],
+    browser,
     syncFullHistory: false,
   });
 
-  const entry = { sock, state: "connecting", qr: null, pairingCode: null, number: null };
+  // Remember the pairing phone so a mid-pairing reconnect stays in pairing mode
+  // (instead of silently dropping to QR and invalidating the code the user is holding).
+  const entry = { sock, state: "connecting", qr: null, pairingCode: null, number: null, pairPhone: pairPhone || null };
   sessions.set(shopId, entry);
   sock.ev.on("creds.update", saveCreds);
 
@@ -93,7 +100,8 @@ async function startSession(shopId, pairPhone) {
         console.log(`[${shopId}] logged out`);
       } else {
         cur.state = "connecting";
-        setTimeout(() => startSession(shopId).catch(() => {}), 2000); // reconnect (QR mode)
+        // Keep the pairing phone on reconnect so we don't lose pairing mode.
+        setTimeout(() => startSession(shopId, cur.pairPhone).catch(() => {}), 2000);
       }
     }
   });
@@ -103,7 +111,7 @@ async function startSession(shopId, pairPhone) {
     const num = String(pairPhone).replace(/\D/g, "");
     const full = num.length === 10 ? "91" + num : num;
     try {
-      await new Promise((r) => setTimeout(r, 1500)); // let the socket initialise
+      await new Promise((r) => setTimeout(r, 2500)); // let the socket fully initialise before requesting
       const pcode = await sock.requestPairingCode(full);
       const cur = sessions.get(shopId);
       if (cur && cur.sock === sock) { cur.pairingCode = pcode; cur.state = "pairing"; }
@@ -171,6 +179,34 @@ app.post("/send", async (req, res) => {
   const jid = num + "@s.whatsapp.net";
   try {
     await s.sock.sendMessage(jid, { text: String(text) });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: "send_failed", detail: String((e && e.message) || e) });
+  }
+});
+
+// Send a document (e.g. an invoice PDF) from the shop's number. Body:
+//   { shop_id, phone, file_base64, mimetype, filename, caption? }
+app.post("/send-media", async (req, res) => {
+  const { shop_id, phone, file_base64, mimetype, filename, caption } = req.body || {};
+  if (!shop_id || !phone || !file_base64 || !filename) {
+    return res.status(400).json({ error: "shop_id, phone, file_base64, filename required" });
+  }
+  const s = sessions.get(shop_id);
+  if (!s || s.state !== "open") {
+    return res.status(409).json({ error: "not_connected", state: s ? s.state : "disconnected" });
+  }
+  const digits = String(phone).replace(/\D/g, "");
+  const num = digits.length === 10 ? "91" + digits : digits; // default India country code
+  const jid = num + "@s.whatsapp.net";
+  try {
+    const buffer = Buffer.from(String(file_base64), "base64");
+    await s.sock.sendMessage(jid, {
+      document: buffer,
+      mimetype: mimetype || "application/pdf",
+      fileName: filename,
+      caption: caption ? String(caption) : undefined,
+    });
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: "send_failed", detail: String((e && e.message) || e) });
