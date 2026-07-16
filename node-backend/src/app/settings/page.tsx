@@ -32,6 +32,18 @@ const EMPTY: Profile = {
 
 const LOGO_MAX_BYTES = 150 * 1024; // ~150 KB — logo is embedded in every invoice, keep it small
 
+// Reads the logged-in user's role from the JWT (same approach as the Sidebar). The weekly
+// report is a superadmin-managed feature, so the card is hidden from regular shop admins.
+function getTokenRole(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) return null;
+    const payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(payload)).role || null;
+  } catch { return null; }
+}
+
 const label: React.CSSProperties = {
   display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-secondary)",
   marginBottom: 6, letterSpacing: "0.02em",
@@ -49,7 +61,10 @@ export default function Settings() {
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [backupBusy, setBackupBusy] = useState(false);
   const [reportBusy, setReportBusy] = useState(false);
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setIsSuperadmin(getTokenRole() === "superadmin"); }, []);
 
   // WhatsApp (Baileys via WA-Service) connection state for this shop.
   const [wa, setWa] = useState<{ state: string; qr?: string | null; pairingCode?: string | null; number?: string | null }>({ state: "loading" });
@@ -108,10 +123,14 @@ export default function Settings() {
   const downloadBackup = async () => {
     setBackupBusy(true);
     try {
-      await downloadAuthedFile("/admin/backup", `laundrypro-backup-${todayIST()}.json`);
-    } catch {
-      setMsg({ text: "Backup download failed", ok: false });
-      setTimeout(() => setMsg(null), 4000);
+      await downloadAuthedFile("/admin/backup", `laundrypro-backup-${todayIST()}.xlsx`);
+    } catch (e: any) {
+      // The error body is a Blob (blob responseType) — read it to surface the real reason,
+      // e.g. superadmin trying to back up without selecting a shop.
+      let detail = "Backup download failed";
+      try { const t = await e?.response?.data?.text?.(); if (t) detail = JSON.parse(t).detail || detail; } catch {}
+      setMsg({ text: detail, ok: false });
+      setTimeout(() => setMsg(null), 5000);
     } finally {
       setBackupBusy(false);
     }
@@ -299,7 +318,7 @@ export default function Settings() {
               <span style={{ fontWeight: 700, fontSize: 14 }}>Data &amp; backup</span>
             </div>
             <p style={{ fontSize: 12.5, color: "var(--text-muted)", margin: "0 0 14px" }}>
-              Apne shop ka pura data (customers, entries, services, labour) ek JSON file me download karein. Safe jagah rakhein.
+              Apne shop ka pura data (customers, entries, services, labour) ek Excel file me download karein — alag-alag sheets me, aasani se dekhne ke liye. Safe jagah rakhein.
             </p>
             <button onClick={downloadBackup} disabled={backupBusy}
               style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 18px", border: "1px solid var(--border-hard)", borderRadius: 10, background: "var(--bg-input)", color: "var(--text-primary)", fontSize: 13.5, fontWeight: 700, cursor: backupBusy ? "not-allowed" : "pointer", opacity: backupBusy ? 0.6 : 1 }}>
@@ -307,7 +326,8 @@ export default function Settings() {
             </button>
           </div>
 
-          {/* Weekly report card */}
+          {/* Weekly report card — superadmin only (regular shop admins don't manage this) */}
+          {isSuperadmin && (
           <div style={{ background: "var(--bg-card)", borderRadius: 14, border: "1px solid var(--border-hard)", padding: 20, marginTop: 16 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, color: "var(--text-primary)" }}>
               <Mail size={16} color="var(--accent-primary)" />
@@ -337,6 +357,7 @@ export default function Settings() {
               Toggle change karne ke baad, upar "Save changes" dabana na bhoolein. "Send now" turant bhejta hai, toggle ki state se independent.
             </div>
           </div>
+          )}
 
           {/* WhatsApp auto-send card */}
           <div style={{ background: "var(--bg-card)", borderRadius: 14, border: "1px solid var(--border-hard)", padding: 20, marginTop: 16 }}>
@@ -345,7 +366,7 @@ export default function Settings() {
               <span style={{ fontWeight: 700, fontSize: 14 }}>WhatsApp auto-send</span>
             </div>
             <p style={{ fontSize: 12.5, color: "var(--text-muted)", margin: "0 0 14px" }}>
-              Apna WhatsApp number connect karo — phir har naye bill par customer ko automatically WhatsApp message chala jayega.
+              Apna WhatsApp number connect karo — phir customer ko <b style={{ color: "var(--text-secondary)" }}>naye pickup</b> aur <b style={{ color: "var(--text-secondary)" }}>delivery complete</b> hone par automatically WhatsApp message chala jayega. (Price message me nahi jaati — sirf items.)
             </p>
 
             {wa.state === "not_configured" || wa.state === "unavailable" ? (
@@ -364,7 +385,7 @@ export default function Settings() {
                     </div>
                   </div>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
-                    Auto-send bill on new entry {form.wa_auto_enabled ? "ON" : "OFF"} <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>(turant save)</span>
+                    Auto-send on pickup &amp; delivery {form.wa_auto_enabled ? "ON" : "OFF"} <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>(turant save)</span>
                   </span>
                 </div>
                 <button onClick={disconnectWa} disabled={waBusy}

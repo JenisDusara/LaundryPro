@@ -51,3 +51,17 @@ export async function waSend(shopId: string, phone: string, text: string): Promi
   const r = await waFetch(`/send`, "POST", { shop_id: shopId, phone, text });
   return !!(r && r.status === 200 && r.data?.ok);
 }
+
+// Best-effort document send (e.g. an invoice PDF) from the shop's number. Never throws.
+export async function waSendDocument(
+  shopId: string,
+  phone: string,
+  doc: { fileBase64: string; filename: string; mimetype?: string; caption?: string }
+): Promise<boolean> {
+  const r = await waFetch(`/send-media`, "POST", {
+    shop_id: shopId, phone,
+    file_base64: doc.fileBase64, filename: doc.filename,
+    mimetype: doc.mimetype || "application/pdf", caption: doc.caption,
+  });
+  return !!(r && r.status === 200 && r.data?.ok);
+}
