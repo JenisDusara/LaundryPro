@@ -18,6 +18,8 @@ export async function GET(req: NextRequest) {
     const { start, end } = monthRange(y, m);
     where.entry_date = { gte: start, lte: end };
   }
+  // Date range (from–to) — used by the new Entries filter bar.
+  if (p.get("from") && p.get("to")) where.entry_date = { gte: p.get("from")!, lte: p.get("to")! };
   if (p.get("customer_id")) where.customer_id = p.get("customer_id");
 
   try {

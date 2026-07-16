@@ -10,19 +10,38 @@ export async function GET(req: NextRequest) {
   const staff = denyStaff(user); if (staff) return staff;
 
   const p     = new URL(req.url).searchParams;
-  const month = parseInt(p.get("month") || String(new Date().getMonth() + 1));
-  const year  = parseInt(p.get("year")  || String(new Date().getFullYear()));
-  const { start, end } = monthRange(year, month);
-  const monthName = new Date(year, month - 1, 1).toLocaleString("en-IN", { month: "long", year: "numeric" });
+  // Prefer an explicit from–to range (used by the Reports date-range filter); fall back to month/year.
+  let start: string, end: string, monthName: string;
+  if (p.get("from") && p.get("to")) {
+    start = p.get("from")!; end = p.get("to")!;
+    const fmt = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    monthName = start === end ? fmt(start) : `${fmt(start)} - ${fmt(end)}`;
+  } else {
+    const month = parseInt(p.get("month") || String(new Date().getMonth() + 1));
+    const year  = parseInt(p.get("year")  || String(new Date().getFullYear()));
+    ({ start, end } = monthRange(year, month));
+    monthName = new Date(year, month - 1, 1).toLocaleString("en-IN", { month: "long", year: "numeric" });
+  }
 
-  const [entries, customers] = await Promise.all([
+  const sf = shopFilter(user, req);
+  const [entries, customers, payments, expenses, labours, allEnt, allPay] = await Promise.all([
     prisma.laundryEntry.findMany({
-      where: { entry_date: { gte: start, lte: end }, ...shopFilter(user, req) },
+      where: { entry_date: { gte: start, lte: end }, ...sf },
       include: { customer: true, items: true },
       orderBy: { entry_date: "asc" },
     }),
-    prisma.customer.findMany({ where: { ...shopFilter(user, req) }, orderBy: { name: "asc" } }),
+    prisma.customer.findMany({ where: { ...sf }, orderBy: { name: "asc" } }),
+    prisma.payment.findMany({ where: { date: { gte: start, lte: end }, ...sf }, include: { customer: true }, orderBy: [{ date: "desc" }] }),
+    prisma.expense.findMany({ where: { date: { gte: start, lte: end }, ...sf }, orderBy: [{ date: "desc" }] }),
+    prisma.labour.findMany({ where: { ...sf }, include: { works: true, advances: true } }),
+    prisma.laundryEntry.findMany({ where: { ...sf }, select: { customer_id: true, total_amount: true } }),
+    prisma.payment.findMany({ where: { ...sf }, select: { customer_id: true, amount: true } }),
   ]);
+  // All-time billed/paid per customer → outstanding (udhaar) for the Customers sheet.
+  const billedMap = new Map<string, number>();
+  allEnt.forEach(e => billedMap.set(e.customer_id, (billedMap.get(e.customer_id) || 0) + Number(e.total_amount)));
+  const paidMap = new Map<string, number>();
+  allPay.forEach(p => paidMap.set(p.customer_id, (paidMap.get(p.customer_id) || 0) + Number(p.amount)));
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "LaundryPro";
@@ -105,7 +124,7 @@ export async function GET(req: NextRequest) {
   });
 
   // ── Sheet 2: Monthly Entries ──
-  const wsEntries = wb.addWorksheet(`📋 Entries ${month}-${year}`);
+  const wsEntries = wb.addWorksheet(`📋 Entries`);
   wsEntries.columns = [
     { header: "Date",     key: "date",     width: 14 },
     { header: "Customer", key: "customer", width: 22 },
@@ -154,27 +173,82 @@ export async function GET(req: NextRequest) {
   totalRow.getCell(9).font  = { bold: true, color: { argb: "FF1E40AF" }, size: 12 };
   totalRow.getCell(9).fill  = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDBEAFE" } };
 
-  // ── Sheet 3: Customers ──
+  // ── Sheet 3: Customers + Udhaar ──
   const wsCustomers = wb.addWorksheet("👥 Customers");
   wsCustomers.columns = [
     { header: "Name",    key: "name",    width: 22 },
     { header: "Phone",   key: "phone",   width: 14 },
     { header: "Flat",    key: "flat",    width: 12 },
     { header: "Society", key: "society", width: 22 },
-    { header: "Address", key: "address", width: 30 },
-    { header: "Email",   key: "email",   width: 28 },
+    { header: "Billed (₹)",      key: "billed",  width: 14 },
+    { header: "Paid (₹)",        key: "paid",    width: 14 },
+    { header: "Outstanding (₹)", key: "due",     width: 16 },
   ];
   styleHeader(wsCustomers);
-  customers.forEach((c, i) => {
-    wsCustomers.addRow({ name: c.name, phone: c.phone, flat: c.flat_number, society: c.society_name, address: c.address, email: c.email || "" });
+  customers.forEach(c => {
+    const billed = billedMap.get(c.id) || 0;
+    const paid = paidMap.get(c.id) || 0;
+    const row = wsCustomers.addRow({ name: c.name, phone: c.phone, flat: c.flat_number, society: c.society_name, billed, paid, due: billed - paid });
+    if (billed - paid > 0) row.getCell(7).font = { bold: true, color: { argb: "FFD97706" } };
   });
   stripeRows(wsCustomers, 2, customers.length + 1);
+
+  // ── Sheet 4: Payments (collection) ──
+  const wsPay = wb.addWorksheet("💰 Payments");
+  wsPay.columns = [
+    { header: "Date",       key: "date",     width: 14 },
+    { header: "Customer",   key: "customer", width: 22 },
+    { header: "Amount (₹)", key: "amount",   width: 14 },
+    { header: "Method",     key: "method",   width: 12 },
+    { header: "Note",       key: "note",     width: 28 },
+  ];
+  styleHeader(wsPay);
+  payments.forEach(p => wsPay.addRow({ date: p.date, customer: p.customer?.name || "", amount: Number(p.amount), method: p.method, note: p.note || "" }));
+  const payTotal = payments.reduce((s, p) => s + Number(p.amount), 0);
+  stripeRows(wsPay, 2, payments.length + 1);
+  const payTotalRow = wsPay.addRow({ method: "TOTAL", amount: payTotal });
+  payTotalRow.getCell(3).font = { bold: true, color: { argb: "FF16A34A" }, size: 12 };
+
+  // ── Sheet 5: Expenses ──
+  const wsExp = wb.addWorksheet("🧾 Expenses");
+  wsExp.columns = [
+    { header: "Date",        key: "date",     width: 14 },
+    { header: "Category",    key: "category", width: 18 },
+    { header: "Description", key: "desc",     width: 30 },
+    { header: "Amount (₹)",  key: "amount",   width: 14 },
+  ];
+  styleHeader(wsExp);
+  expenses.forEach(e => wsExp.addRow({ date: e.date, category: e.category, desc: e.description, amount: Number(e.amount) }));
+  const expTotal = expenses.reduce((s, e) => s + Number(e.amount), 0);
+  stripeRows(wsExp, 2, expenses.length + 1);
+  const expTotalRow = wsExp.addRow({ desc: "TOTAL", amount: expTotal });
+  expTotalRow.getCell(4).font = { bold: true, color: { argb: "FFDC2626" }, size: 12 };
+
+  // ── Sheet 6: Labour (for the period) ──
+  const wsLab = wb.addWorksheet("👷 Labour");
+  wsLab.columns = [
+    { header: "Name",         key: "name",  width: 22 },
+    { header: "Pieces",       key: "press", width: 10 },
+    { header: "Earned (₹)",   key: "pay",   width: 14 },
+    { header: "Advances (₹)", key: "adv",   width: 14 },
+    { header: "Net (₹)",      key: "net",   width: 14 },
+  ];
+  styleHeader(wsLab);
+  const inR = (d: string) => d >= start && d <= end;
+  labours.forEach(l => {
+    const w = l.works.filter(x => inR(x.work_date));
+    const press = w.reduce((s, x) => s + x.press_count, 0);
+    const pay = w.reduce((s, x) => s + x.press_count * Number(x.rate_per_piece), 0);
+    const adv = l.advances.filter(a => inR(a.advance_date)).reduce((s, a) => s + Number(a.amount), 0);
+    wsLab.addRow({ name: l.name, press, pay, adv, net: pay - adv });
+  });
+  stripeRows(wsLab, 2, labours.length + 1);
 
   const buffer = await wb.xlsx.writeBuffer();
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="LaundryPro-Report-${year}-${String(month).padStart(2,"0")}.xlsx"`,
+      "Content-Disposition": `attachment; filename="LaundryPro-Report-${start}_${end}.xlsx"`,
     },
   });
 }

@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
     conds.push(Prisma.sql`p.date >= ${start} AND p.date <= ${end}`);
   }
   if (p.get("date")) conds.push(Prisma.sql`p.date = ${p.get("date")}`);
+  if (p.get("from") && p.get("to")) conds.push(Prisma.sql`p.date >= ${p.get("from")} AND p.date <= ${p.get("to")}`);
   if (p.get("customer_id")) conds.push(Prisma.sql`p.customer_id = ${p.get("customer_id")}`);
   if (p.get("method")) conds.push(Prisma.sql`p.method = ${p.get("method")}`);
   const where = Prisma.sql`WHERE ${Prisma.join(conds, " AND ")}`;

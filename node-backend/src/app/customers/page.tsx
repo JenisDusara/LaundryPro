@@ -5,6 +5,7 @@ import api from "@/lib/api";
 import { openWhatsApp, paymentReminderMsg } from "@/lib/whatsapp";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import EmptyState from "@/components/EmptyState";
+import { FilterPanel } from "@/components/Filters";
 import { todayIST } from "@/lib/dates";
 import type { Customer, LaundryEntry, CustomerBalance } from "@/types";
 
@@ -33,7 +34,14 @@ export default function Customers() {
 
   const [customers,    setCustomers]    = useState<Customer[]>([]);
   const [entries,      setEntries]      = useState<LaundryEntry[]>([]);
-  const [search,       setSearch]       = useState("");
+  const [fName,        setFName]        = useState("");
+  const [fPhone,       setFPhone]       = useState("");
+  const [societyFilter, setSocietyFilter] = useState("all");
+  const [balanceFilter, setBalanceFilter] = useState("all");
+  const applyFilters = (v: Record<string,string>) => {
+    setFName(v.name || ""); setFPhone(v.phone || "");
+    setSocietyFilter(v.society || "all"); setBalanceFilter(v.balance || "all");
+  };
   const [showForm,     setShowForm]     = useState(false);
   const [form,         setForm]         = useState(empty);
   const [editId,       setEditId]       = useState<string | null>(null);
@@ -227,12 +235,14 @@ export default function Customers() {
 
   const monthTotal = entries.reduce((s, e) => s + Number(e.total_amount), 0);
 
-  const filteredCustomers = customers.filter(c =>
-    !search ||
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.phone.includes(search) ||
-    (c.flat_number || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const societyOptions = Array.from(new Set(customers.map(c => c.society_name).filter(Boolean))).sort();
+  const filteredCustomers = customers.filter(c => {
+    if (fName  && !c.name.toLowerCase().includes(fName.toLowerCase())) return false;
+    if (fPhone && !c.phone.includes(fPhone)) return false;
+    if (societyFilter !== "all" && c.society_name !== societyFilter) return false;
+    if (balanceFilter === "udhaar" && !((balances[c.id]?.outstanding ?? 0) > 0)) return false;
+    return true;
+  });
 
   // Sort: customers with activity this month first
   const sorted = [...filteredCustomers].sort((a, b) => {
@@ -289,13 +299,19 @@ export default function Customers() {
         </div>
       </div>
 
-      {/* ── Search ── */}
-      <div style={{ display:"flex", alignItems:"center", gap:8, background:"var(--bg-input)", border:"1.5px solid var(--border)", borderRadius:10, padding:"9px 14px", marginBottom:14 }}>
-        <Search size={15} color="var(--text-muted)"/>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, phone or flat..."
-          style={{ flex:1, border:"none", outline:"none", fontSize:13, background:"transparent", color:"var(--text-primary)" }}/>
-        {search && <button onClick={() => setSearch("")} style={{ background:"none", border:"none", cursor:"pointer", color:"var(--text-muted)", fontSize:16, lineHeight:1 }}>×</button>}
-      </div>
+      {/* ── Filters (MyUniclean-style) ── */}
+      <FilterPanel
+        initial={{ society: societyFilter, balance: balanceFilter, name: fName, phone: fPhone }}
+        onApply={applyFilters}
+        selects={[
+          { key:"society", label:"Society", options:[{value:"all",label:"All societies"}, ...societyOptions.map(s=>({value:s,label:s}))] },
+          { key:"balance", label:"Balance", options:[{value:"all",label:"All"},{value:"udhaar",label:"Udhaar wale (due)"}] },
+        ]}
+        texts={[
+          { key:"name",  label:"Search by name",  placeholder:"Customer name" },
+          { key:"phone", label:"Search by phone", placeholder:"Phone number" },
+        ]}
+      />
 
       {/* ── Customer List ── */}
       {sorted.length === 0 ? (

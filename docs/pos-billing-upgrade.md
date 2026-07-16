@@ -4,7 +4,7 @@ Turn LaundryPro's billing into a fast, POS-style flow with a proper garment
 catalog (category + service-type + per-item price), discount / charges, payment
 at billing, and running invoice numbers — to match/beat competitors (MyUniclean)
 for the all-India laundry market. Core stays **billing + data**; logistics
-(rider/pickup routing) and customer online-ordering are intentionally out of scope.
+(delivery routing / logistics) and customer online-ordering are intentionally out of scope.
 
 ## Goal
 
@@ -54,7 +54,7 @@ regenerated — same pattern already used for delivery_date / wa_auto_enabled.
 - Show it on the invoice; make it searchable (Entries search by invoice no).
 
 ## Out of scope (by design — core is billing + data)
-- Rider / pickup–delivery assignment & routing
+- Pickup–delivery routing / logistics
 - Customer-facing online ordering / customer portal
 - Home / express delivery logistics (only an optional "express charge" via Phase 3)
 

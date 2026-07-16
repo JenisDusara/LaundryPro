@@ -20,15 +20,12 @@ NOT to copy.
 **Add Customer** → create an order.
 
 **Notable features:**
-1. **Rider / delivery assignment & logistics** — "Unassigned Pickups" and
-   "Unassigned Deliveries" imply assigning pickups/deliveries to delivery staff.
-   *(LaundryPro does not have this.)*
-2. **Order Requests** — customer-initiated online order requests (implies a
+1. **Order Requests** — customer-initiated online order requests (implies a
    customer-facing ordering channel + "Register Now" on login). *(LaundryPro is
    shop-only.)*
-3. **Send WhatsApp Link** for collection — a payment/collection link over
+2. **Send WhatsApp Link** for collection — a payment/collection link over
    WhatsApp. *(LaundryPro sends reminders/bills, not a pay-link.)*
-4. **Invoice number** as a first-class identifier (search by invoice no).
+3. **Invoice number** as a first-class identifier (search by invoice no).
 5. Reports, Settings, Notifications; theme (dark/RTL/mini-sidebar).
 
 **Design/tech:** built on an off-the-shelf admin template (Material/Spike-style).
@@ -48,13 +45,8 @@ product. Icon-only sidebar; SPA.
 ## Gap analysis — what to consider adding
 
 ### High value
-1. **Rider / pickup & delivery assignment** — assign each order's pickup and
-   delivery to a delivery person; "unassigned" queues on the dashboard; basic
-   status (assigned → picked up → delivered). Big operational win **if the shops
-   do home pickup/delivery**. If shops are counter-only, skip.
-2. **Richer order status pipeline** — LaundryPro has pending/delivered; consider
-   adding **Ready** and **Out for delivery** so staff see the full lifecycle
-   (Booked → Ready → Out for delivery → Delivered). Low effort, high clarity.
+1. **Richer order status pipeline** — LaundryPro has pending/delivered; could add
+   **Ready** / **Out for delivery** for the full lifecycle. (Considered, not built.)
 
 ### Medium value
 3. **Invoice number + search by invoice no** — a human-friendly running invoice
@@ -77,25 +69,48 @@ product. Icon-only sidebar; SPA.
 - ❌ **Do NOT copy their template clutter** — MyUniclean shipped a generic admin
   theme with demo apps left in. LaundryPro's custom, laundry-focused UI is
   cleaner and more professional. Keep it.
-- ✅ **Adopt the order-pipeline emphasis** on the dashboard (pickup/ready/out/
-  delivered + upcoming) — genuinely useful for daily ops.
-- ✅ If adding logistics, add a simple **"Deliveries / Riders"** board (assign +
-  status) — but keep it minimal, not a heavy template.
 - Keep LaundryPro's strengths front-and-centre (udhaar, statement, accounting,
   own-number WhatsApp) — these are real differentiators MyUniclean doesn't
   emphasise.
 
 ## Suggested priority
 
-1. **Order status pipeline** (Ready / Out-for-delivery) + surface on dashboard — small, high clarity.
-2. **Rider/pickup-delivery assignment** — only if shops do home delivery (confirm with your clients first).
-3. **Invoice number + search**.
-4. **WhatsApp UPI pay-link** (light).
-5. **Customer-facing order requests** — only if there's real demand (biggest effort).
+1. **Order status pipeline** (Ready / Out-for-delivery) — small, high clarity.
+2. **Invoice number + search**.
+3. **Customer-facing order requests** — only if there's real demand (biggest effort).
+
+## Reports — detailed comparison (checked 2026-07-16)
+
+MyUniclean's Report section has only **two** reports, both time-series summaries
+(filter = Report-By preset [Today/Week/Month] + Start/End date):
+- **Invoice-Report** — bills generated over the period.
+- **Collection-Report** — money actually collected (payments received) over the period.
+
+LaundryPro's Reports are **richer** on the billing side: Daily earnings, Service-wise,
+Society-wise, Top customers, + Excel export.
+
+**Actual content (verified with one live entry, 2026-07-16):**
+- **Invoice-Report** = a flat per-invoice list — columns **Invoice No · Amount · Status
+  (Pending/Paid) · Tax** with a **Total Invoice Amount** header + PDF/Excel/Print.
+  (Invoice No format `INV-SH01160726-001`.) Example row: `INV-… · ₹60 · Pending · -`.
+- **Collection-Report** = only money **actually received** — with the bill still Pending
+  it showed **No Data Found** (₹0 collected). So Invoice = ₹60 billed, Collection = ₹0,
+  Outstanding = ₹60.
+
+**Gap to add in future (noted, not yet built):**
+1. **Collection / cash-flow report** — **Billed vs Collected vs Outstanding (udhaar)**
+   for a period + received payments by method (Cash / UPI) over time. We store payments
+   (Accounting) already — this is a reporting view on top: "billed ₹X · collected ₹Y ·
+   udhaar ₹Z" at a glance.
+2. **Invoice-wise list report** — a flat per-bill list with Status (Pending/Paid) + Tax,
+   like their Invoice-Report. Needs a human invoice number — which was dropped in Phase 4,
+   so revisit invoice numbers if this report is wanted.
+3. (Minor) Quick date presets (Today / Week / Month) on the Reports page.
+
+**Dashboard KPIs they surface (for our dashboard work):** Collection Amount (today),
+Pending Orders, Booking / Delivery / Delivered (today), Upcoming Deliveries.
 
 ## Open questions (decide before building)
 
-- Do your target shops do **home pickup/delivery** (→ rider assignment worth it),
-  or mostly **counter drop-off** (→ skip logistics)?
 - Do they want **customers to place orders online**, or keep it shop-entered only?
 - Invoice numbering scheme (per-shop running number?).

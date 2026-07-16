@@ -6,7 +6,7 @@ import {
   BarChart3, Wrench, Hammer, LogOut, X, Key, Eye, EyeOff,
   Building2, Wallet, Activity, ShieldCheck, ChevronRight, ChevronDown,
   UserCog, MoreHorizontal, Sun, Moon, Monitor, Check, Settings, Bell,
-  UserPlus, Mail,
+  UserPlus, Mail, FileSpreadsheet,
 } from "lucide-react";
 import api from "@/lib/api";
 import { isEntryPending } from "@/lib/entry-status";
@@ -225,7 +225,9 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
         { path: "/weekly-report-log", label: "Weekly Reports", icon: Mail },
         { path: "/login-activity", label: "Login Activity", icon: Activity },
       ]
-    : profile?.role === "staff" ? staffNavItems : adminNavItems;
+    : profile?.role === "staff" ? staffNavItems
+    : profile?.role === "superadmin" ? [...adminNavItems, { path: "/import", label: "Import", icon: FileSpreadsheet }]
+    : adminNavItems;
 
   const inp: React.CSSProperties = {
     width: "100%", padding: "9px 12px",
@@ -607,6 +609,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
           ...(!isStaff ? [{ path: "/staff",      label: "Staff",         icon: UserCog,  sub: "Manage team" }] : []),
           ...(!isStaff ? [{ path: "/settings",   label: "Settings",      icon: Settings, sub: "Business profile" }] : []),
           ...(isSuperAdmin ? [
+            { path: "/import",            label: "Bulk Import",     icon: FileSpreadsheet, sub: "Super Admin" },
             { path: "/superadmin",        label: "Clients",         icon: Building2, sub: "Super Admin" },
             { path: "/signup-requests",   label: "Signup requests", icon: UserPlus,  sub: "Super Admin" },
             { path: "/weekly-report-log", label: "Weekly reports",  icon: Mail,      sub: "Super Admin" },
