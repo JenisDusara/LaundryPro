@@ -25,6 +25,7 @@ export default function Deliveries() {
   const [fName,            setFName]            = useState("");
   const [fPhone,           setFPhone]           = useState("");
   const [societyFilter,    setSocietyFilter]    = useState("all");
+  const [focusCustomer,    setFocusCustomer]    = useState<string|null>(null);
   const applyFilters = (v: Record<string,string>) => {
     setFilter(v.status || "all"); setFrom(v.from || ""); setTo(v.to || "");
     setSocietyFilter(v.society || "all"); setFName(v.name || ""); setFPhone(v.phone || "");
@@ -43,8 +44,12 @@ export default function Deliveries() {
   // Preselect the tab when arriving from a dashboard card (e.g. /deliveries?filter=pending).
   // Read from window.location to avoid the Suspense requirement that useSearchParams adds.
   useEffect(() => {
-    const f = new URLSearchParams(window.location.search).get("filter");
+    const q = new URLSearchParams(window.location.search);
+    const f = q.get("filter");
     if (f === "pending" || f === "delivered" || f === "all") setFilter(f);
+    // Deep-link from the alerts bell: /deliveries?customer=<id> — focus + open that customer.
+    const cust = q.get("customer");
+    if (cust) { setFocusCustomer(cust); setExpandedCustomer(cust); }
   }, []);
 
   useEffect(() => {
@@ -82,12 +87,14 @@ export default function Deliveries() {
     customerMap.get(e.customer_id)!.entries.push(e);
   });
   const societyOptions = Array.from(new Set(allEntries.map(e => e.customer?.society_name).filter(Boolean) as string[])).sort();
-  const customers = Array.from(customerMap.entries()).filter(([,c]) => {
+  const customers = Array.from(customerMap.entries()).filter(([cid, c]) => {
+    if (focusCustomer) return cid === focusCustomer;   // deep-link: show only that customer
     if (societyFilter !== "all" && c.society !== societyFilter) return false;
     if (fName  && !c.name.toLowerCase().includes(fName.toLowerCase())) return false;
     if (fPhone && !c.phone.includes(fPhone)) return false;
     return true;
   });
+  const focusName = focusCustomer ? customerMap.get(focusCustomer)?.name : null;
 
   return (
     <ProtectedLayout>
@@ -130,6 +137,17 @@ export default function Deliveries() {
           { key:"phone", label:"Search by phone", placeholder:"Phone number" },
         ]}
       />
+
+      {/* Focused on one customer (from the alerts bell) */}
+      {focusCustomer && (
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",background:"var(--grade-b-bg)",border:"1px solid var(--grade-b-border)",borderRadius:10,padding:"10px 14px",marginBottom:14}}>
+          <span style={{fontSize:13,fontWeight:700,color:"var(--grade-b-text)"}}>Showing {focusName || "customer"}&apos;s deliveries</span>
+          <button onClick={()=>{ setFocusCustomer(null); setExpandedCustomer(null); }}
+            style={{padding:"6px 14px",borderRadius:8,border:"1px solid var(--grade-b-border)",background:"var(--bg-card)",color:"var(--grade-b-text)",fontSize:12.5,fontWeight:700,cursor:"pointer"}}>
+            Show all deliveries
+          </button>
+        </div>
+      )}
 
       {/* Content */}
       {loading ? (

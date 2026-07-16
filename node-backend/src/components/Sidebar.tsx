@@ -119,7 +119,6 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
   const [allPending,     setAllPending]     = useState<LaundryEntry[]>([]);
   const [showNotifSheet, setShowNotifSheet] = useState(false);
   const [pendingRequests, setPendingRequests] = useState(0);
-  const [notifSent,      setNotifSent]      = useState(false);
   const today = todayIST();
 
   useEffect(() => {
@@ -153,31 +152,9 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
     }).catch(() => {});
   }, [profile?.role, selectedShopId]);
 
-  // Fire a browser/system notification once per session when there is pending work,
-  // but only if the user has already granted permission (asked on first bell click).
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof Notification === "undefined") return;
-    if (notifSent || Notification.permission !== "granted") return;
-    const overdue  = allPending.filter(e => e.delivery_date && e.delivery_date < today).length;
-    const dueToday = allPending.filter(e => e.delivery_date === today).length;
-    const noDate   = allPending.filter(e => !e.delivery_date).length;
-    if (overdue + dueToday + noDate === 0) return;
-    const parts: string[] = [];
-    if (overdue > 0)  parts.push(`${overdue} overdue`);
-    if (dueToday > 0) parts.push(`${dueToday} due today`);
-    if (noDate > 0)   parts.push(`${noDate} pending`);
-    new Notification("LaundryPro — deliveries", { body: `${parts.join(" · ")} order(s) to hand over.` });
-    setNotifSent(true);
-  }, [allPending, today, notifSent]);
-
-  // Opens the alerts panel; on first use also asks for browser-notification permission
-  // (must be triggered by a click, which this is).
-  const openAlerts = () => {
-    setShowNotifSheet(true);
-    if (typeof Notification !== "undefined" && Notification.permission === "default") {
-      Notification.requestPermission().then(() => setNotifSent(false)).catch(() => {});
-    }
-  };
+  // Alerts are in-app only now — no auto browser/system pop-ups (those were disturbing on
+  // every open). The bell just opens the in-app panel on click.
+  const openAlerts = () => setShowNotifSheet(true);
 
   useEffect(() => {
     setShowProfile(false); setShowMore(false); setShowShopPicker(false);
@@ -755,7 +732,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
                 {overdueEntries.map(e => {
                   const days = Math.floor((new Date(today).getTime() - new Date(e.delivery_date! + "T00:00:00").getTime()) / 86400000);
                   return (
-                    <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push("/deliveries"); }}
+                    <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push(`/deliveries?customer=${e.customer_id}`); }}
                       style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", background: "var(--grade-f-bg)", border: "1px solid var(--grade-f-border)", borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
                       <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(239,68,68,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                         <Truck size={13} color="var(--grade-f-text)" />
@@ -778,7 +755,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
                   Due Today · {dueTodayEntries.length}
                 </div>
                 {dueTodayEntries.map(e => (
-                  <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push("/deliveries"); }}
+                  <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push(`/deliveries?customer=${e.customer_id}`); }}
                     style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", background: "var(--grade-c-bg)", border: "1px solid var(--grade-c-border)", borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
                     <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(245,158,11,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                       <Truck size={13} color="var(--grade-c-text)" />
@@ -802,7 +779,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
                 {noDateEntries.slice(0, 8).map(e => {
                   const days = Math.floor((new Date(today).getTime() - new Date(e.entry_date + "T00:00:00").getTime()) / 86400000);
                   return (
-                    <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push("/deliveries"); }}
+                    <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push(`/deliveries?customer=${e.customer_id}`); }}
                       style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
                       <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--pressed)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                         <Truck size={13} color="var(--text-secondary)" />
@@ -830,7 +807,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
                   Upcoming · {upcomingEntries.length}
                 </div>
                 {upcomingEntries.slice(0, 3).map(e => (
-                  <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push("/deliveries"); }}
+                  <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push(`/deliveries?customer=${e.customer_id}`); }}
                     style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
                     <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                       <Truck size={13} color="var(--grade-b-text)" />

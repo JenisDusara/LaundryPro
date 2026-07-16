@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { Store, Save, Upload, Trash2, ImageIcon, Download, DatabaseBackup, Mail, Send, MessageCircle } from "lucide-react";
+import { Store, Save, Upload, Trash2, ImageIcon, Download, DatabaseBackup, Mail, Send, MessageCircle, IndianRupee } from "lucide-react";
 import api from "@/lib/api";
 import { downloadAuthedFile } from "@/lib/download";
 import { todayIST } from "@/lib/dates";
@@ -111,6 +111,19 @@ export default function Settings() {
       setMsg({ text: e?.response?.data?.detail || "Save failed", ok: false });
     }
   };
+  // Weekly-report toggle saves immediately (same as WhatsApp) — no separate "Save changes".
+  const toggleWeekly = async () => {
+    const next = !form.weekly_report_enabled;
+    setForm(f => ({ ...f, weekly_report_enabled: next }));
+    try {
+      await api.put("/admin/settings", { ...form, weekly_report_enabled: next });
+      setMsg({ text: next ? "Weekly report ON" : "Weekly report OFF", ok: true });
+      setTimeout(() => setMsg(null), 3000);
+    } catch (e: any) {
+      setForm(f => ({ ...f, weekly_report_enabled: !next }));
+      setMsg({ text: e?.response?.data?.detail || "Save failed", ok: false });
+    }
+  };
   const disconnectWa = async () => {
     if (!confirm("Is shop ka WhatsApp disconnect karein?")) return;
     setWaBusy(true);
@@ -201,8 +214,8 @@ export default function Settings() {
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 4 }}>Configuration</div>
-        <h2 style={{ color: "var(--text-primary)", margin: "0 0 4px", fontSize: 26, fontWeight: 900, letterSpacing: -0.5 }}>Business profile</h2>
-        <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>Yeh details aapke invoices ke header par dikhengi</p>
+        <h2 style={{ color: "var(--text-primary)", margin: "0 0 4px", fontSize: 26, fontWeight: 900, letterSpacing: -0.5 }}>Settings</h2>
+        <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>Business profile, payment, WhatsApp and reports — all in one place.</p>
       </div>
 
       {loading ? (
@@ -247,7 +260,7 @@ export default function Settings() {
           <div style={{ background: "var(--bg-card)", borderRadius: 14, border: "1px solid var(--border-hard)", padding: 20 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, color: "var(--text-primary)" }}>
               <Store size={16} color="var(--accent-primary)" />
-              <span style={{ fontWeight: 700, fontSize: 14 }}>Business details</span>
+              <span style={{ fontWeight: 700, fontSize: 14 }}>Business &amp; Invoice</span>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 14 }}>
@@ -266,10 +279,6 @@ export default function Settings() {
               <div>
                 <label style={label}>Email</label>
                 <input style={inp} value={form.email} onChange={set("email")} placeholder="e.g. shop@example.com" />
-              </div>
-              <div>
-                <label style={label}>UPI ID</label>
-                <input style={inp} value={form.upi_id} onChange={set("upi_id")} placeholder="e.g. shop@okhdfcbank" />
               </div>
               <div>
                 <label style={label}>GST number</label>
@@ -297,18 +306,34 @@ export default function Settings() {
               </div>
             </div>
 
-            {msg && (
-              <div style={{ marginTop: 16, padding: "9px 13px", borderRadius: 8, fontSize: 13, fontWeight: 500, background: msg.ok ? "var(--grade-a-bg)" : "var(--grade-f-bg)", color: msg.ok ? "var(--grade-a-text)" : "var(--grade-f-text)" }}>
-                {msg.text}
-              </div>
-            )}
+          </div>
 
-            <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end" }}>
-              <button onClick={save} disabled={saving}
-                style={{ display: "flex", alignItems: "center", gap: 7, background: saving ? "var(--border-active)" : "#2563eb", color: "#fff", border: "none", borderRadius: 10, padding: "11px 24px", fontSize: 14, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", boxShadow: "0 4px 14px rgba(37,99,235,0.28)" }}>
-                <Save size={16} /> {saving ? "Saving…" : "Save changes"}
-              </button>
+          {/* Payment card — UPI is prominent here (powers the invoice UPI line) */}
+          <div style={{ background: "var(--bg-card)", borderRadius: 14, border: "1px solid var(--border-hard)", padding: 20, marginTop: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, color: "var(--text-primary)" }}>
+              <IndianRupee size={16} color="var(--accent-primary)" />
+              <span style={{ fontWeight: 700, fontSize: 14 }}>Payment</span>
             </div>
+            <div style={{ maxWidth: 380 }}>
+              <label style={label}>UPI ID</label>
+              <input style={inp} value={form.upi_id} onChange={set("upi_id")} placeholder="e.g. shop@okhdfcbank" />
+              <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8 }}>
+                Shown on your invoices so customers can pay you directly by UPI. Keep it accurate.
+              </div>
+            </div>
+          </div>
+
+          {/* Save (covers Business & Invoice + Payment text fields) */}
+          {msg && (
+            <div style={{ marginTop: 16, padding: "9px 13px", borderRadius: 8, fontSize: 13, fontWeight: 500, background: msg.ok ? "var(--grade-a-bg)" : "var(--grade-f-bg)", color: msg.ok ? "var(--grade-a-text)" : "var(--grade-f-text)" }}>
+              {msg.text}
+            </div>
+          )}
+          <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+            <button onClick={save} disabled={saving}
+              style={{ display: "flex", alignItems: "center", gap: 7, background: saving ? "var(--border-active)" : "#2563eb", color: "#fff", border: "none", borderRadius: 10, padding: "11px 24px", fontSize: 14, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", boxShadow: "0 4px 14px rgba(37,99,235,0.28)" }}>
+              <Save size={16} /> {saving ? "Saving…" : "Save changes"}
+            </button>
           </div>
 
           {/* Data & backup card */}
@@ -338,13 +363,13 @@ export default function Settings() {
             </p>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div onClick={() => setForm(f => ({ ...f, weekly_report_enabled: !f.weekly_report_enabled }))} style={{ cursor: "pointer" }}>
+                <div onClick={toggleWeekly} style={{ cursor: "pointer" }}>
                   <div style={{ width: 44, height: 24, borderRadius: 12, position: "relative", transition: "background 0.2s", background: form.weekly_report_enabled ? "#16a34a" : "var(--bg-elevated)" }}>
                     <div style={{ position: "absolute", top: 2, left: form.weekly_report_enabled ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.25)", transition: "left 0.2s" }} />
                   </div>
                 </div>
                 <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
-                  Automatic Sunday email {form.weekly_report_enabled ? "ON" : "OFF"}
+                  Automatic Sunday email {form.weekly_report_enabled ? "ON" : "OFF"} <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>(saves instantly)</span>
                 </span>
               </div>
               <button onClick={sendReportNow} disabled={reportBusy || !form.email}
@@ -354,7 +379,7 @@ export default function Settings() {
               </button>
             </div>
             <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 10 }}>
-              Toggle change karne ke baad, upar "Save changes" dabana na bhoolein. "Send now" turant bhejta hai, toggle ki state se independent.
+              Toggle turant save hota hai. "Send now" abhi bhejta hai, toggle se independent.
             </div>
           </div>
           )}
@@ -392,7 +417,7 @@ export default function Settings() {
                   style={{ padding: "9px 16px", border: "1px solid var(--grade-f-border)", borderRadius: 10, background: "var(--grade-f-bg)", color: "var(--grade-f-text)", fontSize: 13, fontWeight: 700, cursor: waBusy ? "not-allowed" : "pointer" }}>
                   Disconnect
                 </button>
-                <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 10 }}>Toggle change ke baad upar "Save changes" dabana.</div>
+                <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 10 }}>Toggle turant save hota hai.</div>
               </>
             ) : wa.state === "pairing" && wa.pairingCode ? (
               <div>
