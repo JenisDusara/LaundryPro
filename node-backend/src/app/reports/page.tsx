@@ -4,18 +4,29 @@ import { IndianRupee, TrendingUp, ShoppingBag, Users, Download } from "lucide-re
 import api from "@/lib/api";
 import { downloadAuthedFile } from "@/lib/download";
 import ProtectedLayout from "@/components/ProtectedLayout";
+import EmptyState from "@/components/EmptyState";
+import { FilterPanel } from "@/components/Filters";
 import type { LaundryEntry } from "@/types";
 
 export default function Reports() {
   const [entries, setEntries] = useState<LaundryEntry[]>([]);
-  const [monthVal, setMonthVal] = useState(()=>{ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; });
+  const mStart = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`; };
+  const mEnd   = () => { const d=new Date(); const e=new Date(d.getFullYear(), d.getMonth()+1, 0); return `${e.getFullYear()}-${String(e.getMonth()+1).padStart(2,"0")}-${String(e.getDate()).padStart(2,"0")}`; };
+  const [from, setFrom] = useState(mStart);
+  const [to, setTo] = useState(mEnd);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"daily"|"services"|"society"|"customers">("daily");
+  const [activeTab, setActiveTab] = useState<"daily"|"services"|"society"|"customers"|"collection">("daily");
   const [expandedSociety, setExpandedSociety] = useState<string|null>(null);
+  const [coll, setColl] = useState<{ total:number; cash:number; upi:number; card:number; other:number; count:number }>({ total:0, cash:0, upi:0, card:0, other:0, count:0 });
 
-  useEffect(()=>{ setLoading(true); const [y,m]=monthVal.split("-"); api.get("/entries",{params:{year:parseInt(y),month:parseInt(m)}}).then(r=>setEntries(r.data)).finally(()=>setLoading(false)); },[monthVal]);
+  useEffect(()=>{ if(!from||!to) return; setLoading(true);
+    Promise.all([
+      api.get("/entries",{params:{from,to}}).then(r=>setEntries(r.data)),
+      api.get("/payments",{params:{from,to}}).then(r=>setColl(r.data.summary)).catch(()=>setColl({ total:0, cash:0, upi:0, card:0, other:0, count:0 })),
+    ]).finally(()=>setLoading(false));
+  },[from,to]);
 
-  const exportCombined = () => { const [y,m]=monthVal.split("-"); downloadAuthedFile("/exports/combined",`LaundryPro-Report-${y}-${m}.xlsx`,{month:parseInt(m),year:parseInt(y)}).catch(()=>alert("Failed to export report")); };
+  const exportCombined = () => { downloadAuthedFile("/exports/combined",`LaundryPro-Report-${from}_${to}.xlsx`,{from,to}).catch(()=>alert("Failed to export report")); };
 
   const totalRevenue=entries.reduce((s,e)=>s+Number(e.total_amount),0);
   const uniqueCustomers=new Set(entries.map(e=>e.customer_id)).size;
@@ -42,7 +53,8 @@ export default function Reports() {
   const customerData=[...customerMap.values()].sort((a,b)=>b.revenue-a.revenue);
 
   const PALETTE=["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#06b6d4","#ec4899","#84cc16"];
-  const monthName=new Date(monthVal+"-01").toLocaleString("en-IN",{month:"long",year:"numeric"});
+  const fmtShort=(d:string)=>{ try { return new Date(d+"T00:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"}); } catch { return d; } };
+  const monthName= from===to ? fmtShort(from) : `${fmtShort(from)} – ${fmtShort(to)}`;
 
   if(loading) return <ProtectedLayout><p style={{color:"var(--text-muted)",textAlign:"center",marginTop:40}}>Loading...</p></ProtectedLayout>;
 
@@ -55,11 +67,15 @@ export default function Reports() {
           <h2 style={{color:"var(--text-primary)",margin:"2px 0 0",fontSize:24,fontWeight:700}}>Reports</h2>
           <p style={{color:"var(--text-secondary)",margin:"4px 0 0",fontSize:14}}>{monthName}</p>
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-          <input type="month" value={monthVal} onChange={e=>setMonthVal(e.target.value)} style={{padding:"8px 12px",border:"1px solid var(--border-hard)",borderRadius:8,fontSize:13,outline:"none",background:"var(--bg-card)",color:"var(--text-primary)"}}/>
-          <button onClick={exportCombined} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",background:"#2563eb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:700,boxShadow:"var(--shadow-glow-blue)"}}><Download size={14}/> Export Excel</button>
-        </div>
+        <button onClick={exportCombined} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",background:"#2563eb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:700,boxShadow:"var(--shadow-glow-blue)"}}><Download size={14}/> Export Excel</button>
       </div>
+
+      {/* Date range filter (MyUniclean-style) */}
+      <FilterPanel
+        dateRange
+        initial={{ from, to }}
+        onApply={(v)=>{ setFrom(v.from || mStart()); setTo(v.to || mEnd()); }}
+      />
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:14,marginBottom:24}}>
         {[
           {label:"Total revenue", value:`₹${totalRevenue.toLocaleString()}`, icon:<IndianRupee size={18}/>, iconBg:"var(--grade-a-bg)", iconColor:"var(--grade-a-text)"},
@@ -76,20 +92,20 @@ export default function Reports() {
           </div>
         ))}
       </div>
-      <div style={{display:"flex",gap:8,marginBottom:16}}>
-        {(["daily","services","society","customers"] as const).map(tab=>(
+      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+        {(["daily","services","society","customers","collection"] as const).map(tab=>(
           <button key={tab} onClick={()=>setActiveTab(tab)} style={{padding:"8px 18px",border:"none",borderRadius:20,cursor:"pointer",fontSize:13,fontWeight:700,
             background:activeTab===tab?"#2563eb":"var(--bg-input)",
             color:activeTab===tab?"#fff":"var(--text-secondary)",
             transition:"all 0.15s"}}>
-            {tab==="daily"?"Daily":tab==="services"?"Services":tab==="society"?"Society":"Customers"}
+            {tab==="daily"?"Daily":tab==="services"?"Services":tab==="society"?"Society":tab==="customers"?"Customers":"Collection"}
           </button>
         ))}
       </div>
       <div style={{background:"var(--bg-card)",borderRadius:14,padding:24,border:"1px solid var(--border-hard)"}}>
         {activeTab==="daily"&&<div>
           <h3 style={{margin:"0 0 20px",color:"var(--text-primary)",fontSize:16,fontWeight:700}}>Daily Earnings — {monthName}</h3>
-          {dailyData.length===0?<p style={{color:"var(--text-muted)",textAlign:"center",padding:40}}>No data</p>:<div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {dailyData.length===0?<EmptyState compact title="No data" subtitle={`Nothing for ${monthName} yet.`}/>:<div style={{display:"flex",flexDirection:"column",gap:10}}>
             {dailyData.map(([date,amount])=>(
               <div key={date} style={{display:"flex",alignItems:"center",gap:12}}>
                 <div style={{width:32,fontSize:12,fontWeight:700,color:"var(--text-muted)",textAlign:"right"}}>{new Date(date+"T00:00:00").getDate()}</div>
@@ -105,7 +121,7 @@ export default function Reports() {
         </div>}
         {activeTab==="services"&&<div>
           <h3 style={{margin:"0 0 20px",fontSize:16,fontWeight:700,color:"var(--text-primary)"}}>Service-wise Revenue</h3>
-          {serviceData.length===0?<p style={{color:"var(--text-muted)",textAlign:"center",padding:40}}>No data</p>:<div>
+          {serviceData.length===0?<EmptyState compact title="No data" subtitle={`Nothing for ${monthName} yet.`}/>:<div>
             <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:20}}>
               {serviceData.map(([name,data],i)=><div key={name} style={{display:"flex",alignItems:"center",gap:6,background:"var(--bg-input)",padding:"6px 12px",borderRadius:20,border:"1px solid var(--border-hard)"}}><div style={{width:10,height:10,borderRadius:"50%",background:PALETTE[i%PALETTE.length]}}/><span style={{fontSize:12,fontWeight:600,color:"var(--text-secondary)"}}>{name}</span><span style={{fontSize:12,fontWeight:800,color:PALETTE[i%PALETTE.length]}}>{Math.round((data.revenue/totalSvcRev)*100)}%</span></div>)}
             </div>
@@ -116,7 +132,7 @@ export default function Reports() {
         </div>}
         {activeTab==="society"&&<div>
           <h3 style={{margin:"0 0 20px",fontSize:16,fontWeight:700,color:"var(--text-primary)"}}>Society-wise Revenue</h3>
-          {societyData.length===0?<p style={{color:"var(--text-muted)",textAlign:"center",padding:40}}>No data</p>:<div style={{display:"flex",flexDirection:"column",gap:14}}>
+          {societyData.length===0?<EmptyState compact title="No data" subtitle={`Nothing for ${monthName} yet.`}/>:<div style={{display:"flex",flexDirection:"column",gap:14}}>
             {societyData.map(([name,data],i)=>{ const color=PALETTE[i%PALETTE.length]; const exp=expandedSociety===name; const custList=[...data.customers.values()].sort((a,b)=>b.revenue-a.revenue); return (
               <div key={name}>
                 <div onClick={()=>setExpandedSociety(exp?null:name)} style={{display:"flex",alignItems:"center",gap:14,cursor:"pointer",padding:"8px 10px",borderRadius:10,background:exp?`${color}10`:"transparent",border:exp?`1px solid ${color}30`:"1px solid transparent"}}>
@@ -130,7 +146,7 @@ export default function Reports() {
         </div>}
         {activeTab==="customers"&&<div>
           <h3 style={{margin:"0 0 20px",fontSize:16,fontWeight:700,color:"var(--text-primary)"}}>Top Customers</h3>
-          {customerData.length===0?<p style={{color:"var(--text-muted)",textAlign:"center",padding:40}}>No data</p>:<div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {customerData.length===0?<EmptyState compact title="No data" subtitle={`Nothing for ${monthName} yet.`}/>:<div style={{display:"flex",flexDirection:"column",gap:10}}>
             {customerData.slice(0,10).map((cust,i)=>(
               <div key={i} style={{display:"flex",alignItems:"center",gap:14,padding:"12px 16px",background:i===0?"var(--grade-c-bg)":"var(--bg-input)",borderRadius:10,border:i===0?"1px solid var(--grade-c-border)":"1px solid var(--border-hard)"}}>
                 <div style={{width:32,height:32,borderRadius:"50%",background:i===0?"#f59e0b":i===1?"#94a3b8":i===2?"#cd7c2e":"var(--bg-elevated)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:i<3?"#fff":"var(--text-muted)",flexShrink:0}}>{i<3?["🥇","🥈","🥉"][i]:i+1}</div>
@@ -140,6 +156,46 @@ export default function Reports() {
             ))}
           </div>}
         </div>}
+        {activeTab==="collection"&&(()=>{
+          const billed = totalRevenue;
+          const collected = coll.total;
+          const outstanding = Math.max(0, billed - collected);
+          const methods: [string,number,string][] = [["Cash",coll.cash,"#16a34a"],["UPI",coll.upi,"#2563eb"],["Card",coll.card,"#7c3aed"],["Other",coll.other,"#f59e0b"]];
+          const maxM = Math.max(...methods.map(m=>m[1]),1);
+          return (
+            <div>
+              <h3 style={{margin:"0 0 20px",fontSize:16,fontWeight:700,color:"var(--text-primary)"}}>Billing vs Collection — {monthName}</h3>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginBottom:22}}>
+                {[
+                  {label:"Billed",      value:billed,      bg:"var(--grade-b-bg)", bd:"var(--grade-b-border)", tc:"var(--grade-b-text)"},
+                  {label:"Collected",   value:collected,   bg:"var(--grade-a-bg)", bd:"var(--grade-a-border)", tc:"var(--grade-a-text)"},
+                  {label:"Outstanding (udhaar)", value:outstanding, bg:"var(--grade-c-bg)", bd:"var(--grade-c-border)", tc:"var(--grade-c-text)"},
+                ].map((t,i)=>(
+                  <div key={i} style={{background:t.bg,border:`1px solid ${t.bd}`,borderRadius:12,padding:"14px 16px"}}>
+                    <div style={{fontSize:12,fontWeight:600,color:t.tc}}>{t.label}</div>
+                    <div style={{fontSize:24,fontWeight:900,color:t.tc,marginTop:4}}>₹{t.value.toLocaleString("en-IN")}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{fontSize:13,fontWeight:700,color:"var(--text-secondary)",marginBottom:12}}>Collected by method {coll.count>0?`· ${coll.count} payments`:""}</div>
+              {collected===0?<EmptyState compact title="No collection" subtitle={`No payments received in ${monthName}.`}/>:(
+                <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                  {methods.filter(m=>m[1]>0).map(([name,amt,color])=>(
+                    <div key={name}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+                        <span style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{name}</span>
+                        <span style={{fontSize:13,fontWeight:700,color}}>₹{amt.toLocaleString("en-IN")}</span>
+                      </div>
+                      <div style={{height:14,background:"var(--bg-input)",borderRadius:7,overflow:"hidden"}}>
+                        <div className="bar-fill" style={{height:"100%",width:`${(amt/maxM)*100}%`,background:color,borderRadius:7,minWidth:4}}/>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </ProtectedLayout>
   );

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
+import EmptyState from "@/components/EmptyState";
 import CollectionsChart from "@/components/CollectionsChart";
 import type { Payment } from "@/types";
 
@@ -378,13 +379,7 @@ export default function AccountingPage() {
               {loading?(
                 <div style={{background:"var(--bg-card)",borderRadius:16,padding:60,textAlign:"center",color:"var(--text-muted)",border:"1.5px solid var(--border-hard)"}}>Loading…</div>
               ):expenses.length===0?(
-                <div style={{background:"var(--bg-card)",borderRadius:16,padding:"60px 20px",textAlign:"center",border:"1.5px dashed var(--border-hard)"}}>
-                  <div style={{width:56,height:56,borderRadius:16,background:"var(--bg-elevated)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
-                    <Wallet size={26} color="var(--text-muted)"/>
-                  </div>
-                  <div style={{fontWeight:700,fontSize:15,color:"var(--text-muted)",marginBottom:6}}>No expenses this month</div>
-                  <div style={{fontSize:13,color:"var(--text-muted)"}}>Click &ldquo;Add Expense&rdquo; to record one</div>
-                </div>
+                <EmptyState title="No expenses this month" subtitle="Click &ldquo;Add Expense&rdquo; to record one." />
               ):(
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
                   {expenses.map((exp,i)=>(
@@ -464,13 +459,7 @@ export default function AccountingPage() {
           {loading?(
             <div style={{background:"var(--bg-card)",borderRadius:16,padding:60,textAlign:"center",color:"var(--text-muted)",border:"1.5px solid var(--border-hard)"}}>Loading…</div>
           ):sortedDates.length===0?(
-            <div style={{background:"var(--bg-card)",borderRadius:16,padding:"60px 20px",textAlign:"center",border:"1.5px dashed var(--border-hard)"}}>
-              <div style={{width:56,height:56,borderRadius:16,background:"var(--bg-elevated)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
-                <CalendarDays size={26} color="var(--text-muted)"/>
-              </div>
-              <div style={{fontWeight:700,fontSize:15,color:"var(--text-muted)",marginBottom:6}}>No entries this month</div>
-              <div style={{fontSize:13,color:"var(--text-muted)"}}>Entries for {MONTH_NAMES[month-1]} {year} will appear here</div>
-            </div>
+            <EmptyState title="No entries this month" subtitle={`Entries for ${MONTH_NAMES[month-1]} ${year} will appear here.`} />
           ):(
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
               {sortedDates.map((date,idx)=>{
@@ -564,13 +553,7 @@ export default function AccountingPage() {
           {loading?(
             <div style={{background:"var(--bg-card)",borderRadius:16,padding:60,textAlign:"center",color:"var(--text-muted)",border:"1.5px solid var(--border-hard)"}}>Loading…</div>
           ):payments.length===0?(
-            <div style={{background:"var(--bg-card)",borderRadius:16,padding:"60px 20px",textAlign:"center",border:"1.5px dashed var(--border-hard)"}}>
-              <div style={{width:56,height:56,borderRadius:16,background:"var(--bg-elevated)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
-                <IndianRupee size={26} color="var(--text-muted)"/>
-              </div>
-              <div style={{fontWeight:700,fontSize:15,color:"var(--text-muted)",marginBottom:6}}>No payments this month</div>
-              <div style={{fontSize:13,color:"var(--text-muted)"}}>Go to Customers → tap the ₹ button to record a payment</div>
-            </div>
+            <EmptyState title="No payments this month" subtitle="Go to Customers → tap the ₹ button to record a payment." />
           ):(
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
               {payments.map((pay,i)=>{

@@ -1,10 +1,12 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { CheckCircle, Clock, RefreshCw, X, Truck, CalendarDays, ChevronRight, ChevronDown, Home, Package } from "lucide-react";
+import { CheckCircle, Clock, RefreshCw, X, Truck, CalendarDays, ChevronRight, ChevronDown, Home, Package, Search } from "lucide-react";
 import api from "@/lib/api";
 import { isEntryDelivered } from "@/lib/entry-status";
 import { todayIST } from "@/lib/dates";
 import ProtectedLayout from "@/components/ProtectedLayout";
+import EmptyState from "@/components/EmptyState";
+import { FilterPanel } from "@/components/Filters";
 import ItemDeliver from "@/components/ItemDeliver";
 import type { LaundryEntry } from "@/types";
 
@@ -18,7 +20,15 @@ export default function Deliveries() {
   const [filter,           setFilter]           = useState("all");
   const [loading,          setLoading]          = useState(true);
   const [expandedCustomer, setExpandedCustomer] = useState<string|null>(null);
-  const [selectedDate,     setSelectedDate]     = useState("");
+  const [from,             setFrom]             = useState("");
+  const [to,               setTo]               = useState("");
+  const [fName,            setFName]            = useState("");
+  const [fPhone,           setFPhone]           = useState("");
+  const [societyFilter,    setSocietyFilter]    = useState("all");
+  const applyFilters = (v: Record<string,string>) => {
+    setFilter(v.status || "all"); setFrom(v.from || ""); setTo(v.to || "");
+    setSocietyFilter(v.society || "all"); setFName(v.name || ""); setFPhone(v.phone || "");
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -53,8 +63,9 @@ export default function Deliveries() {
     load();
   };
 
-  const dateFiltered = selectedDate
-    ? allEntries.filter(e => e.entry_date === selectedDate || e.delivery_date === selectedDate)
+  const inRange = (d?: string | null) => !!d && d >= from && d <= to;
+  const dateFiltered = (from && to)
+    ? allEntries.filter(e => inRange(e.entry_date) || inRange(e.delivery_date))
     : allEntries;
 
   const entries = filter === "all"       ? dateFiltered
@@ -70,7 +81,13 @@ export default function Deliveries() {
       customerMap.set(e.customer_id, { name:e.customer?.name||"Unknown", phone:e.customer?.phone||"", flat:e.customer?.flat_number||"", society:e.customer?.society_name||"", entries:[] });
     customerMap.get(e.customer_id)!.entries.push(e);
   });
-  const customers = Array.from(customerMap.entries());
+  const societyOptions = Array.from(new Set(allEntries.map(e => e.customer?.society_name).filter(Boolean) as string[])).sort();
+  const customers = Array.from(customerMap.entries()).filter(([,c]) => {
+    if (societyFilter !== "all" && c.society !== societyFilter) return false;
+    if (fName  && !c.name.toLowerCase().includes(fName.toLowerCase())) return false;
+    if (fPhone && !c.phone.includes(fPhone)) return false;
+    return true;
+  });
 
   return (
     <ProtectedLayout>
@@ -91,7 +108,7 @@ export default function Deliveries() {
           <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:4}}>Fulfilment</div>
           <h2 style={{color:"var(--text-primary)",margin:"0 0 4px",fontSize:26,fontWeight:900,letterSpacing:-0.5}}>Deliveries</h2>
           <p style={{color:"var(--text-muted)",fontSize:13,margin:0}}>
-            {selectedDate ? fmtDate(selectedDate) : "All time"} · {pendingCount} pending · {deliveredCount} delivered
+            {(from && to) ? `${fmtDate(from)} – ${fmtDate(to)}` : "All time"} · {pendingCount} pending · {deliveredCount} delivered
           </p>
         </div>
         <button onClick={load} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 18px",border:"1px solid var(--border-hard)",borderRadius:10,background:"var(--bg-card)",color:"var(--text-secondary)",fontSize:13,fontWeight:600,cursor:"pointer"}}>
@@ -99,64 +116,20 @@ export default function Deliveries() {
         </button>
       </div>
 
-      {/* Filters row */}
-      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
-        {/* Pill tabs */}
-        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          {[
-            {key:"all",       label:"All",       g:"b" as const},
-            {key:"pending",   label:"Pending",   count:pendingCount,   g:"c" as const},
-            {key:"delivered", label:"Delivered", count:deliveredCount, g:"a" as const},
-          ].map(({key,label,count,g})=>{
-            const active = filter===key;
-            return (
-              <button key={key} onClick={()=>setFilter(key)}
-                style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:20,cursor:"pointer",fontWeight:700,fontSize:13,transition:"all 0.15s",
-                  background:active?`var(--grade-${g}-bg)`:"var(--bg-input)",
-                  color:active?`var(--grade-${g}-text)`:"var(--text-secondary)",
-                  border:`1px solid ${active?`var(--grade-${g}-border)`:"transparent"}`}}>
-                {label}
-                {count!=null&&count>0&&(
-                  <span style={{fontSize:11,fontWeight:800,padding:"1px 7px",borderRadius:10,
-                    background:active?`var(--grade-${g}-border)`:"var(--bg-elevated)",
-                    color:active?`var(--grade-${g}-text)`:"var(--text-secondary)"}}>
-                    {count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Date picker */}
-        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:0,background:"var(--bg-card)",border:"1px solid var(--border-hard)",borderRadius:20,overflow:"hidden"}}>
-          <span style={{padding:"7px 10px 7px 14px",display:"flex",alignItems:"center"}}>
-            <CalendarDays size={14} color="var(--grade-b-text)"/>
-          </span>
-          <input type="date" value={selectedDate}
-            onChange={e=>{setSelectedDate(e.target.value);setExpandedCustomer(null);}}
-            style={{padding:"7px 10px 7px 0",border:"none",outline:"none",fontSize:13,background:"transparent",color:selectedDate?"var(--text-primary)":"var(--text-muted)",cursor:"pointer",width:120}}/>
-          {selectedDate&&(
-            <button onClick={()=>setSelectedDate("")}
-              style={{padding:"7px 10px",background:"var(--grade-f-bg)",border:"none",borderLeft:"1px solid var(--border-hard)",cursor:"pointer",display:"flex",alignItems:"center"}}>
-              <X size={13} color="var(--grade-f-text)"/>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Date summary badges */}
-      {selectedDate&&(()=>{
-        const pickupCount   = allEntries.filter(e=>e.entry_date===selectedDate).length;
-        const deliveryCount = allEntries.filter(e=>e.delivery_date===selectedDate).length;
-        return (
-          <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
-            {pickupCount>0&&<span style={{fontSize:12,fontWeight:600,background:"var(--grade-b-bg)",color:"var(--grade-b-text)",padding:"4px 12px",borderRadius:20,border:"1px solid var(--grade-b-border)"}}>Pickup · {pickupCount}</span>}
-            {deliveryCount>0&&<span style={{fontSize:12,fontWeight:600,background:"var(--grade-a-bg)",color:"var(--grade-a-text)",padding:"4px 12px",borderRadius:20,border:"1px solid var(--grade-a-border)"}}>Delivery · {deliveryCount}</span>}
-            {pickupCount===0&&deliveryCount===0&&<span style={{fontSize:12,color:"var(--text-muted)"}}>No entries on {fmtDate(selectedDate)}</span>}
-          </div>
-        );
-      })()}
+      {/* Filters (MyUniclean-style) */}
+      <FilterPanel
+        initial={{ status: filter, society: societyFilter, from, to, name: fName, phone: fPhone }}
+        onApply={applyFilters}
+        dateRange
+        selects={[
+          { key:"status",  label:"Status",  options:[{value:"all",label:"All"},{value:"pending",label:"Pending"},{value:"delivered",label:"Delivered"}] },
+          { key:"society", label:"Society", options:[{value:"all",label:"All societies"}, ...societyOptions.map(s=>({value:s,label:s}))] },
+        ]}
+        texts={[
+          { key:"name",  label:"Search by name",  placeholder:"Customer name" },
+          { key:"phone", label:"Search by phone", placeholder:"Phone number" },
+        ]}
+      />
 
       {/* Content */}
       {loading ? (
@@ -165,13 +138,7 @@ export default function Deliveries() {
           <div style={{fontWeight:600}}>Loading...</div>
         </div>
       ) : customers.length === 0 ? (
-        <div style={{textAlign:"center",padding:"60px 16px",color:"var(--text-muted)"}}>
-          <div style={{width:52,height:52,borderRadius:14,background:"var(--bg-elevated)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
-            <Truck size={24} color="var(--text-muted)"/>
-          </div>
-          <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>No entries found</div>
-          <div style={{fontSize:13}}>{selectedDate?`No entries on ${fmtDate(selectedDate)}`:"No entries this month"}</div>
-        </div>
+        <EmptyState title="No entries found" subtitle={(from&&to)?`No entries in ${fmtDate(from)} – ${fmtDate(to)}`:"No entries yet"}/>
       ) : (
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           {customers.map(([cid,cust],ci)=>{

@@ -4,6 +4,8 @@ import { Calendar, Filter, Trash2, ChevronDown, ChevronUp, ChevronRight, Pencil,
 import api from "@/lib/api";
 import { isEntryDelivered } from "@/lib/entry-status";
 import ProtectedLayout from "@/components/ProtectedLayout";
+import EmptyState from "@/components/EmptyState";
+import { FilterPanel } from "@/components/Filters";
 import type { LaundryEntry, Service } from "@/types";
 
 interface EditItem { localId:string; service_id:string; service_name:string; price_per_unit:number; quantity:number; item_status:string; }
@@ -17,14 +19,24 @@ const openWA = (phone: string) => {
 
 export default function Entries() {
   const [entries,          setEntries]          = useState<LaundryEntry[]>([]);
-  const [filterType,       setFilterType]       = useState<"date"|"month">("month");
-  const [dateVal,          setDateVal]          = useState(new Date().toISOString().slice(0,10));
-  const [monthVal,         setMonthVal]         = useState(()=>{ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; });
+  // Date range (defaults to this month). Replaces the old date/month toggle.
+  const monthStart = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`; };
+  const monthEnd   = () => { const d=new Date(); const e=new Date(d.getFullYear(), d.getMonth()+1, 0); return `${e.getFullYear()}-${String(e.getMonth()+1).padStart(2,"0")}-${String(e.getDate()).padStart(2,"0")}`; };
+  const [from,             setFrom]             = useState(monthStart);
+  const [to,               setTo]               = useState(monthEnd);
+  const [statusFilter,     setStatusFilter]     = useState("all");
+  const [paymentFilter,    setPaymentFilter]    = useState("all");
   const [expandedCustomer, setExpandedCustomer] = useState<string|null>(null);
   const [expandedDate,     setExpandedDate]     = useState<string|null>(null);
   const [loading,          setLoading]          = useState(false);
   const [loadError,        setLoadError]        = useState("");
-  const [search,           setSearch]           = useState("");
+  const [fName,            setFName]            = useState("");
+  const [fPhone,           setFPhone]           = useState("");
+  const applyFilters = (v: Record<string,string>) => {
+    setFrom(v.from || monthStart()); setTo(v.to || monthEnd());
+    setStatusFilter(v.status || "all"); setPaymentFilter(v.payment || "all");
+    setFName(v.name || ""); setFPhone(v.phone || "");
+  };
   const [services,         setServices]         = useState<Service[]>([]);
   const [editEntry,        setEditEntry]        = useState<LaundryEntry|null>(null);
   const [editItems,        setEditItems]        = useState<EditItem[]>([]);
@@ -38,25 +50,23 @@ export default function Entries() {
   const [invoiceDiscount,  setInvoiceDiscount]  = useState("");
 
   const load = async () => {
+    if (!from || !to) return;
     setLoading(true); setLoadError("");
     try {
-      const params:any={};
-      if(filterType==="date") params.entry_date=dateVal;
-      else { const [y,m]=monthVal.split("-"); params.year=parseInt(y); params.month=parseInt(m); }
-      const res=await api.get("/entries",{params}); setEntries(res.data);
+      const res=await api.get("/entries",{params:{ from, to }}); setEntries(res.data);
     } catch(e:any) { setLoadError(e?.response?.data?.detail||"Failed to load entries."); }
     finally { setLoading(false); }
   };
 
-  useEffect(()=>{ load(); },[filterType,dateVal,monthVal]);
+  useEffect(()=>{ load(); },[from,to]);
   useEffect(()=>{ api.get("/services").then(r=>setServices(r.data)).catch(()=>{}); },[]);
   // Deep-link from the dashboard "Today's Pickups" (e.g. /entries?date=2026-07-12&customer=<id>)
-  // — switch to that day's filter AND auto-open the tapped customer's card, so clicking Ankit's
+  // — narrow the range to that day AND auto-open the tapped customer's card, so clicking Ankit's
   // row lands directly on Ankit's entry instead of a blank form or the whole list.
   useEffect(()=>{
     const q = new URLSearchParams(window.location.search);
     const d = q.get("date");
-    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) { setFilterType("date"); setDateVal(d); }
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) { setFrom(d); setTo(d); }
     const cust = q.get("customer");
     if (cust) setExpandedCustomer(cust);
   },[]);
@@ -126,15 +136,29 @@ export default function Entries() {
     finally { setEmailSending(false); }
   };
 
+  // Status (pipeline) + payment filters — applied client-side on the loaded range.
+  const stageOf = (e:LaundryEntry) => isEntryDelivered(e) ? "delivered" : "pending";
+  const visibleEntries = entries.filter(e=>{
+    if (statusFilter!=="all" && stageOf(e)!==statusFilter) return false;
+    if (paymentFilter!=="all") {
+      const bal = Number(e.total_amount) - (e.amount_paid ?? 0);
+      if (paymentFilter==="paid"   && bal > 0)  return false;
+      if (paymentFilter==="udhaar" && bal <= 0) return false;
+    }
+    return true;
+  });
+
   const customerMap = new Map<string,{name:string;phone:string;flat:string;society:string;entries:LaundryEntry[]}>();
-  entries.forEach(e=>{ if(!customerMap.has(e.customer_id)) customerMap.set(e.customer_id,{name:e.customer?.name||"Unknown",phone:e.customer?.phone||"",flat:e.customer?.flat_number||"",society:e.customer?.society_name||"",entries:[]}); customerMap.get(e.customer_id)!.entries.push(e); });
+  visibleEntries.forEach(e=>{ if(!customerMap.has(e.customer_id)) customerMap.set(e.customer_id,{name:e.customer?.name||"Unknown",phone:e.customer?.phone||"",flat:e.customer?.flat_number||"",society:e.customer?.society_name||"",entries:[]}); customerMap.get(e.customer_id)!.entries.push(e); });
 
   const filteredCustomers = Array.from(customerMap.entries()).filter(([,c])=>
-    !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search) || c.flat.toLowerCase().includes(search.toLowerCase())
+    (!fName  || c.name.toLowerCase().includes(fName.toLowerCase())) &&
+    (!fPhone || c.phone.includes(fPhone))
   );
 
   const editTotal   = editItems.reduce((s,i)=>s+Number(i.price_per_unit)*Number(i.quantity),0);
-  const monthLabel  = filterType==="month" ? new Date(monthVal+"-01").toLocaleString("en-IN",{month:"long",year:"numeric"}) : new Date(dateVal).toLocaleDateString("en-IN",{day:"numeric",month:"long",year:"numeric"});
+  const fmtShort = (d:string) => { try { return new Date(d+"T00:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short"}); } catch { return d; } };
+  const monthLabel  = from===to ? new Date(from+"T00:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"long",year:"numeric"}) : `${fmtShort(from)} – ${fmtShort(to)}`;
 
   const AVATAR_COLORS = ["#1e40af","#059669","#7c3aed","#d97706","#dc2626","#0891b2","#be185d","#0f766e"];
 
@@ -151,38 +175,27 @@ export default function Entries() {
       `}</style>
 
       {/* ── Header ── */}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:10}}>
         <div>
           <h2 style={{color:"var(--text-primary)",margin:"0 0 2px",fontSize:22,fontWeight:800}}>Entries</h2>
           <p style={{color:"var(--text-muted)",fontSize:12,margin:0}}>{monthLabel}</p>
         </div>
-        {/* Filter bar */}
-        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-          <div style={{display:"inline-flex",background:"var(--bg-input,#f1f5f9)",border:"1px solid var(--border-hard,#e2e8f0)",borderRadius:8,padding:"3px",gap:2}}>
-            {(["date","month"] as const).map(t=>(
-              <button key={t} onClick={()=>setFilterType(t)}
-                style={{display:"flex",alignItems:"center",gap:4,padding:"6px 14px",borderRadius:6,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,
-                  background:filterType===t?"var(--accent-primary,#1e40af)":"transparent",
-                  color:filterType===t?"#fff":"var(--text-secondary)",
-                  transition:"all 0.15s"}}>
-                {t==="date"?<><Calendar size={12}/>Date</>:<><Filter size={12}/>Month</>}
-              </button>
-            ))}
-          </div>
-          {filterType==="date"
-            ? <input type="date" value={dateVal} onChange={e=>setDateVal(e.target.value)} style={{padding:"8px 12px",border:"1.5px solid var(--border-hard)",borderRadius:10,fontSize:13,outline:"none",background:"var(--bg-card)",color:"var(--text-primary)"}}/>
-            : <input type="month" value={monthVal} onChange={e=>setMonthVal(e.target.value)} style={{padding:"8px 12px",border:"1.5px solid var(--border-hard)",borderRadius:10,fontSize:13,outline:"none",background:"var(--bg-card)",color:"var(--text-primary)"}}/>
-          }
-        </div>
       </div>
 
-      {/* ── Search ── */}
-      <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--bg-card)",border:"1.5px solid var(--border-hard)",borderRadius:10,padding:"9px 14px",marginBottom:14}}>
-        <Search size={14} color="#94a3b8"/>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name, phone or flat..."
-          style={{flex:1,border:"none",outline:"none",fontSize:13,background:"transparent",color:"var(--text-primary)"}}/>
-        {search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:16}}>×</button>}
-      </div>
+      {/* ── Filters (MyUniclean-style) ── */}
+      <FilterPanel
+        initial={{ from, to, status: statusFilter, payment: paymentFilter, name: fName, phone: fPhone }}
+        onApply={applyFilters}
+        dateRange
+        selects={[
+          { key:"status",  label:"Status",  options:[{value:"all",label:"All statuses"},{value:"pending",label:"Pending"},{value:"delivered",label:"Delivered"}] },
+          { key:"payment", label:"Payment", options:[{value:"all",label:"All"},{value:"paid",label:"Paid"},{value:"udhaar",label:"Udhaar (due)"}] },
+        ]}
+        texts={[
+          { key:"name",  label:"Search by name",  placeholder:"Customer name" },
+          { key:"phone", label:"Search by phone", placeholder:"Phone number" },
+        ]}
+      />
 
       {loading&&<div style={{textAlign:"center",padding:32,color:"#94a3b8"}}>Loading...</div>}
       {loadError&&(
@@ -195,7 +208,7 @@ export default function Entries() {
 
       {/* ── Customer Cards ── */}
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {filteredCustomers.length===0&&!loading&&<div style={{textAlign:"center",padding:40,color:"#94a3b8"}}>No entries found</div>}
+        {filteredCustomers.length===0&&!loading&&<EmptyState title="No entries found" subtitle={(fName||fPhone)?"Try a different name or phone.":"No entries for this period yet."}/>}
         {filteredCustomers.map(([cid,cust],ci)=>{
           const custOpen   = expandedCustomer===cid;
           const custTotal  = cust.entries.reduce((s,e)=>s+Number(e.total_amount),0);
@@ -285,8 +298,18 @@ export default function Entries() {
                         {/* Items */}
                         {dateOpen&&(
                           <div style={{padding:"8px 12px 12px 12px",background:"var(--bg-elevated)",borderTop:"1px solid var(--border-hard)"}}>
-                            {dateEntries.map(entry=>(
+                            {dateEntries.map(entry=>{
+                              const paid = entry.amount_paid ?? 0;
+                              const bal  = Math.max(0, Number(entry.total_amount) - paid);
+                              return (
                               <div key={entry.id}>
+                                {paid > 0 && (
+                                  <div style={{display:"flex",justifyContent:"flex-end",padding:"2px 4px 8px"}}>
+                                    <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:20,background:bal>0?"#fef3c7":"#dcfce7",color:bal>0?"#d97706":"#16a34a"}}>
+                                      {bal>0?`Paid ₹${paid} · Due ₹${bal}`:`Paid ₹${paid}`}{entry.payment_method?` · ${entry.payment_method}`:""}
+                                    </span>
+                                  </div>
+                                )}
                                 {entry.notes&&<div style={{fontSize:12,color:"#64748b",padding:"4px 4px 8px",display:"flex",alignItems:"center",gap:4}}>📝 <span>{entry.notes}</span></div>}
                                 <div style={{display:"flex",flexDirection:"column",gap:5}}>
                                   {entry.items.map(item=>{
@@ -309,8 +332,16 @@ export default function Entries() {
                                     );
                                   })}
                                 </div>
+                                {((entry.discount ?? 0) > 0 || (entry.extra_charge ?? 0) > 0) && (
+                                  <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:12,padding:"8px 4px 0",fontSize:11,color:"#64748b"}}>
+                                    {(entry.discount ?? 0) > 0 && <span>Discount −₹{entry.discount}</span>}
+                                    {(entry.extra_charge ?? 0) > 0 && <span>Extra +₹{entry.extra_charge}</span>}
+                                    <span style={{fontWeight:700,color:"#1e40af"}}>Total ₹{Number(entry.total_amount)}</span>
+                                  </div>
+                                )}
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                       </div>

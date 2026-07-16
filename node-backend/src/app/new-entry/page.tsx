@@ -49,6 +49,11 @@ export default function NewEntry() {
   const pendingDeliverRef = useRef<string[]>([]);
   const [deliveryDate,     setDeliveryDate]     = useState("");
   const [shopName,         setShopName]         = useState("");
+  // Billing (discount / extra charge / payment at billing)
+  const [discount,         setDiscount]         = useState("");
+  const [extraCharge,      setExtraCharge]      = useState("");
+  const [payMethod,        setPayMethod]        = useState<"cash"|"upi"|"online"|"later">("later");
+  const [amountPaid,       setAmountPaid]       = useState("");   // received now; blank until a method is picked
   const router = useRouter();
 
   useEffect(() => { pendingDeliverRef.current = pendingDeliverIds; }, [pendingDeliverIds]);
@@ -105,6 +110,13 @@ export default function NewEntry() {
   const toggleGroup  = (id:string) => { const s=new Set(expandedGroups); s.has(id)?s.delete(id):s.add(id); setExpandedGroups(s); };
 
   const total = items.reduce((s,i)=>s+(Number(i.price)*Number(i.quantity)),0);
+  // Billing
+  const discountN  = Math.max(0, Number(discount) || 0);
+  const extraN     = Math.max(0, Number(extraCharge) || 0);
+  const grandTotal = Math.max(0, total - discountN + extraN);
+  const paidN      = payMethod === "later" ? 0 : Math.max(0, Number(amountPaid) || 0);
+  const balance    = Math.max(0, grandTotal - paidN);
+  const pickMethod = (m:"cash"|"upi"|"online"|"later") => { setPayMethod(m); setAmountPaid(m==="later" ? "" : String(grandTotal)); };
 
   const SHOP_NAME = shopName || "Your Laundry";
 
@@ -132,8 +144,8 @@ export default function NewEntry() {
     try {
       // Pass any just-delivered items so the backend sends ONE combined message
       // (delivery note with pickup dates + new pickup) instead of two separate ones.
-      await api.post("/entries",{customer_id:selectedCustomer.id,notes,delivery_date:deliveryDate||null,delivered:justDelivered,items:items.map(i=>({service_id:i.service_id,service_name:i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name,quantity:Number(i.quantity),price_per_unit:Number(i.price)}))});
-      setSuccess(true); setItems([]); setNotes(""); setDeliveryDate("");
+      await api.post("/entries",{customer_id:selectedCustomer.id,notes,delivery_date:deliveryDate||null,delivered:justDelivered,discount:discountN,extra_charge:extraN,amount_paid:paidN,payment_method:payMethod,items:items.map(i=>({service_id:i.service_id,service_name:i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name,quantity:Number(i.quantity),price_per_unit:Number(i.price)}))});
+      setSuccess(true); setItems([]); setNotes(""); setDeliveryDate(""); setDiscount(""); setExtraCharge(""); setPayMethod("later"); setAmountPaid("");
       // These deliveries are now covered by the combined message — clear so the unmount
       // flush doesn't re-notify.
       setJustDelivered([]); setPendingDeliverIds([]);
@@ -172,7 +184,7 @@ export default function NewEntry() {
   const isDisabled = !selectedCustomer || items.length === 0 || saving;
   const cardStyle: React.CSSProperties = { background:"var(--bg-card-solid)", borderRadius:14, boxShadow:"var(--shadow-web-lift)", border:"1px solid var(--border-hard)" };
   const label: React.CSSProperties = { fontSize:11, fontWeight:700, color:"var(--text-secondary)", textTransform:"uppercase", letterSpacing:"0.1em" };
-  const resetForm = () => { setItems([]); setSelectedCustomer(null); setSearch(""); setNotes(""); setDeliveryDate(""); setPastEntries([]); setJustDelivered([]); };
+  const resetForm = () => { setItems([]); setSelectedCustomer(null); setSearch(""); setNotes(""); setDeliveryDate(""); setPastEntries([]); setJustDelivered([]); setDiscount(""); setExtraCharge(""); setPayMethod("later"); setAmountPaid(""); };
 
   return (
     <ProtectedLayout>
@@ -425,9 +437,66 @@ export default function NewEntry() {
             </div>
           )}
 
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:12,marginTop:12,borderTop:"1px solid var(--border-hard)"}}>
-            <span style={{fontSize:15,fontWeight:700,color:"var(--text-primary)"}}>Total</span>
-            <span style={{fontWeight:800,fontSize:22,color:"var(--accent-success)"}}>₹{total.toFixed(0)}</span>
+          {/* Billing — subtotal, discount, extra charge, grand total */}
+          <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid var(--border-hard)",display:"flex",flexDirection:"column",gap:8}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13}}>
+              <span style={{color:"var(--text-secondary)"}}>Subtotal</span>
+              <span style={{fontWeight:700,color:"var(--text-primary)"}}>₹{total.toFixed(0)}</span>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+              <span style={{fontSize:13,color:"var(--text-secondary)"}}>Discount</span>
+              <div style={{display:"flex",alignItems:"center",gap:2,background:"var(--bg-input)",border:"1px solid var(--border-hard)",borderRadius:8,padding:"0 8px",height:32,width:100}}>
+                <span style={{fontSize:12,color:"var(--text-muted)"}}>−₹</span>
+                <input type="number" min={0} value={discount} onChange={e=>setDiscount(e.target.value)} placeholder="0"
+                  style={{flex:1,minWidth:0,width:"100%",border:"none",outline:"none",fontSize:13,fontWeight:600,background:"transparent",color:"var(--text-primary)",textAlign:"right"}}/>
+              </div>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+              <span style={{fontSize:13,color:"var(--text-secondary)"}}>Extra charge</span>
+              <div style={{display:"flex",alignItems:"center",gap:2,background:"var(--bg-input)",border:"1px solid var(--border-hard)",borderRadius:8,padding:"0 8px",height:32,width:100}}>
+                <span style={{fontSize:12,color:"var(--text-muted)"}}>+₹</span>
+                <input type="number" min={0} value={extraCharge} onChange={e=>setExtraCharge(e.target.value)} placeholder="0"
+                  style={{flex:1,minWidth:0,width:"100%",border:"none",outline:"none",fontSize:13,fontWeight:600,background:"transparent",color:"var(--text-primary)",textAlign:"right"}}/>
+              </div>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:10,marginTop:2,borderTop:"1px solid var(--border-hard)"}}>
+              <span style={{fontSize:15,fontWeight:700,color:"var(--text-primary)"}}>Grand total</span>
+              <span style={{fontWeight:800,fontSize:22,color:"var(--accent-success)"}}>₹{grandTotal.toFixed(0)}</span>
+            </div>
+          </div>
+
+          {/* Payment at billing */}
+          <div style={{marginTop:14}}>
+            <div style={{...label,marginBottom:8}}>Payment</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+              {([["cash","Cash"],["upi","UPI"],["online","Online"],["later","Later"]] as [typeof payMethod,string][]).map(([m,lbl])=>(
+                <button key={m} onClick={()=>pickMethod(m)}
+                  style={{padding:"8px 4px",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",
+                    border:`1px solid ${payMethod===m?"var(--accent-primary)":"var(--border-hard)"}`,
+                    background:payMethod===m?"var(--accent-primary)":"var(--bg-input)",
+                    color:payMethod===m?"#0b1830":"var(--text-secondary)"}}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+            {payMethod!=="later" && (
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginTop:10}}>
+                <span style={{fontSize:13,color:"var(--text-secondary)"}}>Amount received</span>
+                <div style={{display:"flex",alignItems:"center",gap:2,background:"var(--bg-input)",border:"1px solid var(--border-hard)",borderRadius:8,padding:"0 8px",height:34,width:112}}>
+                  <span style={{fontSize:12,color:"var(--text-muted)"}}>₹</span>
+                  <input type="number" min={0} value={amountPaid} onChange={e=>setAmountPaid(e.target.value)} placeholder="0"
+                    style={{flex:1,minWidth:0,width:"100%",border:"none",outline:"none",fontSize:14,fontWeight:700,background:"transparent",color:"var(--text-primary)",textAlign:"right"}}/>
+                </div>
+              </div>
+            )}
+            {grandTotal>0 && (
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,fontSize:13}}>
+                <span style={{color:"var(--text-secondary)"}}>{balance>0?"Balance (udhaar)":"Fully paid"}</span>
+                <span style={{fontWeight:800,color:balance>0?"var(--grade-c-text)":"var(--grade-a-text)"}}>
+                  {balance>0 ? `₹${balance.toFixed(0)}` : (paidN>grandTotal ? `Change ₹${(paidN-grandTotal).toFixed(0)}` : "✓")}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Expected delivery */}
@@ -449,7 +518,7 @@ export default function NewEntry() {
             style={{marginTop:16,width:"100%",padding:"12px",borderRadius:10,fontSize:14,fontWeight:700,cursor:isDisabled?"not-allowed":"pointer",transition:"all 0.15s",
               ...(isDisabled ? {background:"var(--bg-input)",border:"1.5px solid var(--border)",color:"var(--text-secondary)",opacity:0.55}
                              : {background:"var(--accent-primary)",border:"none",color:"#0b1830",boxShadow:"var(--shadow-glow-blue)"})}}>
-            {saving ? "Saving…" : total > 0 ? `Save entry · ₹${total}` : "Save entry"}
+            {saving ? "Saving…" : grandTotal > 0 ? `Save entry · ₹${grandTotal}` : "Save entry"}
           </button>
           {/* Bill goes to WhatsApp automatically (if the shop enabled auto-send in Settings),
               so the old manual "Save & send on WhatsApp" button was removed. */}

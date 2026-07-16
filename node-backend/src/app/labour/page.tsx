@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Plus, Edit2, Trash2, X, Wallet, ChevronDown, ChevronUp, ArrowLeft, History } from "lucide-react";
 import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
+import EmptyState from "@/components/EmptyState";
 
 interface LabourType   { id:string; name:string; }
 interface WorkEntry    { id:string; labour_id:string; work_date:string; press_count:number; rate_per_piece:number; total:number; }
@@ -186,7 +187,7 @@ export default function Labour() {
 
         {/* Month-by-month ledger */}
         {!histLoading&&monthHistory.length===0&&(
-          <div style={{textAlign:"center",padding:"40px 0",color:"#94a3b8"}}>No entries found for {selectedLabour.name}</div>
+          <EmptyState title="No entries found" subtitle={`No work recorded for ${selectedLabour.name} yet.`}/>
         )}
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           {monthHistory.map(month=>{
@@ -293,7 +294,7 @@ export default function Labour() {
                     )}
 
                     {month.works.length===0&&month.advances.length===0&&(
-                      <div style={{textAlign:"center",padding:"20px 0",color:"#94a3b8",fontSize:13}}>No entries</div>
+                      <EmptyState compact title="No entries" />
                     )}
                   </div>
                 )}
@@ -329,7 +330,7 @@ export default function Labour() {
 
       {/* Labour cards — click to view history */}
       <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:22}}>
-        {labours.length===0&&<div style={{color:"#94a3b8",fontSize:14,padding:"20px 0"}}>No labour added yet</div>}
+        {labours.length===0&&<div style={{width:"100%"}}><EmptyState title="No labour added yet" subtitle="Add a worker to track daily press count and pay."/></div>}
         {labours.map((l,i)=>{
           const s = summary.find(x=>x.id===l.id);
           const accent = DARK[i%DARK.length];
