@@ -24,7 +24,11 @@ awaiting owner test → then commit/merge.**
 
 ## 3. Dropped by choice
 - POS grid rebuild of New Entry (kept the existing service selector).
-- Running invoice numbers + invoice-wise report. (`invoice_no` column exists, unused.)
+
+## 3b. Invoice numbers — RE-ADDED
+- Per-shop running invoice number (starts at 1), race-safe via a transaction +
+  per-shop advisory lock. Shown on save, in the WhatsApp bill (`INV-0001`), and in the
+  Invoice/Order reports. Column: `laundry_entries.invoice_no`.
 
 ## 4. Friendly empty states
 - Reusable `components/EmptyState.tsx` (laundry-basket illustration, light+dark)
@@ -45,7 +49,11 @@ awaiting owner test → then commit/merge.**
 - **Deliveries:** Status + Society + date range + name/phone.
 - **Reports:** date range.
 
-## 8. Reports — Collection report + Export-all
+## 8. Reports — new report tabs + Collection + Export-all
+- New tabs (tables + totals, like MyUniclean): **Order Report**, **Invoice Report**
+  (Invoice No · amount · paid · balance · status), **Expense Report** (date/category/
+  amount + total), **Balance Report** (per-customer billed/paid/outstanding + total udhaar).
+  (`/api/expenses` now takes `from`/`to`.)
 - **Collection tab:** Billed vs Collected vs **Outstanding (udhaar)** + Cash/UPI/Card/
   Other breakdown. (`api/payments` takes `from`/`to`.)
 - **Export-all:** Reports "Export Excel" writes 6 sheets — Summary, Entries,

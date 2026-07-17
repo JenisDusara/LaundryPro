@@ -30,9 +30,9 @@ export async function GET(req: NextRequest) {
     }));
     // Fetch delivery_date + billing columns via raw SQL (Prisma client may not include them yet)
     const ids = entries.map(e => e.id);
-    const ddRows: { id: string; delivery_date: string | null; discount: any; extra_charge: any; amount_paid: any; payment_method: string | null }[] = ids.length > 0
+    const ddRows: { id: string; delivery_date: string | null; discount: any; extra_charge: any; amount_paid: any; payment_method: string | null; invoice_no: number | null }[] = ids.length > 0
       ? await prisma.$queryRawUnsafe(
-          `SELECT id::text, delivery_date, discount, extra_charge, amount_paid, payment_method FROM laundry_entries WHERE id::text = ANY($1::text[])`,
+          `SELECT id::text, delivery_date, discount, extra_charge, amount_paid, payment_method, invoice_no FROM laundry_entries WHERE id::text = ANY($1::text[])`,
           ids
         )
       : [];
@@ -55,6 +55,7 @@ export async function GET(req: NextRequest) {
         extra_charge: extra?.extra_charge != null ? Number(extra.extra_charge) : 0,
         amount_paid: extra?.amount_paid != null ? Number(extra.amount_paid) : 0,
         payment_method: extra?.payment_method ?? "",
+        invoice_no: extra?.invoice_no ?? null,
         total_amount: Number(e.total_amount),
         items: e.items.map(i => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal), delivered_qty: dqMap.get(i.id) ?? 0 })),
       };
@@ -142,14 +143,24 @@ export async function POST(req: NextRequest) {
     await prisma.$executeRawUnsafe(`UPDATE laundry_entries SET delivery_date = $1 WHERE id::text = $2`, delivery_date, entry.id);
   }
 
-  // Persist the billing fields via raw SQL (columns may not be in the Prisma client yet).
-  // Defensive: a failure never blocks the entry that was already created.
+  // Assign a per-shop running invoice number (starts at 1) + persist billing fields.
+  // A per-shop advisory lock inside the transaction serialises numbering so two
+  // concurrent entries can't grab the same invoice_no. Defensive: on any failure the
+  // entry (already created) is left as-is with a null invoice_no.
+  let invoiceNo: number | null = null;
   try {
-    await prisma.$executeRawUnsafe(
-      `UPDATE laundry_entries SET discount = $1, extra_charge = $2, amount_paid = $3, payment_method = $4 WHERE id::text = $5`,
-      discountN, extraN, paidN, payMethodRaw, entry.id);
+    invoiceNo = await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`, `invoice:${customer.shop_id}`);
+      const rows = await tx.$queryRawUnsafe<{ n: bigint }[]>(
+        `SELECT COALESCE(MAX(invoice_no), 0) + 1 AS n FROM laundry_entries WHERE shop_id = $1`, customer.shop_id);
+      const n = Number(rows[0]?.n ?? 1);
+      await tx.$executeRawUnsafe(
+        `UPDATE laundry_entries SET invoice_no = $1, discount = $2, extra_charge = $3, amount_paid = $4, payment_method = $5 WHERE id::text = $6`,
+        n, discountN, extraN, paidN, payMethodRaw, entry.id);
+      return n;
+    });
   } catch (err: any) {
-    console.error("billing fields update failed:", err?.message);
+    console.error("invoice_no/billing update failed:", err?.message);
   }
 
   // Payment taken at billing → record it as a Payment so the customer's balance (udhaar) is
@@ -236,8 +247,9 @@ export async function POST(req: NextRequest) {
       }
       msg +=
         `🧺 *New Pickup*\n` +
-        `📅 ${prettyDate}\n\n` +
-        `*Items received:*\n${lines}\n\n` +
+        `📅 ${prettyDate}\n` +
+        (invoiceNo ? `🧾 Invoice: INV-${String(invoiceNo).padStart(4, "0")}\n` : ``) +
+        `\n*Items received:*\n${lines}\n\n` +
         `Total items: ${totalQty}\n\n` +
         `${bill}\n\n` +
         `Warm regards,\n*${shopName}* 🙏`;
@@ -248,6 +260,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ...entry,
     delivery_date: (entry as any).delivery_date ?? null,
+    invoice_no: invoiceNo,
     discount: discountN,
     extra_charge: extraN,
     amount_paid: paidN,

@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
     where.date  = { gte: start, lte: end };
   }
   if (p.get("date")) where.date = p.get("date");
+  if (p.get("from") && p.get("to")) where.date = { gte: p.get("from")!, lte: p.get("to")! };
   const expenses = await prisma.expense.findMany({ where, orderBy: { date: "desc" } });
   return NextResponse.json(expenses.map(e => ({ ...e, amount: Number(e.amount) })));
 }

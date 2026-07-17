@@ -6,7 +6,29 @@ import { downloadAuthedFile } from "@/lib/download";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import EmptyState from "@/components/EmptyState";
 import { FilterPanel } from "@/components/Filters";
-import type { LaundryEntry } from "@/types";
+import { Donut, Bars } from "@/components/Charts";
+import { isEntryDelivered } from "@/lib/entry-status";
+import type { LaundryEntry, CustomerBalance, Customer } from "@/types";
+
+type Expense = { id: string; date: string; category: string; description: string; amount: number };
+const invFmt = (n?: number | null) => (n ? "INV-" + String(n).padStart(4, "0") : "—");
+const fmtD = (d: string) => { try { return new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short" }); } catch { return d; } };
+
+// Total chip (like MyUniclean's "Total Balance Amount: ₹490") + a simple scrollable table.
+function TotalChip({ label, value }: { label: string; value: string }) {
+  return <div style={{ display: "inline-block", background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)", color: "var(--grade-b-text)", borderRadius: 10, padding: "8px 14px", fontSize: 14, fontWeight: 800, marginBottom: 14 }}>{label}: {value}</div>;
+}
+function RepTable({ head, rows, empty }: { head: string[]; rows: React.ReactNode[][]; empty: string }) {
+  if (!rows.length) return <EmptyState compact title="No data" subtitle={empty} />;
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 540 }}>
+        <thead><tr>{head.map((h, i) => <th key={i} style={{ textAlign: i === 0 ? "left" : "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid var(--border-hard)", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+        <tbody>{rows.map((r, ri) => <tr key={ri}>{r.map((c, ci) => <td key={ci} style={{ textAlign: ci === 0 ? "left" : "right", padding: "10px 12px", fontSize: 13, color: "var(--text-primary)", borderBottom: "1px solid var(--border-subtle)", whiteSpace: "nowrap" }}>{c}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+  );
+}
 
 export default function Reports() {
   const [entries, setEntries] = useState<LaundryEntry[]>([]);
@@ -15,14 +37,20 @@ export default function Reports() {
   const [from, setFrom] = useState(mStart);
   const [to, setTo] = useState(mEnd);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"daily"|"services"|"society"|"customers"|"collection">("daily");
+  const [activeTab, setActiveTab] = useState<"daily"|"services"|"society"|"customers"|"collection"|"orders"|"invoice"|"expense"|"balance">("daily");
   const [expandedSociety, setExpandedSociety] = useState<string|null>(null);
   const [coll, setColl] = useState<{ total:number; cash:number; upi:number; card:number; other:number; count:number }>({ total:0, cash:0, upi:0, card:0, other:0, count:0 });
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [balances, setBalances] = useState<CustomerBalance[]>([]);
+  const [custMap, setCustMap] = useState<Record<string,{name:string;phone:string}>>({});
 
   useEffect(()=>{ if(!from||!to) return; setLoading(true);
     Promise.all([
       api.get("/entries",{params:{from,to}}).then(r=>setEntries(r.data)),
       api.get("/payments",{params:{from,to}}).then(r=>setColl(r.data.summary)).catch(()=>setColl({ total:0, cash:0, upi:0, card:0, other:0, count:0 })),
+      api.get("/expenses",{params:{from,to}}).then(r=>setExpenses(r.data)).catch(()=>setExpenses([])),
+      api.get("/customers/balances").then(r=>setBalances(r.data)).catch(()=>setBalances([])),
+      api.get("/customers").then(r=>{ const m:Record<string,{name:string;phone:string}>={}; (r.data as Customer[]).forEach(c=>m[c.id]={name:c.name,phone:c.phone}); setCustMap(m); }).catch(()=>{}),
     ]).finally(()=>setLoading(false));
   },[from,to]);
 
@@ -35,13 +63,11 @@ export default function Reports() {
   const dailyMap=new Map<string,number>();
   entries.forEach(e=>dailyMap.set(e.entry_date,(dailyMap.get(e.entry_date)||0)+Number(e.total_amount)));
   const dailyData=[...dailyMap.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
-  const maxDaily=Math.max(...dailyData.map(d=>d[1]),1);
 
   const serviceMap=new Map<string,{qty:number;revenue:number}>();
   entries.forEach(e=>e.items.forEach(item=>{ const ex=serviceMap.get(item.service_name)||{qty:0,revenue:0}; ex.qty+=item.quantity; ex.revenue+=Number(item.subtotal); serviceMap.set(item.service_name,ex); }));
   const serviceData=[...serviceMap.entries()].sort((a,b)=>b[1].revenue-a[1].revenue);
   const maxSvcRev=Math.max(...serviceData.map(d=>d[1].revenue),1);
-  const totalSvcRev=serviceData.reduce((s,[,d])=>s+d.revenue,0);
 
   const societyMap=new Map<string,{revenue:number;customers:Map<string,{name:string;revenue:number}>}>();
   entries.forEach(e=>{ const soc=e.customer?.society_name||"Unknown"; if(!societyMap.has(soc)) societyMap.set(soc,{revenue:0,customers:new Map()}); const sd=societyMap.get(soc)!; sd.revenue+=Number(e.total_amount); const cx=sd.customers.get(e.customer_id)||{name:e.customer?.name||"Unknown",revenue:0}; cx.revenue+=Number(e.total_amount); sd.customers.set(e.customer_id,cx); });
@@ -55,6 +81,15 @@ export default function Reports() {
   const PALETTE=["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#06b6d4","#ec4899","#84cc16"];
   const fmtShort=(d:string)=>{ try { return new Date(d+"T00:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"}); } catch { return d; } };
   const monthName= from===to ? fmtShort(from) : `${fmtShort(from)} – ${fmtShort(to)}`;
+
+  // Month navigation — most shops bill monthly, so a simple ◀ Month ▶ + "This month".
+  const iso=(d:Date)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  const cur = from ? new Date(from+"T00:00:00") : new Date();
+  const monthTitle = new Date(cur.getFullYear(),cur.getMonth(),1).toLocaleString("en-IN",{month:"long",year:"numeric"});
+  const isFullMonth = from===iso(new Date(cur.getFullYear(),cur.getMonth(),1)) && to===iso(new Date(cur.getFullYear(),cur.getMonth()+1,0));
+  const goMonth=(delta:number)=>{ const d=new Date(cur.getFullYear(),cur.getMonth()+delta,1); setFrom(iso(new Date(d.getFullYear(),d.getMonth(),1))); setTo(iso(new Date(d.getFullYear(),d.getMonth()+1,0))); };
+  const nowM=new Date();
+  const atCurrentMonth = cur.getFullYear()===nowM.getFullYear() && cur.getMonth()===nowM.getMonth();
 
   if(loading) return <ProtectedLayout><p style={{color:"var(--text-muted)",textAlign:"center",marginTop:40}}>Loading...</p></ProtectedLayout>;
 
@@ -70,7 +105,19 @@ export default function Reports() {
         <button onClick={exportCombined} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",background:"#2563eb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:700,boxShadow:"var(--shadow-glow-blue)"}}><Download size={14}/> Export Excel</button>
       </div>
 
-      {/* Date range filter (MyUniclean-style) */}
+      {/* Month navigation (primary — monthly billing) */}
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}}>
+        <div style={{display:"inline-flex",alignItems:"center",background:"var(--bg-card)",border:"1px solid var(--border-hard)",borderRadius:10,overflow:"hidden"}}>
+          <button onClick={()=>goMonth(-1)} title="Previous month" style={{padding:"9px 14px",border:"none",background:"transparent",cursor:"pointer",color:"var(--text-secondary)",fontSize:16,fontWeight:800}}>‹</button>
+          <span style={{padding:"9px 8px",minWidth:150,textAlign:"center",fontSize:14,fontWeight:800,color:"var(--text-primary)"}}>{isFullMonth?monthTitle:"Custom range"}</span>
+          <button onClick={()=>goMonth(1)} disabled={atCurrentMonth&&isFullMonth} title="Next month" style={{padding:"9px 14px",border:"none",background:"transparent",cursor:(atCurrentMonth&&isFullMonth)?"not-allowed":"pointer",color:"var(--text-secondary)",fontSize:16,fontWeight:800,opacity:(atCurrentMonth&&isFullMonth)?0.35:1}}>›</button>
+        </div>
+        {!(atCurrentMonth&&isFullMonth) && (
+          <button onClick={()=>{ setFrom(mStart()); setTo(mEnd()); }} style={{padding:"9px 16px",borderRadius:10,border:"1px solid var(--accent-primary)",background:"var(--grade-b-bg)",color:"var(--grade-b-text)",fontSize:13,fontWeight:700,cursor:"pointer"}}>This month</button>
+        )}
+      </div>
+
+      {/* Custom date range filter */}
       <FilterPanel
         dateRange
         initial={{ from, to }}
@@ -93,37 +140,27 @@ export default function Reports() {
         ))}
       </div>
       <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-        {(["daily","services","society","customers","collection"] as const).map(tab=>(
+        {([["daily","Daily"],["orders","Orders"],["invoice","Invoice"],["collection","Collection"],["balance","Balance"],["expense","Expense"],["services","Services"],["society","Society"],["customers","Customers"]] as [typeof activeTab,string][]).map(([tab,lbl])=>(
           <button key={tab} onClick={()=>setActiveTab(tab)} style={{padding:"8px 18px",border:"none",borderRadius:20,cursor:"pointer",fontSize:13,fontWeight:700,
             background:activeTab===tab?"#2563eb":"var(--bg-input)",
             color:activeTab===tab?"#fff":"var(--text-secondary)",
             transition:"all 0.15s"}}>
-            {tab==="daily"?"Daily":tab==="services"?"Services":tab==="society"?"Society":tab==="customers"?"Customers":"Collection"}
+            {lbl}
           </button>
         ))}
       </div>
       <div style={{background:"var(--bg-card)",borderRadius:14,padding:24,border:"1px solid var(--border-hard)"}}>
         {activeTab==="daily"&&<div>
           <h3 style={{margin:"0 0 20px",color:"var(--text-primary)",fontSize:16,fontWeight:700}}>Daily Earnings — {monthName}</h3>
-          {dailyData.length===0?<EmptyState compact title="No data" subtitle={`Nothing for ${monthName} yet.`}/>:<div style={{display:"flex",flexDirection:"column",gap:10}}>
-            {dailyData.map(([date,amount])=>(
-              <div key={date} style={{display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:32,fontSize:12,fontWeight:700,color:"var(--text-muted)",textAlign:"right"}}>{new Date(date+"T00:00:00").getDate()}</div>
-                <div style={{flex:1,height:28,background:"var(--bg-input)",borderRadius:6,overflow:"hidden",maxWidth:500}}>
-                  <div className="bar-fill" style={{height:"100%",width:`${(amount/maxDaily)*100}%`,background:"linear-gradient(90deg,#6EA8FF,#3f7fe0)",borderRadius:6,display:"flex",alignItems:"center",paddingLeft:8,minWidth:2}}>
-                    {(amount/maxDaily)>0.15&&<span style={{fontSize:11,fontWeight:700,color:"#0b1830"}}>₹{amount.toLocaleString()}</span>}
-                  </div>
-                </div>
-                {(amount/maxDaily)<=0.15&&<div style={{fontSize:12,fontWeight:700,color:"var(--accent-primary)",width:70}}>₹{amount.toLocaleString()}</div>}
-              </div>
-            ))}
-          </div>}
+          {dailyData.length===0
+            ? <EmptyState compact title="No data" subtitle={`Nothing for ${monthName} yet.`}/>
+            : <Bars data={dailyData.map(([date,amount])=>({label:String(new Date(date+"T00:00:00").getDate()),value:amount}))}/>}
         </div>}
         {activeTab==="services"&&<div>
           <h3 style={{margin:"0 0 20px",fontSize:16,fontWeight:700,color:"var(--text-primary)"}}>Service-wise Revenue</h3>
           {serviceData.length===0?<EmptyState compact title="No data" subtitle={`Nothing for ${monthName} yet.`}/>:<div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:20}}>
-              {serviceData.map(([name,data],i)=><div key={name} style={{display:"flex",alignItems:"center",gap:6,background:"var(--bg-input)",padding:"6px 12px",borderRadius:20,border:"1px solid var(--border-hard)"}}><div style={{width:10,height:10,borderRadius:"50%",background:PALETTE[i%PALETTE.length]}}/><span style={{fontSize:12,fontWeight:600,color:"var(--text-secondary)"}}>{name}</span><span style={{fontSize:12,fontWeight:800,color:PALETTE[i%PALETTE.length]}}>{Math.round((data.revenue/totalSvcRev)*100)}%</span></div>)}
+            <div style={{marginBottom:22}}>
+              <Donut segments={serviceData.map(([name,data],i)=>({label:name,value:data.revenue,color:PALETTE[i%PALETTE.length]}))} centerLabel="Revenue"/>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
               {serviceData.map(([name,data],i)=><div key={name}><div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><span style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{name}</span><span style={{fontSize:13,fontWeight:700,color:PALETTE[i%PALETTE.length]}}>₹{data.revenue.toLocaleString()} <span style={{fontWeight:400,color:"var(--text-muted)"}}>({data.qty} pcs)</span></span></div><div style={{height:14,background:"var(--bg-input)",borderRadius:7,overflow:"hidden"}}><div className="bar-fill" style={{height:"100%",width:`${(data.revenue/maxSvcRev)*100}%`,background:"linear-gradient(90deg,#6EA8FF,#3f7fe0)",borderRadius:7,minWidth:4}}/></div></div>)}
@@ -161,7 +198,6 @@ export default function Reports() {
           const collected = coll.total;
           const outstanding = Math.max(0, billed - collected);
           const methods: [string,number,string][] = [["Cash",coll.cash,"#16a34a"],["UPI",coll.upi,"#2563eb"],["Card",coll.card,"#7c3aed"],["Other",coll.other,"#f59e0b"]];
-          const maxM = Math.max(...methods.map(m=>m[1]),1);
           return (
             <div>
               <h3 style={{margin:"0 0 20px",fontSize:16,fontWeight:700,color:"var(--text-primary)"}}>Billing vs Collection — {monthName}</h3>
@@ -179,22 +215,54 @@ export default function Reports() {
               </div>
               <div style={{fontSize:13,fontWeight:700,color:"var(--text-secondary)",marginBottom:12}}>Collected by method {coll.count>0?`· ${coll.count} payments`:""}</div>
               {collected===0?<EmptyState compact title="No collection" subtitle={`No payments received in ${monthName}.`}/>:(
-                <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                  {methods.filter(m=>m[1]>0).map(([name,amt,color])=>(
-                    <div key={name}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
-                        <span style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{name}</span>
-                        <span style={{fontSize:13,fontWeight:700,color}}>₹{amt.toLocaleString("en-IN")}</span>
-                      </div>
-                      <div style={{height:14,background:"var(--bg-input)",borderRadius:7,overflow:"hidden"}}>
-                        <div className="bar-fill" style={{height:"100%",width:`${(amt/maxM)*100}%`,background:color,borderRadius:7,minWidth:4}}/>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <Donut centerLabel="Collected" segments={methods.map(([name,amt,color])=>({label:name,value:amt,color}))}/>
               )}
             </div>
           );
+        })()}
+
+        {activeTab==="orders"&&(()=>{
+          const rows=[...entries].sort((a,b)=>b.entry_date.localeCompare(a.entry_date));
+          const total=rows.reduce((s,e)=>s+Number(e.total_amount),0);
+          return <div>
+            <h3 style={{margin:"0 0 14px",fontSize:16,fontWeight:700,color:"var(--text-primary)"}}>Order Report — {monthName}</h3>
+            <TotalChip label="Total Orders" value={`${rows.length} · ₹${total.toLocaleString("en-IN")}`}/>
+            <RepTable head={["Invoice","Date","Customer","Items","Amount (₹)","Status"]} empty={`No orders in ${monthName}.`}
+              rows={rows.map(e=>[invFmt(e.invoice_no), fmtD(e.entry_date), e.customer?.name||"—", e.items.reduce((s,i)=>s+i.quantity,0), `₹${Number(e.total_amount).toLocaleString("en-IN")}`, isEntryDelivered(e)?"Delivered":"Pending"])}/>
+          </div>;
+        })()}
+
+        {activeTab==="invoice"&&(()=>{
+          const rows=[...entries].filter(e=>e.invoice_no).sort((a,b)=>(b.invoice_no||0)-(a.invoice_no||0));
+          const total=rows.reduce((s,e)=>s+Number(e.total_amount),0);
+          return <div>
+            <h3 style={{margin:"0 0 14px",fontSize:16,fontWeight:700,color:"var(--text-primary)"}}>Invoice Report — {monthName}</h3>
+            <TotalChip label="Total Invoice Amount" value={`₹${total.toLocaleString("en-IN")}`}/>
+            <RepTable head={["Invoice No","Date","Customer","Amount (₹)","Paid (₹)","Balance (₹)","Status"]} empty={`No invoices in ${monthName}.`}
+              rows={rows.map(e=>{ const paid=e.amount_paid??0; const bal=Math.max(0,Number(e.total_amount)-paid); return [invFmt(e.invoice_no), fmtD(e.entry_date), e.customer?.name||"—", `₹${Number(e.total_amount).toLocaleString("en-IN")}`, `₹${paid.toLocaleString("en-IN")}`, `₹${bal.toLocaleString("en-IN")}`, bal<=0?"Paid":"Pending"]; })}/>
+          </div>;
+        })()}
+
+        {activeTab==="expense"&&(()=>{
+          const rows=[...expenses].sort((a,b)=>b.date.localeCompare(a.date));
+          const total=rows.reduce((s,x)=>s+Number(x.amount),0);
+          return <div>
+            <h3 style={{margin:"0 0 14px",fontSize:16,fontWeight:700,color:"var(--text-primary)"}}>Expense Report — {monthName}</h3>
+            <TotalChip label="Total Expense" value={`₹${total.toLocaleString("en-IN")}`}/>
+            <RepTable head={["Date","Category","Description","Amount (₹)"]} empty={`No expenses in ${monthName}.`}
+              rows={rows.map(x=>[fmtD(x.date), x.category, x.description||"—", `₹${Number(x.amount).toLocaleString("en-IN")}`])}/>
+          </div>;
+        })()}
+
+        {activeTab==="balance"&&(()=>{
+          const rows=[...balances].filter(b=>Number(b.outstanding)>0).sort((a,b)=>Number(b.outstanding)-Number(a.outstanding));
+          const total=rows.reduce((s,b)=>s+Number(b.outstanding),0);
+          return <div>
+            <h3 style={{margin:"0 0 14px",fontSize:16,fontWeight:700,color:"var(--text-primary)"}}>Balance Report (Udhaar)</h3>
+            <TotalChip label="Total Balance Amount" value={`₹${total.toLocaleString("en-IN")}`}/>
+            <RepTable head={["Customer","Phone","Billed (₹)","Paid (₹)","Balance (₹)"]} empty="No outstanding balances — sab clear! 🎉"
+              rows={rows.map(b=>[custMap[b.customer_id]?.name||"—", custMap[b.customer_id]?.phone||"—", `₹${Number(b.billed).toLocaleString("en-IN")}`, `₹${Number(b.paid).toLocaleString("en-IN")}`, `₹${Number(b.outstanding).toLocaleString("en-IN")}`])}/>
+          </div>;
         })()}
       </div>
     </ProtectedLayout>
