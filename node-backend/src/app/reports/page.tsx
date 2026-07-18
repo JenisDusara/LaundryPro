@@ -37,7 +37,7 @@ export default function Reports() {
   const [from, setFrom] = useState(mStart);
   const [to, setTo] = useState(mEnd);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"daily"|"services"|"society"|"customers"|"collection"|"orders"|"invoice"|"expense"|"balance">("daily");
+  const [activeTab, setActiveTab] = useState<"daily"|"services"|"society"|"customers"|"collection"|"orders"|"expense"|"balance">("daily");
   const [expandedSociety, setExpandedSociety] = useState<string|null>(null);
   const [coll, setColl] = useState<{ total:number; cash:number; upi:number; card:number; other:number; count:number }>({ total:0, cash:0, upi:0, card:0, other:0, count:0 });
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -140,7 +140,7 @@ export default function Reports() {
         ))}
       </div>
       <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-        {([["daily","Daily"],["orders","Orders"],["invoice","Invoice"],["collection","Collection"],["balance","Balance"],["expense","Expense"],["services","Services"],["society","Society"],["customers","Customers"]] as [typeof activeTab,string][]).map(([tab,lbl])=>(
+        {([["daily","Daily"],["orders","Orders"],["collection","Collection"],["balance","Balance"],["expense","Expense"],["services","Services"],["society","Society"],["customers","Customers"]] as [typeof activeTab,string][]).map(([tab,lbl])=>(
           <button key={tab} onClick={()=>setActiveTab(tab)} style={{padding:"8px 18px",border:"none",borderRadius:20,cursor:"pointer",fontSize:13,fontWeight:700,
             background:activeTab===tab?"#2563eb":"var(--bg-input)",
             color:activeTab===tab?"#fff":"var(--text-secondary)",
@@ -222,24 +222,18 @@ export default function Reports() {
         })()}
 
         {activeTab==="orders"&&(()=>{
-          const rows=[...entries].sort((a,b)=>b.entry_date.localeCompare(a.entry_date));
+          const rows=[...entries].sort((a,b)=>(b.invoice_no||0)-(a.invoice_no||0));
           const total=rows.reduce((s,e)=>s+Number(e.total_amount),0);
+          const totPaid=rows.reduce((s,e)=>s+(e.amount_paid??0),0);
           return <div>
-            <h3 style={{margin:"0 0 14px",fontSize:16,fontWeight:700,color:"var(--text-primary)"}}>Order Report — {monthName}</h3>
-            <TotalChip label="Total Orders" value={`${rows.length} · ₹${total.toLocaleString("en-IN")}`}/>
-            <RepTable head={["Invoice","Date","Customer","Items","Amount (₹)","Status"]} empty={`No orders in ${monthName}.`}
-              rows={rows.map(e=>[invFmt(e.invoice_no), fmtD(e.entry_date), e.customer?.name||"—", e.items.reduce((s,i)=>s+i.quantity,0), `₹${Number(e.total_amount).toLocaleString("en-IN")}`, isEntryDelivered(e)?"Delivered":"Pending"])}/>
-          </div>;
-        })()}
-
-        {activeTab==="invoice"&&(()=>{
-          const rows=[...entries].filter(e=>e.invoice_no).sort((a,b)=>(b.invoice_no||0)-(a.invoice_no||0));
-          const total=rows.reduce((s,e)=>s+Number(e.total_amount),0);
-          return <div>
-            <h3 style={{margin:"0 0 14px",fontSize:16,fontWeight:700,color:"var(--text-primary)"}}>Invoice Report — {monthName}</h3>
-            <TotalChip label="Total Invoice Amount" value={`₹${total.toLocaleString("en-IN")}`}/>
-            <RepTable head={["Invoice No","Date","Customer","Amount (₹)","Paid (₹)","Balance (₹)","Status"]} empty={`No invoices in ${monthName}.`}
-              rows={rows.map(e=>{ const paid=e.amount_paid??0; const bal=Math.max(0,Number(e.total_amount)-paid); return [invFmt(e.invoice_no), fmtD(e.entry_date), e.customer?.name||"—", `₹${Number(e.total_amount).toLocaleString("en-IN")}`, `₹${paid.toLocaleString("en-IN")}`, `₹${bal.toLocaleString("en-IN")}`, bal<=0?"Paid":"Pending"]; })}/>
+            <h3 style={{margin:"0 0 14px",fontSize:16,fontWeight:700,color:"var(--text-primary)"}}>Orders / Invoices — {monthName}</h3>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+              <TotalChip label="Orders" value={`${rows.length}`}/>
+              <TotalChip label="Total Amount" value={`₹${total.toLocaleString("en-IN")}`}/>
+              <TotalChip label="Collected" value={`₹${totPaid.toLocaleString("en-IN")}`}/>
+            </div>
+            <RepTable head={["Invoice","Date","Customer","Items","Amount (₹)","Paid (₹)","Balance (₹)","Status"]} empty={`No orders in ${monthName}.`}
+              rows={rows.map(e=>{ const paid=e.amount_paid??0; const bal=Math.max(0,Number(e.total_amount)-paid); return [invFmt(e.invoice_no), fmtD(e.entry_date), e.customer?.name||"—", e.items.reduce((s,i)=>s+i.quantity,0), `₹${Number(e.total_amount).toLocaleString("en-IN")}`, `₹${paid.toLocaleString("en-IN")}`, `₹${bal.toLocaleString("en-IN")}`, isEntryDelivered(e)?"Delivered":(bal<=0?"Paid · Pending":"Pending")]; })}/>
           </div>;
         })()}
 

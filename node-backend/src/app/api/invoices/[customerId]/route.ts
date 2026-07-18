@@ -21,7 +21,9 @@ export async function GET(req: NextRequest, { params }: { params: { customerId: 
   if (!customer) return NextResponse.json({ detail: "Customer not found" }, { status: 404 });
 
   const where: any = { customer_id: params.customerId, ...shopFilter(user, req) };
-  if (entry_date) {
+  if (p.get("entry_id")) {
+    where.id = p.get("entry_id");            // per-order invoice (single entry)
+  } else if (entry_date) {
     where.entry_date = entry_date;
   } else if (month && year) {
     const { start, end } = monthRange(year, month);

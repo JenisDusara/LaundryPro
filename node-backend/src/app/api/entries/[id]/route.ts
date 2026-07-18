@@ -10,12 +10,19 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     include: { customer: true, items: true },
   }));
   if (!entry) return NextResponse.json({ detail: "Not found" }, { status: 404 });
-  const ddRows: { delivery_date: string | null }[] = await prisma.$queryRawUnsafe(`SELECT delivery_date FROM laundry_entries WHERE id::text = $1`, params.id);
+  const ex: { delivery_date: string | null; invoice_no: number | null; discount: any; extra_charge: any; amount_paid: any; payment_method: string | null }[] =
+    await prisma.$queryRawUnsafe(`SELECT delivery_date, invoice_no, discount, extra_charge, amount_paid, payment_method FROM laundry_entries WHERE id::text = $1`, params.id);
   const dqRows: { id: string; delivered_qty: number }[] = await prisma.$queryRawUnsafe(`SELECT id::text, delivered_qty FROM entry_items WHERE entry_id::text = $1`, params.id);
   const dqMap = new Map(dqRows.map(r => [r.id, Number(r.delivered_qty) || 0]));
+  const b = ex[0];
   return NextResponse.json({
     ...entry,
-    delivery_date: ddRows[0]?.delivery_date ?? null,
+    delivery_date: b?.delivery_date ?? null,
+    invoice_no: b?.invoice_no ?? null,
+    discount: b?.discount != null ? Number(b.discount) : 0,
+    extra_charge: b?.extra_charge != null ? Number(b.extra_charge) : 0,
+    amount_paid: b?.amount_paid != null ? Number(b.amount_paid) : 0,
+    payment_method: b?.payment_method ?? "",
     total_amount: Number(entry.total_amount),
     items: entry.items.map(i => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal), delivered_qty: dqMap.get(i.id) ?? 0 })),
   });

@@ -145,7 +145,7 @@ export default function Dashboard() {
 
       {/* ── Overdue Alert ── */}
       {overdueEntries.length > 0 && (
-        <div onClick={() => router.push("/deliveries")}
+        <div onClick={() => router.push("/entries?filter=pending")}
           className="lp-row"
           style={{ background: "var(--grade-f-bg)", border: "1px solid var(--grade-f-border)", borderRadius: 12, padding: "13px 18px", marginBottom: 16, display: "flex", alignItems: "center", gap: 14, cursor: "pointer", transition: "border-color .15s" }}>
           <AlertTriangle size={18} color="var(--grade-f-text)" style={{ flexShrink: 0 }} />
@@ -161,8 +161,8 @@ export default function Dashboard() {
       <div className="dash-stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 14 }}>
         {[
           { icon: <Users size={16} />,       label: "Customers",  value: customers.length,   bg: "var(--grade-b-bg)", border: "var(--grade-b-border)", color: "var(--grade-b-text)", path: "/customers" },
-          { icon: <Package size={16} />,      label: "Pending",    value: pendingCount,        bg: "var(--grade-c-bg)", border: "var(--grade-c-border)", color: "var(--grade-c-text)", path: "/deliveries?filter=pending" },
-          { icon: <CheckCircle2 size={16} />, label: "Delivered",  value: deliveredCount,      bg: "var(--grade-a-bg)", border: "var(--grade-a-border)", color: "var(--grade-a-text)", path: "/deliveries?filter=delivered" },
+          { icon: <Package size={16} />,      label: "Pending",    value: pendingCount,        bg: "var(--grade-c-bg)", border: "var(--grade-c-border)", color: "var(--grade-c-text)", path: "/entries?filter=pending" },
+          { icon: <CheckCircle2 size={16} />, label: "Delivered",  value: deliveredCount,      bg: "var(--grade-a-bg)", border: "var(--grade-a-border)", color: "var(--grade-a-text)", path: "/entries?filter=delivered" },
           { icon: <TrendingUp size={16} />,   label: "Rate",       value: `${deliveryRate}%`,  bg: "var(--grade-b-bg)", border: "var(--grade-b-border)", color: "var(--grade-b-text)", path: "/reports" },
         ].map((s, i) => (
           <div key={i} className="web-card dash-stat-card act-btn" onClick={() => router.push(s.path)} style={{ textAlign: "center", padding: "22px 16px", cursor: "pointer" }}>
@@ -181,8 +181,8 @@ export default function Dashboard() {
         <div className="dash-action-grid" style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 12 }}>
           {[
             { icon: <PlusCircle size={18} />,   label: "New Entry",  path: "/new-entry" },
-            { icon: <Truck size={18} />,         label: "Deliveries", path: "/deliveries" },
-            { icon: <ClipboardList size={18} />, label: "Entries",    path: "/entries" },
+            { icon: <ClipboardList size={18} />, label: "Orders",     path: "/entries" },
+            { icon: <Truck size={18} />,         label: "Pending",    path: "/entries?filter=pending" },
             { icon: <Users size={18} />,         label: "Customers",  path: "/customers" },
             { icon: <Wallet size={18} />,        label: "Accounting", path: "/accounting" },
             { icon: <Hammer size={18} />,        label: "Labour",     path: "/labour" },
@@ -327,14 +327,14 @@ function DeliverySection({ title, entries, accentBg, accentBorder, accentColor, 
             {entries.length}
           </span>
         </div>
-        <span onClick={() => router.push("/deliveries")}
+        <span onClick={() => router.push("/entries?filter=pending")}
           style={{ fontSize: 13, fontWeight: 600, color: accentColor, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
           Manage <ChevronRight size={13} />
         </span>
       </div>
       <div style={{ display: "flex", flexDirection: "column" }}>
         {entries.map(entry => (
-          <div key={entry.id} className="deliv-row" onClick={() => router.push("/deliveries")}
+          <div key={entry.id} className="deliv-row" onClick={() => router.push("/entries?filter=pending")}
             style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid var(--border-hard)", border: "none", transition: "border-color .15s" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span style={{ width: 34, height: 34, borderRadius: 8, background: accentBg, border: `1px solid ${accentBorder}`, color: accentColor, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>

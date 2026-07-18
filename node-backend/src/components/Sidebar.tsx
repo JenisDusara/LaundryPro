@@ -43,8 +43,7 @@ const adminNavItems = [
   { path: "/dashboard",  label: "Dashboard",  icon: LayoutDashboard },
   { path: "/new-entry",  label: "New Entry",  icon: PlusCircle },
   { path: "/customers",  label: "Customers",  icon: Users },
-  { path: "/entries",    label: "Entries",    icon: ClipboardList },
-  { path: "/deliveries", label: "Deliveries", icon: Truck },
+  { path: "/entries",    label: "Orders",     icon: ClipboardList },
   { path: "/accounting", label: "Accounting", icon: Wallet },
   { path: "/reports",    label: "Reports",    icon: BarChart3 },
   { path: "/services",   label: "Services",   icon: Wrench },
@@ -57,18 +56,17 @@ const staffNavItems = [
   { path: "/dashboard",  label: "Dashboard",  icon: LayoutDashboard },
   { path: "/new-entry",  label: "New Entry",  icon: PlusCircle },
   { path: "/customers",  label: "Customers",  icon: Users },
-  { path: "/entries",    label: "Entries",    icon: ClipboardList },
-  { path: "/deliveries", label: "Deliveries", icon: Truck },
+  { path: "/entries",    label: "Orders",     icon: ClipboardList },
   { path: "/services",   label: "Services",   icon: Wrench },
 ];
 
 // Mobile bottom bar — 4 real nav items + center FAB handled inline
 const mobileNavLeft  = [
-  { path: "/dashboard", label: "Home",    icon: LayoutDashboard },
-  { path: "/entries",   label: "Entries", icon: ClipboardList },
+  { path: "/dashboard", label: "Home",   icon: LayoutDashboard },
+  { path: "/entries",   label: "Orders", icon: ClipboardList },
 ];
 const mobileNavRight = [
-  { path: "/deliveries", label: "Deliveries", icon: Truck },
+  { path: "/customers", label: "Customers", icon: Users },
 ];
 
 type Profile = { name: string; username: string; role?: string; read_only?: boolean; expires_at?: string | null };
@@ -732,7 +730,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
                 {overdueEntries.map(e => {
                   const days = Math.floor((new Date(today).getTime() - new Date(e.delivery_date! + "T00:00:00").getTime()) / 86400000);
                   return (
-                    <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push(`/deliveries?customer=${e.customer_id}`); }}
+                    <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push(`/customer/${e.customer_id}`); }}
                       style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", background: "var(--grade-f-bg)", border: "1px solid var(--grade-f-border)", borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
                       <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(239,68,68,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                         <Truck size={13} color="var(--grade-f-text)" />
@@ -755,7 +753,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
                   Due Today · {dueTodayEntries.length}
                 </div>
                 {dueTodayEntries.map(e => (
-                  <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push(`/deliveries?customer=${e.customer_id}`); }}
+                  <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push(`/customer/${e.customer_id}`); }}
                     style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", background: "var(--grade-c-bg)", border: "1px solid var(--grade-c-border)", borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
                     <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(245,158,11,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                       <Truck size={13} color="var(--grade-c-text)" />
@@ -779,7 +777,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
                 {noDateEntries.slice(0, 8).map(e => {
                   const days = Math.floor((new Date(today).getTime() - new Date(e.entry_date + "T00:00:00").getTime()) / 86400000);
                   return (
-                    <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push(`/deliveries?customer=${e.customer_id}`); }}
+                    <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push(`/customer/${e.customer_id}`); }}
                       style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
                       <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--pressed)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                         <Truck size={13} color="var(--text-secondary)" />
@@ -807,7 +805,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
                   Upcoming · {upcomingEntries.length}
                 </div>
                 {upcomingEntries.slice(0, 3).map(e => (
-                  <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push(`/deliveries?customer=${e.customer_id}`); }}
+                  <div key={e.id} onClick={() => { setShowNotifSheet(false); router.push(`/customer/${e.customer_id}`); }}
                     style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", borderRadius: 10, marginBottom: 6, cursor: "pointer" }}>
                     <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                       <Truck size={13} color="var(--grade-b-text)" />
@@ -824,7 +822,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
 
             {/* View all */}
             <div style={{ padding: "10px 14px 14px" }}>
-              <button onClick={() => { setShowNotifSheet(false); router.push("/deliveries"); }}
+              <button onClick={() => { setShowNotifSheet(false); router.push("/entries?filter=pending"); }}
                 style={{ width: "100%", padding: "10px", borderRadius: 10, background: "var(--accent-primary)", border: "none", color: "#0b1830", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                 View all deliveries
               </button>

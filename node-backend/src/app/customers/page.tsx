@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Plus, Edit2, Trash2, X, Mail, Phone, Home, Building2, MapPin, User, ChevronDown, ChevronUp, FileText, Search, MessageCircle, IndianRupee, Wallet, Banknote, CreditCard, Smartphone, MoreVertical, Send } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Edit2, Trash2, X, Mail, Phone, Home, Building2, MapPin, User, ChevronDown, ChevronUp, FileText, Search, IndianRupee, Wallet, Banknote, CreditCard, Smartphone, MoreVertical, Send } from "lucide-react";
 import api from "@/lib/api";
-import { openWhatsApp, paymentReminderMsg } from "@/lib/whatsapp";
+import { openWhatsApp } from "@/lib/whatsapp";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import EmptyState from "@/components/EmptyState";
 import { FilterPanel } from "@/components/Filters";
@@ -62,8 +62,6 @@ export default function Customers() {
   const [menu,       setMenu]       = useState<{ c: Customer; top: number; right: number } | null>(null);
   // Invoice preview: rendered inline in an iframe (srcDoc) so it opens reliably on phones —
   // the old "open blob in a new tab" approach was blocked by mobile popup blockers.
-  const [invoice,    setInvoice]    = useState<{ html: string; name: string } | null>(null);
-  const [invoiceLoading, setInvoiceLoading] = useState(false);
   // Customer statement: full bill + payment ledger with a running balance.
   type StmtRow = { date: string; type: "bill" | "payment"; label: string; amount: number; balance: number };
   const [statement, setStatement] = useState<{ c: Customer; rows: StmtRow[]; billed: number; paid: number; outstanding: number } | null>(null);
@@ -129,33 +127,9 @@ export default function Customers() {
       .catch(() => {});
   }, []);
 
-  const waCustomer = (c: Customer) => {
-    const owed = balances[c.id]?.outstanding ?? 0;
-    if (owed > 0.5) {
-      openWhatsApp(c.phone, paymentReminderMsg({ customer: c.name, amount: owed, shop: shopInfo.shop_name || "our laundry", upi: shopInfo.upi_id || undefined }));
-    } else {
-      openWhatsApp(c.phone);
-    }
-  };
-
   const openPay = (c: Customer) => {
     setPayFor(c);
     setPayForm({ amount: "", method: "cash", date: todayIST(), note: "" });
-  };
-
-  // Fetch the invoice HTML and show it in an in-app iframe modal (works on mobile, unlike
-  // opening a blob URL in a new tab).
-  const openInvoice = async (c: Customer) => {
-    setInvoiceLoading(true);
-    try {
-      const res = await api.get(`/invoices/${c.id}`, { params: { month, year }, responseType: "text" });
-      const html = typeof res.data === "string" ? res.data : String(res.data ?? "");
-      setInvoice({ html, name: `${c.name} — ${MONTHS[month - 1]} ${year}` });
-    } catch {
-      alert("Failed to open invoice");
-    } finally {
-      setInvoiceLoading(false);
-    }
   };
 
   // Build a full ledger (all bills + all payments, chronological, with running balance).
@@ -296,18 +270,6 @@ export default function Customers() {
           </div>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          {/* Month nav — subtle */}
-          <div style={{ display:"flex", alignItems:"center", gap:2, background:"var(--bg-input)", border:"1px solid var(--border-hard)", borderRadius:10, padding:"3px" }}>
-            <button onClick={prevMonth} style={{ background:"none", border:"none", borderRadius:7, width:30, height:30, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"var(--text-primary)" }}>
-              <ChevronLeft size={15}/>
-            </button>
-            <span style={{ fontSize:12, fontWeight:600, color:"var(--text-secondary)", padding:"0 8px", whiteSpace:"nowrap" }}>
-              {MONTHS[month-1].slice(0,3)} {year}
-            </span>
-            <button onClick={nextMonth} disabled={isCurrentMonth} style={{ background:"none", border:"none", borderRadius:7, width:30, height:30, cursor:isCurrentMonth?"default":"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:isCurrentMonth?"var(--text-muted)":"var(--text-primary)", opacity:isCurrentMonth?0.4:1 }}>
-              <ChevronRight size={15}/>
-            </button>
-          </div>
           <button onClick={() => { setBulkResult(null); setBulkChannel("both"); setShowBulk(true); }}
             title="Send this month's invoice to all active customers"
             style={{ display:"flex", alignItems:"center", gap:6, background:"var(--grade-a-bg)", color:"var(--grade-a-text)", border:"1px solid var(--grade-a-border)", borderRadius:10, padding:"10px 16px", fontSize:13, fontWeight:700, cursor:"pointer" }}>
@@ -341,23 +303,17 @@ export default function Customers() {
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {sorted.map(c => {
             const color = getColor(c.name);
-            const custEntries = entryMap.get(c.id) || [];
-            const hasActivity = custEntries.length > 0;
-            const custTotal = custEntries.reduce((s, e) => s + Number(e.total_amount), 0);
-            const allItems = custEntries.flatMap(e => e.items);
-            const pendingCnt = allItems.filter(i => i.item_status !== "delivered").length;
-            const allDone = allItems.length > 0 && pendingCnt === 0;
             const isOpen = expanded === c.id;
             const bal = balances[c.id];
             const due = bal ? bal.outstanding : 0;
 
             return (
-              <div key={c.id} style={{ background: "var(--bg-card-solid)", borderRadius: 14, overflow: "hidden", boxShadow: "var(--shadow-web-lift)", border: `1px solid ${hasActivity ? "var(--border)" : "var(--border-hard)"}`, opacity: hasActivity ? 1 : 0.75 }}>
+              <div key={c.id} style={{ background: "var(--bg-card-solid)", borderRadius: 14, overflow: "hidden", boxShadow: "var(--shadow-web-lift)", border: "1px solid var(--border)" }}>
                 {/* Customer row */}
                 <div className="cust-row" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "12px 14px", cursor: "pointer", transition: "background 0.15s" }}
                   onClick={() => setExpanded(isOpen ? null : c.id)}>
                   {/* Avatar */}
-                  <div style={{ width: 42, height: 42, borderRadius: 11, background: hasActivity ? color : "#e2e8f0", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: hasActivity ? "#fff" : "#94a3b8", fontWeight: 700, fontSize: 15 }}>
+                  <div style={{ width: 42, height: 42, borderRadius: 11, background: color, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 15 }}>
                     {getInitials(c.name)}
                   </div>
 
@@ -389,17 +345,6 @@ export default function Customers() {
 
                   {/* Right side */}
                   <div className="cust-right" style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                    {hasActivity ? (
-                      <div style={{ textAlign: "right", marginRight: 4 }}>
-                        <div style={{ fontWeight: 800, fontSize: 16, color: "var(--accent-primary)" }}>₹{custTotal.toLocaleString("en-IN")}</div>
-                        <div style={{ fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 20, background: allDone ? "var(--grade-a-bg)" : "var(--grade-c-bg)", color: allDone ? "var(--grade-a-text)" : "var(--grade-c-text)", border: `1px solid ${allDone ? "var(--grade-a-border)" : "var(--grade-c-border)"}`, marginTop: 2 }}>
-                          {allDone ? "✓ Done" : `${pendingCnt} pending`}
-                        </div>
-                      </div>
-                    ) : (
-                      <span style={{ fontSize: 11, color: "var(--text-muted)", marginRight: 4 }}>No activity</span>
-                    )}
-
                     {/* Desktop: all actions inline. Hidden on phone — replaced by the ⋮ menu. */}
                     <div className="cust-btns" style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     {/* Record payment button */}
@@ -409,19 +354,6 @@ export default function Customers() {
                       <IndianRupee size={13} color="var(--grade-c-text)" />
                     </button>
 
-                    {/* WhatsApp button — sends a payment reminder if money is due */}
-                    <button onClick={e => { e.stopPropagation(); waCustomer(c); }}
-                      style={{ width: 30, height: 30, borderRadius: 8, background: "var(--grade-a-bg)", border: "1px solid var(--grade-a-border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-                      title={due > 0.5 ? "Send payment reminder on WhatsApp" : "Open WhatsApp chat"}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--grade-a-text)"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
-                    </button>
-                    {/* Invoice button */}
-                    {hasActivity && (
-                      <button onClick={e => { e.stopPropagation(); openInvoice(c); }}
-                        style={{ width: 30, height: 30, borderRadius: 8, background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <FileText size={13} color="var(--grade-b-text)" />
-                      </button>
-                    )}
                     <button onClick={e => { e.stopPropagation(); setForm({ name: c.name, phone: c.phone, flat_number: c.flat_number || "", society_name: c.society_name || "", address: c.address || "", email: c.email || "" }); setEditId(c.id); setPhoneError(""); setShowForm(true); }}
                       style={{ width: 30, height: 30, borderRadius: 8, background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <Edit2 size={13} color="var(--grade-b-text)" />
@@ -442,63 +374,23 @@ export default function Customers() {
                   </div>
                 </div>
 
-                {/* Expanded: contact details (revealed on tap) + this month's entries */}
+                {/* Expanded: contact details (revealed on tap). Order-level details live on the Order page now. */}
                 {isOpen && (
                   <div style={{ borderTop: "1px solid var(--border-hard)" }}>
-                    <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, color: "var(--text-secondary)", borderBottom: hasActivity ? "1px solid var(--border-hard)" : "none" }}>
+                    <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
                       <span>📞 {c.phone}</span>
                       {(c.flat_number || c.society_name) && <span>🏠 {c.flat_number}{c.flat_number && c.society_name ? ", " : ""}{c.society_name}</span>}
                       {c.address && <span>📍 {c.address}</span>}
                       {c.email && <span>✉️ {c.email}</span>}
-                      <button onClick={(e) => { e.stopPropagation(); openStatement(c); }}
-                        style={{ marginTop: 6, alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, background: "var(--grade-b-bg)", color: "var(--grade-b-text)", border: "1px solid var(--grade-b-border)", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
-                        <Wallet size={13} /> View statement
-                      </button>
-                    </div>
-                    {custEntries.map(entry => {
-                      const dateItems = entry.items;
-                      const entryDone = dateItems.every(i => i.item_status === "delivered");
-                      return (
-                        <div key={entry.id} style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-hard)" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                            <div>
-                              <span style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)" }}>
-                                {new Date(entry.entry_date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}
-                              </span>
-                              {entry.notes && <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 8 }}>📝 {entry.notes}</span>}
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                              <span style={{ fontWeight: 700, fontSize: 14, color: "var(--accent-primary)" }}>₹{Number(entry.total_amount).toLocaleString("en-IN")}</span>
-                              <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 20, background: entryDone ? "var(--grade-a-bg)" : "var(--grade-c-bg)", color: entryDone ? "var(--grade-a-text)" : "var(--grade-c-text)", border: `1px solid ${entryDone ? "var(--grade-a-border)" : "var(--grade-c-border)"}` }}>
-                                {entryDone ? "Done" : `${dateItems.filter(i => i.item_status !== "delivered").length} left`}
-                              </span>
-                            </div>
-                          </div>
-                          {/* Items as chips */}
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                            {dateItems.map(item => {
-                              const dq = item.delivered_qty ?? (item.item_status === "delivered" ? item.quantity : 0);
-                              const isDel = dq >= item.quantity;
-                              const partial = dq > 0 && !isDel;
-                              return (
-                                <span key={item.id} className="item-chip" style={{ fontSize: 11, padding: "3px 9px", borderRadius: 20, fontWeight: 600, background: isDel ? "var(--grade-a-bg)" : "var(--grade-c-bg)", color: isDel ? "var(--grade-a-text)" : "var(--grade-c-text)", border: `1px solid ${isDel ? "var(--grade-a-border)" : "var(--grade-c-border)"}` }}>
-                                  {isDel ? "✓" : "⏳"} {item.service_name} {partial ? `${dq}/${item.quantity}` : `×${item.quantity}`}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {/* Monthly summary row */}
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "var(--web-bg-band)", borderTop: "1px solid var(--border-hard)" }}>
-                      <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>{custEntries.length} {custEntries.length === 1 ? "entry" : "entries"} this month</span>
-                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                        <button onClick={() => openInvoice(c)}
-                          style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", background: "var(--accent-primary)", color: "#0b1830", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                          <FileText size={12} /> View Invoice
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+                        <button onClick={(e) => { e.stopPropagation(); openStatement(c); }}
+                          style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, background: "var(--grade-b-bg)", color: "var(--grade-b-text)", border: "1px solid var(--grade-b-border)", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                          <Wallet size={13} /> View statement
                         </button>
-                        <span style={{ fontWeight: 800, fontSize: 16, color: "var(--accent-primary)" }}>₹{custTotal.toLocaleString("en-IN")}</span>
+                        <a href={`/customer/${c.id}`} onClick={e => e.stopPropagation()}
+                          style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, background: "var(--grade-a-bg)", color: "var(--grade-a-text)", border: "1px solid var(--grade-a-border)", fontSize: 12.5, fontWeight: 700, textDecoration: "none" }}>
+                          📦 View orders
+                        </a>
                       </div>
                     </div>
                   </div>
@@ -634,10 +526,7 @@ export default function Customers() {
             <div style={{ background: "var(--bg-card-solid)", border: "1px solid var(--border-hard)", borderRadius: 16, padding: 24, width: "100%", maxWidth: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.28)" }}
               onClick={e => e.stopPropagation()}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>Send monthly bills</h3>
-                  <p style={{ margin: "3px 0 0", fontSize: 13, color: "var(--text-muted)" }}>{MONTHS[month - 1]} {year}</p>
-                </div>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>Send monthly bills</h3>
                 <button onClick={() => !bulkSending && setShowBulk(false)} style={{ background: "var(--bg-input)", border: "none", borderRadius: 8, padding: 8, cursor: "pointer", display: "flex" }}>
                   <X size={18} color="var(--text-secondary)" />
                 </button>
@@ -645,6 +534,18 @@ export default function Customers() {
 
               {!bulkResult ? (
                 <>
+                  {/* Bill month — pick which month's invoice to send */}
+                  <label style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", display: "block", marginBottom: 6 }}>Bill month</label>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, background: "var(--bg-input)", border: "1px solid var(--border-hard)", borderRadius: 10, padding: 3, marginBottom: 16 }}>
+                    <button onClick={prevMonth} disabled={bulkSending} style={{ background: "none", border: "none", borderRadius: 7, width: 34, height: 34, cursor: bulkSending ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-primary)" }}>
+                      <ChevronLeft size={16} />
+                    </button>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", whiteSpace: "nowrap" }}>{MONTHS[month - 1]} {year}</span>
+                    <button onClick={nextMonth} disabled={isCurrentMonth || bulkSending} style={{ background: "none", border: "none", borderRadius: 7, width: 34, height: 34, cursor: (isCurrentMonth || bulkSending) ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: isCurrentMonth ? "var(--text-muted)" : "var(--text-primary)", opacity: isCurrentMonth ? 0.4 : 1 }}>
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+
                   <div style={{ padding: "12px 14px", borderRadius: 10, marginBottom: 16, background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", fontSize: 13.5, color: "var(--text-primary)", fontWeight: 600 }}>
                     <b style={{ color: "var(--accent-primary)" }}>{activeCount}</b> customer{activeCount === 1 ? "" : "s"} ki is mahine entries hain — sabko unka {MONTHS[month - 1]} ka bill jayega.
                   </div>
@@ -711,7 +612,6 @@ export default function Customers() {
       {/* ── Mobile action menu (⋮) ── */}
       {menu && (() => {
         const c = menu.c;
-        const mAct = (entryMap.get(c.id) || []).length > 0;
         const row = (label: string, icon: React.ReactNode, onClick: () => void, danger?: boolean) => (
           <button onClick={() => { setMenu(null); onClick(); }}
             style={{ display: "flex", alignItems: "center", gap: 11, width: "100%", padding: "13px 16px", background: "none", border: "none", borderBottom: "1px solid var(--border-hard)", cursor: "pointer", fontSize: 14, fontWeight: 600, color: danger ? "var(--grade-f-text)" : "var(--text-primary)", textAlign: "left" }}>
@@ -723,8 +623,7 @@ export default function Customers() {
             <div onClick={() => setMenu(null)} style={{ position: "fixed", inset: 0, zIndex: 300 }} />
             <div style={{ position: "fixed", top: menu.top, right: menu.right, zIndex: 301, background: "var(--bg-card-solid)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "var(--shadow-web-lift)", minWidth: 210, overflow: "hidden", display: "flex", flexDirection: "column" }}>
               {row("Record payment", <IndianRupee size={16} color="var(--grade-c-text)" />, () => openPay(c))}
-              {row("WhatsApp", <MessageCircle size={16} color="var(--grade-a-text)" />, () => waCustomer(c))}
-              {mAct && row("Invoice", <FileText size={16} color="var(--grade-b-text)" />, () => openInvoice(c))}
+              {row("View orders", <FileText size={16} color="var(--grade-a-text)" />, () => { window.location.href = `/customer/${c.id}`; })}
               {row("Statement", <Wallet size={16} color="var(--grade-b-text)" />, () => openStatement(c))}
               {row("Edit customer", <Edit2 size={16} color="var(--grade-b-text)" />, () => { setForm({ name: c.name, phone: c.phone, flat_number: c.flat_number || "", society_name: c.society_name || "", address: c.address || "", email: c.email || "" }); setEditId(c.id); setPhoneError(""); setShowForm(true); })}
               {row("Delete", <Trash2 size={16} color="var(--grade-f-text)" />, () => del(c.id), true)}
@@ -732,35 +631,6 @@ export default function Customers() {
           </>
         );
       })()}
-
-      {/* ── Invoice loading + preview ── */}
-      {invoiceLoading && !invoice && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)", zIndex: 399, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "var(--bg-card-solid)", padding: "14px 22px", borderRadius: 12, fontSize: 14, fontWeight: 600, color: "var(--text-primary)", border: "1px solid var(--border-hard)" }}>Opening invoice…</div>
-        </div>
-      )}
-      {invoice && (
-        <div onClick={() => setInvoice(null)}
-          style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.6)", zIndex: 400, display: "flex", padding: 12 }}>
-          <div onClick={e => e.stopPropagation()}
-            style={{ background: "var(--bg-card-solid)", borderRadius: 12, margin: "auto", width: "100%", maxWidth: 820, height: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "12px 14px", borderBottom: "1px solid var(--border-hard)" }}>
-              <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{invoice.name}</span>
-              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                <button onClick={() => { const f = document.getElementById("cust-invoice-frame") as HTMLIFrameElement | null; f?.contentWindow?.focus(); f?.contentWindow?.print(); }}
-                  style={{ padding: "7px 14px", background: "var(--grade-b-bg)", color: "var(--grade-b-text)", border: "1px solid var(--grade-b-border)", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                  Print
-                </button>
-                <button onClick={() => setInvoice(null)}
-                  style={{ width: 34, height: 34, borderRadius: 8, background: "var(--bg-input)", border: "1px solid var(--border-hard)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <X size={17} color="var(--text-secondary)" />
-                </button>
-              </div>
-            </div>
-            <iframe id="cust-invoice-frame" srcDoc={invoice.html} title="Invoice" style={{ flex: 1, border: "none", width: "100%", background: "#fff" }} />
-          </div>
-        </div>
-      )}
 
       {/* ── Statement loading + ledger modal ── */}
       {statementLoading && !statement && (
