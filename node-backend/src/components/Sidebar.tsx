@@ -6,7 +6,7 @@ import {
   BarChart3, Wrench, Hammer, LogOut, X, Key, Eye, EyeOff,
   Building2, Wallet, Activity, ShieldCheck, ChevronRight, ChevronDown,
   UserCog, MoreHorizontal, Sun, Moon, Monitor, Check, Settings, Bell,
-  UserPlus, Mail, FileSpreadsheet,
+  UserPlus, Mail, FileSpreadsheet, Receipt,
 } from "lucide-react";
 import api from "@/lib/api";
 import { isEntryPending } from "@/lib/entry-status";
@@ -45,6 +45,7 @@ const adminNavItems = [
   { path: "/customers",  label: "Customers",  icon: Users },
   { path: "/entries",    label: "Orders",     icon: ClipboardList },
   { path: "/accounting", label: "Accounting", icon: Wallet },
+  { path: "/payments",   label: "Payments",   icon: Receipt },
   { path: "/reports",    label: "Reports",    icon: BarChart3 },
   { path: "/services",   label: "Services",   icon: Wrench },
   { path: "/labour",     label: "Labour",     icon: Hammer },
@@ -226,8 +227,8 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
 
         {/* Brand */}
         <div style={{ padding: "18px 16px 14px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 11 }}>
-          <img src="/app-icon.svg" alt="LaundryPro" style={{ height: 34, width: "auto", maxWidth: 44, objectFit: "contain", borderRadius: 8, flexShrink: 0 }} />
-          <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: "-.01em", color: "var(--text-primary)" }}>LaundryPro</div>
+          <img src="/app-icon.svg" alt="LaundryMax" style={{ height: 34, width: "auto", maxWidth: 44, objectFit: "contain", borderRadius: 8, flexShrink: 0 }} />
+          <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: "-.01em", color: "var(--text-primary)" }}>LaundryMax</div>
         </div>
 
         {/* Shop picker (superadmin only) */}
@@ -349,8 +350,8 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
         }}>
           {/* Mobile: logo + brand (desktop header keeps only the right-side actions) */}
           <div style={{ display: "none", alignItems: "center", gap: 9 }} className="mob-brand">
-            <img src="/app-icon.svg" alt="LaundryPro" style={{ height: 30, width: "auto", maxWidth: 40, objectFit: "contain", borderRadius: 7, flexShrink: 0 }} />
-            <div style={{ fontWeight: 800, fontSize: 17, color: "var(--text-primary)", letterSpacing: "-.01em" }}>LaundryPro</div>
+            <img src="/app-icon.svg" alt="LaundryMax" style={{ height: 30, width: "auto", maxWidth: 40, objectFit: "contain", borderRadius: 7, flexShrink: 0 }} />
+            <div style={{ fontWeight: 800, fontSize: 17, color: "var(--text-primary)", letterSpacing: "-.01em" }}>LaundryMax</div>
           </div>
 
           {/* Right actions */}
@@ -597,6 +598,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
         const moreGrid = [
           { path: "/customers",  label: "Customers",     icon: Users,    sub: "Manage contacts" },
           ...(!isStaff ? [{ path: "/accounting", label: "Accounting",    icon: Wallet,   sub: "Income & expense" }] : []),
+          ...(!isStaff ? [{ path: "/payments",   label: "Payments",      icon: Receipt,  sub: "Collection history" }] : []),
           ...(!isStaff ? [{ path: "/reports",    label: "Reports",       icon: BarChart3, sub: "Insights" }] : []),
           { path: "/services",   label: "Services",      icon: Wrench,   sub: "Pricing" },
           ...(!isStaff ? [{ path: "/labour",     label: "Labour",        icon: Hammer,   sub: "Press & pay" }] : []),
