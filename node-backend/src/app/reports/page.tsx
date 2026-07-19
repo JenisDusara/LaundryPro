@@ -54,7 +54,7 @@ export default function Reports() {
     ]).finally(()=>setLoading(false));
   },[from,to]);
 
-  const exportCombined = () => { downloadAuthedFile("/exports/combined",`LaundryPro-Report-${from}_${to}.xlsx`,{from,to}).catch(()=>alert("Failed to export report")); };
+  const exportCombined = () => { downloadAuthedFile("/exports/combined",`LaundryMax-Report-${from}_${to}.xlsx`,{from,to}).catch(()=>alert("Failed to export report")); };
 
   const totalRevenue=entries.reduce((s,e)=>s+Number(e.total_amount),0);
   const uniqueCustomers=new Set(entries.map(e=>e.customer_id)).size;

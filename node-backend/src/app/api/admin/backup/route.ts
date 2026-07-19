@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   ]);
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = "LaundryPro";
+  wb.creator = "LaundryMax";
   wb.created = new Date();
 
   const headerFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E40AF" } };
@@ -144,7 +144,7 @@ export async function GET(req: NextRequest) {
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="laundrypro-backup-${date}.xlsx"`,
+      "Content-Disposition": `attachment; filename="laundrymax-backup-${date}.xlsx"`,
     },
   });
 }

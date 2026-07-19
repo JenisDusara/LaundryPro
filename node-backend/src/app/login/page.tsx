@@ -69,7 +69,7 @@ export default function LoginPage() {
             <span style={{ color: "#0b1830", fontWeight: 800, fontSize: 20 }}>LP</span>
           </div>
 
-          <TypingTitle text="LaundryPro" />
+          <TypingTitle text="LaundryMax" />
           <p style={{ color: "var(--text-muted)", marginBottom: 28, fontSize: 14, marginTop: 6 }}>Sign in to continue</p>
 
           {error && (
@@ -124,7 +124,7 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 20, marginBottom: 0 }}>LaundryPro © 2025 · Ahmedabad</p>
+          <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 20, marginBottom: 0 }}>LaundryMax © 2025 · Ahmedabad</p>
         </div>
       </div>
     </div>

@@ -74,7 +74,7 @@ export async function GET(req: NextRequest, { params }: { params: { customerId: 
   });
 
   const expDelivery = deliveryDates.length ? fmtDate(deliveryDates.sort().slice(-1)[0]) : "—";
-  const shopName = profile.shop_name || "LaundryPro";
+  const shopName = profile.shop_name || "LaundryMax";
   const tagline = profile.tagline || "Professional Dry Cleaning & Laundry Services";
   const upiId: string = profile.upi_id || "";
 

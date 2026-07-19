@@ -3,9 +3,9 @@ import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "LaundryPro — Laundry Shop Management Software for India",
+  title: "LaundryMax — Laundry Shop Management Software for India",
   description:
-    "LaundryPro handles customers, billing, deliveries, labour and reports for Indian laundry & dry-cleaning shops. Ditch the register. Try the live demo.",
+    "LaundryMax handles customers, billing, deliveries, labour and reports for Indian laundry & dry-cleaning shops. Ditch the register. Try the live demo.",
   keywords: [
     "laundry software",
     "dry cleaning management",
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     "laundry management India",
   ],
   openGraph: {
-    title: "LaundryPro — Manage Your Shop. Grow Profitably.",
+    title: "LaundryMax — Manage Your Shop. Grow Profitably.",
     description:
       "Billing in 10 seconds, delivery tracking, labour wages and daily revenue reports — built for Indian laundry shops.",
     type: "website",

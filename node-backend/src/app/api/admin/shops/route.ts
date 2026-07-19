@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
 
     // Best-effort — a failed email shouldn't undo the account that was just created.
     const setupUrl = `${new URL(req.url).origin}/complete-signup?token=${setupToken}`;
-    sendEmail(signupRequest.email, `Welcome to LaundryPro — ${shop_name}`, completeSignupEmailHtml(shop_name, setupUrl))
+    sendEmail(signupRequest.email, `Welcome to LaundryMax — ${shop_name}`, completeSignupEmailHtml(shop_name, setupUrl))
       .catch(err => console.error("Failed to send complete-signup email:", err));
   }
 

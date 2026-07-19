@@ -136,7 +136,7 @@ export default function Settings() {
   const downloadBackup = async () => {
     setBackupBusy(true);
     try {
-      await downloadAuthedFile("/admin/backup", `laundrypro-backup-${todayIST()}.xlsx`);
+      await downloadAuthedFile("/admin/backup", `laundrymax-backup-${todayIST()}.xlsx`);
     } catch (e: any) {
       // The error body is a Blob (blob responseType) — read it to surface the real reason,
       // e.g. superadmin trying to back up without selecting a shop.

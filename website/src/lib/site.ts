@@ -1,4 +1,4 @@
-// Central config + content for the LaundryPro marketing site.
+// Central config + content for the LaundryMax marketing site.
 // Change contact details / demo link here in one place.
 
 export const WHATSAPP_NUMBER = "919824436736"; // +91 98244 36736
@@ -7,7 +7,7 @@ export const EMAIL = "jenishdusara78@gmail.com";
 export const DEMO_URL = "/dashboard";
 
 export const waLink = (
-  message = "Hi, I'm interested in LaundryPro for my laundry shop."
+  message = "Hi, I'm interested in LaundryMax for my laundry shop."
 ) => `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 
 export const nav = [
@@ -17,7 +17,7 @@ export const nav = [
 ];
 
 export const stats = [
-  { value: 500, suffix: "+", label: "Shops running LaundryPro" },
+  { value: 500, suffix: "+", label: "Shops running LaundryMax" },
   { value: 4.9, suffix: "/5", label: "Average owner rating" },
   { value: 1, suffix: " day", label: "Typical setup time" },
 ];

@@ -26,7 +26,7 @@ export function Logo({
             onDark ? "text-white" : "text-text"
           }`}
         >
-          LaundryPro
+          LaundryMax
         </span>
       )}
     </div>
