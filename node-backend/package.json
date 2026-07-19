@@ -12,8 +12,6 @@
     "db:seed": "ts-node --project tsconfig.json prisma/seed.ts"
   },
   "dependencies": {
-    "@netlify/functions": "^5.3.0",
-    "@netlify/plugin-nextjs": "^5.15.9",
     "@prisma/client": "^5.16.0",
     "axios": "^1.7.2",
     "bcryptjs": "^2.4.3",

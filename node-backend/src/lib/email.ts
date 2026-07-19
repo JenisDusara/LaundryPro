@@ -1,10 +1,25 @@
 import nodemailer from "nodemailer";
 import { LOGO_PNG_BASE64 } from "./logo";
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-});
+// SMTP transport. Works with any mail provider: set EMAIL_HOST (+ optional EMAIL_PORT) for a
+// custom-domain mailbox like info@laundrymax.in (GoDaddy / Zoho / Google Workspace / etc.). If
+// EMAIL_HOST is unset it falls back to Gmail's service preset, so the old Gmail setup keeps working.
+// Port 465 = implicit TLS (secure), anything else (typically 587) = STARTTLS.
+const emailPort = Number(process.env.EMAIL_PORT) || 587;
+const transporter = process.env.EMAIL_HOST
+  ? nodemailer.createTransport({
+      host: process.env.EMAIL_HOST,
+      port: emailPort,
+      secure: emailPort === 465,
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    })
+  : nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    });
+
+// Display name + address shown to recipients. Defaults to LaundryMax + the authenticated mailbox.
+const FROM_NAME = process.env.EMAIL_FROM_NAME || "LaundryMax";
 
 const LOGO_CID = "laundrymax-logo";
 
@@ -21,7 +36,7 @@ function logoHeader(title: string) {
 
 export async function sendEmail(to: string, subject: string, html: string, attachments?: any[]) {
   await transporter.sendMail({
-    from: `"LaundryMax" <${process.env.EMAIL_USER}>`,
+    from: `"${FROM_NAME}" <${process.env.EMAIL_USER}>`,
     to, subject, html,
     attachments: [
       { filename: "logo.png", content: Buffer.from(LOGO_PNG_BASE64, "base64"), cid: LOGO_CID, contentDisposition: "inline" },
