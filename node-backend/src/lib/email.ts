@@ -6,22 +6,22 @@ const transporter = nodemailer.createTransport({
   auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
 });
 
-const LOGO_CID = "laundrypro-logo";
+const LOGO_CID = "laundrymax-logo";
 
-// Renders the LaundryPro logo — every template uses this instead of an emoji header.
+// Renders the LaundryMax logo — every template uses this instead of an emoji header.
 // Gmail strips base64 data-URI images for security, so this has to be a cid:
 // reference to a real MIME attachment (see sendEmail) — the only reliable way to
 // get an inline logo to actually render in Gmail.
 function logoHeader(title: string) {
   return `<div style="text-align:center;margin-bottom:8px">
-    <img src="cid:${LOGO_CID}" alt="LaundryPro" style="height:56px;display:inline-block" />
+    <img src="cid:${LOGO_CID}" alt="LaundryMax" style="height:56px;display:inline-block" />
   </div>
   <h2 style="color:#1e3a8a;text-align:center;margin-top:0">${title}</h2>`;
 }
 
 export async function sendEmail(to: string, subject: string, html: string, attachments?: any[]) {
   await transporter.sendMail({
-    from: `"LaundryPro" <${process.env.EMAIL_USER}>`,
+    from: `"LaundryMax" <${process.env.EMAIL_USER}>`,
     to, subject, html,
     attachments: [
       { filename: "logo.png", content: Buffer.from(LOGO_PNG_BASE64, "base64"), cid: LOGO_CID, contentDisposition: "inline" },
@@ -140,7 +140,7 @@ export function newSignupRequestEmailHtml(r: { shop_name: string; owner_name: st
 // secure than emailing a plaintext password), then are logged straight in.
 export function completeSignupEmailHtml(shopName: string, setupUrl: string): string {
   return `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
-    ${logoHeader("Welcome to LaundryPro!")}
+    ${logoHeader("Welcome to LaundryMax!")}
     <p>Hi <strong>${shopName}</strong>, your account request has been approved. Click below to choose your username and password and get started.</p>
     <div style="text-align:center;margin:20px 0">
       <a href="${setupUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px">Set up your account</a>

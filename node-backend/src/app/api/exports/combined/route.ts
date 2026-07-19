@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
   allPay.forEach(p => paidMap.set(p.customer_id, (paidMap.get(p.customer_id) || 0) + Number(p.amount)));
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = "LaundryPro";
+  wb.creator = "LaundryMax";
   wb.created = new Date();
 
   const headerFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E40AF" } };
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
     { key: "label",  width: 30 },
     { key: "value",  width: 20 },
   ];
-  const titleRow = wsSummary.addRow([`LaundryPro Report — ${monthName}`, ""]);
+  const titleRow = wsSummary.addRow([`LaundryMax Report — ${monthName}`, ""]);
   titleRow.getCell(1).font = { bold: true, size: 14, color: { argb: "FF1E3A8A" } };
   titleRow.height = 32;
   wsSummary.addRow([]);
@@ -248,7 +248,7 @@ export async function GET(req: NextRequest) {
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="LaundryPro-Report-${start}_${end}.xlsx"`,
+      "Content-Disposition": `attachment; filename="LaundryMax-Report-${start}_${end}.xlsx"`,
     },
   });
 }

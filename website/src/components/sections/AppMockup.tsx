@@ -24,7 +24,7 @@ export function AppMockup() {
           <span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
         </div>
         <div className="ml-2 flex h-5 flex-1 items-center rounded-md bg-white/5 px-2.5 text-[10px] text-white/35">
-          app.laundrypro.in/dashboard
+          app.laundrymax.in/dashboard
         </div>
       </div>
 

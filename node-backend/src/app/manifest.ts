@@ -1,11 +1,11 @@
 import type { MetadataRoute } from "next";
 
-// Web app manifest — lets LaundryPro be "installed" to the phone home screen and run
+// Web app manifest — lets LaundryMax be "installed" to the phone home screen and run
 // full-screen (standalone), without the browser address/nav bars.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "LaundryPro",
-    short_name: "LaundryPro",
+    name: "LaundryMax",
+    short_name: "LaundryMax",
     description: "Laundry Management System",
     start_url: "/dashboard",
     scope: "/",

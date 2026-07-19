@@ -1,8 +1,8 @@
-// LaundryPro WA-Service — always-on, multi-session WhatsApp sender (Baileys).
+// LaundryMax WA-Service — always-on, multi-session WhatsApp sender (Baileys).
 // One WhatsApp session per shop. The Next.js app (Netlify) calls this over HTTP.
 //
 // Run:  npm install && npm start   (on an always-on machine — VPS / shop PC / Pi)
-// Env:  PORT (default 8088), WA_SHARED_SECRET (shared with the LaundryPro app)
+// Env:  PORT (default 8088), WA_SHARED_SECRET (shared with the LaundryMax app)
 
 const express = require("express");
 const pino = require("pino");
@@ -234,7 +234,7 @@ function resumeExisting() {
 }
 
 app.listen(PORT, () => {
-  console.log(`LaundryPro WA-Service listening on :${PORT}`);
+  console.log(`LaundryMax WA-Service listening on :${PORT}`);
   if (!SECRET) console.warn("⚠️  WA_SHARED_SECRET not set — endpoints are UNPROTECTED (dev only).");
   resumeExisting();
 });

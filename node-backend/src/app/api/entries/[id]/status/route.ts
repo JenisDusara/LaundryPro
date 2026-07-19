@@ -38,7 +38,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }));
   if (status === "delivered" && entry?.customer && !silent) {
     const profile = await getShopProfile(entry.customer.shop_id);
-    const shopName = profile.shop_name || "LaundryPro";
+    const shopName = profile.shop_name || "LaundryMax";
     if (entry.customer?.email) {
       sendEmail(entry.customer.email, `Laundry Ready - ${shopName}`,
         deliveryEmailHtml(entry.customer.name, shopName)

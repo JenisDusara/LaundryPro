@@ -184,7 +184,7 @@ export async function POST(req: NextRequest) {
   }
 
   const profile = await getShopProfile(customer.shop_id);
-  const shopName = profile.shop_name || "LaundryPro";
+  const shopName = profile.shop_name || "LaundryMax";
 
   // Group any just-delivered items by their original pickup date, for the "Delivered" section.
   const fmtDate = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });

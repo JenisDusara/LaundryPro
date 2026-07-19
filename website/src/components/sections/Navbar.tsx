@@ -26,7 +26,7 @@ export function Navbar() {
       }`}
     >
       <nav className="mx-auto flex h-[68px] max-w-content items-center justify-between px-5 sm:px-8">
-        <Link href="#top" aria-label="LaundryPro home">
+        <Link href="#top" aria-label="LaundryMax home">
           <Logo />
         </Link>
 

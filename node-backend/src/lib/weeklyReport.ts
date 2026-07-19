@@ -108,7 +108,7 @@ async function buildWeeklyWorkbook(
   entries: Prisma.LaundryEntryGetPayload<{ include: { customer: true; items: true } }>[]
 ) {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "LaundryPro";
+  wb.creator = "LaundryMax";
   wb.created = new Date();
 
   const wsSummary = wb.addWorksheet("Summary");

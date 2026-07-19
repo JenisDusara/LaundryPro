@@ -112,7 +112,7 @@ export default function TrialPage() {
                 {loading ? "Submitting…" : "Sign up"}
               </button>
 
-              <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 24, marginBottom: 0, textAlign: "center" }}>LaundryPro © 2025 · Ahmedabad</p>
+              <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 24, marginBottom: 0, textAlign: "center" }}>LaundryMax © 2025 · Ahmedabad</p>
             </>
           )}
         </div>

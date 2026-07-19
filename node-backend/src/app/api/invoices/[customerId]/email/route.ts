@@ -28,7 +28,7 @@ export async function POST(req: NextRequest, { params }: { params: { customerId:
 
   const total = entries.reduce((s, e) => s + Number(e.total_amount), 0);
   const profile = await getShopProfile(customer.shop_id);
-  const shopName = profile.shop_name || "LaundryPro";
+  const shopName = profile.shop_name || "LaundryMax";
 
   const rows = entries.flatMap(e => e.items).map(i =>
     `<tr><td style="padding:6px 12px;border-bottom:1px solid #f1f5f9">${i.service_name}</td>

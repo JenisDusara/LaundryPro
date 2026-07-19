@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   }
 
   const profile = await getShopProfile(shopId);
-  const shopName = profile.shop_name || "LaundryPro";
+  const shopName = profile.shop_name || "LaundryMax";
   const monthName = new Date(year, month - 1, 1).toLocaleString("en-IN", { month: "long", year: "numeric" });
   const inr = (n: number) => `Rs. ${Number(n).toLocaleString("en-IN")}`;
   const dateStr = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
