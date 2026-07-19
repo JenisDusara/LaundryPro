@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
 import { sendEmail, newSignupRequestEmailHtml } from "@/lib/email";
-
-function getIp(req: NextRequest) {
-  return (
-    req.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
-    req.headers.get("x-real-ip") ||
-    "unknown"
-  );
-}
+import { getClientIp } from "@/lib/ip";
 
 // Public, unauthenticated — the marketing site's "Start free trial" form posts here.
 export async function POST(req: NextRequest) {
@@ -29,7 +22,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ detail: "Enter a valid email address" }, { status: 400 });
   }
 
-  const ip = getIp(req);
+  const ip = getClientIp(req);
 
   // Same DB-window rate-limit pattern as /api/auth/login: block an IP after
   // too many requests in a short window instead of a stateful in-memory limiter

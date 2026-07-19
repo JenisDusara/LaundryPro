@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, denyStaff } from "@/lib/auth";
+import { requireAuth, denyStaff, requireWrite } from "@/lib/auth";
 import { waPair, waConfigured } from "@/lib/waAuto";
 
 function shopOf(req: NextRequest, user: { role: string; shop_id: string }): string {
@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
   const staff = denyStaff(user); if (staff) return staff;
+  const ro = requireWrite(user); if (ro) return ro;
   if (!waConfigured()) return NextResponse.json({ state: "not_configured" });
   const { phone } = await req.json().catch(() => ({}));
   if (!phone) return NextResponse.json({ detail: "phone required" }, { status: 400 });

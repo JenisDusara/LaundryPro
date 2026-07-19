@@ -2,18 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import prisma, { withRetry } from "@/lib/prisma";
 import { signToken } from "@/lib/auth";
-
-function getIp(req: NextRequest) {
-  return (
-    req.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
-    req.headers.get("x-real-ip") ||
-    "unknown"
-  );
-}
+import { getClientIp } from "@/lib/ip";
 
 export async function POST(req: NextRequest) {
   const { username, password } = await req.json().catch(() => ({}));
-  const ip = getIp(req);
+  const ip = getClientIp(req);
 
   try {
     const WINDOW_MIN = 15, MAX_USER_FAILS = 8, MAX_IP_FAILS = 30;

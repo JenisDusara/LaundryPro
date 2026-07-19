@@ -138,18 +138,21 @@ export async function POST(req: NextRequest) {
     include: { customer: true, items: true },
   });
 
-  // Set delivery_date via raw SQL (Prisma client may not have this field yet)
-  if (delivery_date) {
-    await prisma.$executeRawUnsafe(`UPDATE laundry_entries SET delivery_date = $1 WHERE id::text = $2`, delivery_date, entry.id);
-  }
-
-  // Assign a per-shop running invoice number (starts at 1) + persist billing fields.
-  // A per-shop advisory lock inside the transaction serialises numbering so two
-  // concurrent entries can't grab the same invoice_no. Defensive: on any failure the
-  // entry (already created) is left as-is with a null invoice_no.
+  // Persist delivery_date, assign a per-shop running invoice number (starts at 1), save the
+  // billing fields, AND — when money was collected at billing — record the Payment, all in ONE
+  // transaction. Keeping the amount_paid column and the Payment row in the same atomic unit means
+  // they can never diverge: previously the payment was a separate write, so if it failed after
+  // amount_paid was already persisted the entry claimed money was paid while no Payment row
+  // existed, overstating the customer's balance. A per-shop advisory lock serialises invoice
+  // numbering so two concurrent entries can't grab the same invoice_no. Defensive: on any failure
+  // the whole billing block rolls back and the already-created entry keeps a null invoice_no.
+  const method = payMethodRaw === "cash" || payMethodRaw === "upi" || payMethodRaw === "card" ? payMethodRaw : "other";
   let invoiceNo: number | null = null;
   try {
     invoiceNo = await prisma.$transaction(async (tx) => {
+      if (delivery_date) {
+        await tx.$executeRawUnsafe(`UPDATE laundry_entries SET delivery_date = $1 WHERE id::text = $2`, delivery_date, entry.id);
+      }
       await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`, `invoice:${customer.shop_id}`);
       const rows = await tx.$queryRawUnsafe<{ n: bigint }[]>(
         `SELECT COALESCE(MAX(invoice_no), 0) + 1 AS n FROM laundry_entries WHERE shop_id = $1`, customer.shop_id);
@@ -157,30 +160,23 @@ export async function POST(req: NextRequest) {
       await tx.$executeRawUnsafe(
         `UPDATE laundry_entries SET invoice_no = $1, discount = $2, extra_charge = $3, amount_paid = $4, payment_method = $5 WHERE id::text = $6`,
         n, discountN, extraN, paidN, payMethodRaw, entry.id);
+      // "Pay later" leaves paidN = 0, so no payment row is created.
+      if (paidN > 0) {
+        await tx.payment.create({
+          data: {
+            customer_id,
+            amount: paidN,
+            method,
+            date: today,
+            note: `Paid at billing${payMethodRaw && method === "other" ? ` (${payMethodRaw})` : ""}`,
+            shop_id: customer.shop_id,
+          },
+        });
+      }
       return n;
     });
   } catch (err: any) {
-    console.error("invoice_no/billing update failed:", err?.message);
-  }
-
-  // Payment taken at billing → record it as a Payment so the customer's balance (udhaar) is
-  // immediately correct. "Pay later" leaves paidN = 0, so no payment row is created.
-  if (paidN > 0) {
-    const method = payMethodRaw === "cash" || payMethodRaw === "upi" || payMethodRaw === "card" ? payMethodRaw : "other";
-    try {
-      await prisma.payment.create({
-        data: {
-          customer_id,
-          amount: paidN,
-          method,
-          date: today,
-          note: `Paid at billing${payMethodRaw && method === "other" ? ` (${payMethodRaw})` : ""}`,
-          shop_id: customer.shop_id,
-        },
-      });
-    } catch (err: any) {
-      console.error("billing payment create failed:", err?.message);
-    }
+    console.error("invoice_no/billing/payment update failed:", err?.message);
   }
 
   const profile = await getShopProfile(customer.shop_id);

@@ -54,10 +54,17 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
   const entries = await withRetry(() => prisma.laundryEntry.findMany({ where: { customer_id: params.id }, select: { id: true } }));
   const entryIds = entries.map(e => e.id);
-  if (entryIds.length > 0) {
-    await withRetry(() => prisma.entryItem.deleteMany({ where: { entry_id: { in: entryIds } } }));
-    await withRetry(() => prisma.laundryEntry.deleteMany({ where: { customer_id: params.id } }));
-  }
-  await withRetry(() => prisma.customer.deleteMany({ where: { id: params.id, ...shopFilter(user, req) } }));
+
+  // Delete the whole customer graph atomically. Payments MUST be deleted too — Payment has no
+  // onDelete cascade, so leaving them would (a) fail the final customer delete on the FK and
+  // (b) leave orphaned payments still counting toward the shop's collection totals. Wrapping it
+  // in one $transaction means a mid-way failure rolls everything back instead of destroying the
+  // order history while the customer + payments survive.
+  await withRetry(() => prisma.$transaction([
+    ...(entryIds.length > 0 ? [prisma.entryItem.deleteMany({ where: { entry_id: { in: entryIds } } })] : []),
+    prisma.laundryEntry.deleteMany({ where: { customer_id: params.id } }),
+    prisma.payment.deleteMany({ where: { customer_id: params.id } }),
+    prisma.customer.deleteMany({ where: { id: params.id, ...shopFilter(user, req) } }),
+  ]));
   return NextResponse.json({ message: "Deleted" });
 }

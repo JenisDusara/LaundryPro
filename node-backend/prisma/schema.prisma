@@ -125,6 +125,14 @@ model LaundryEntry {
   delivery_status String      @default("pending")
   notes           String      @default("")
   delivery_date   String?
+  // Billing columns — previously created only via scripts/add-billing-columns.sql and read/written
+  // through raw SQL because they weren't declared here (schema drift). Now declared so the Prisma
+  // client is typed for them, `prisma db push` keeps them in sync, and future migrations are clean.
+  invoice_no      Int?        // per-shop running bill number (starts at 1)
+  discount        Decimal     @default(0) @db.Decimal(10, 2)
+  extra_charge    Decimal     @default(0) @db.Decimal(10, 2)
+  amount_paid     Decimal     @default(0) @db.Decimal(10, 2)
+  payment_method  String      @default("")
   shop_id         String      @default("shop1")
   created_at      DateTime    @default(now())
   updated_at      DateTime    @updatedAt

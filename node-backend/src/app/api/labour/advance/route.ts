@@ -56,6 +56,10 @@ export async function POST(req: NextRequest) {
   if (!labour_id || !advance_date || !amount) {
     return NextResponse.json({ detail: "labour_id, advance_date and amount are required" }, { status: 400 });
   }
+  const amt = Number(amount);
+  if (!Number.isFinite(amt) || amt <= 0) {
+    return NextResponse.json({ detail: "Amount must be a positive number" }, { status: 400 });
+  }
   // Verify the labour belongs to the caller's shop before writing an advance against it.
   const labour = await prisma.labour.findFirst({
     where: { id: labour_id, ...(user.role === "superadmin" ? {} : { shop_id: user.shop_id }) },
@@ -63,7 +67,7 @@ export async function POST(req: NextRequest) {
   });
   if (!labour) return NextResponse.json({ detail: "Labour not found" }, { status: 404 });
   const advance = await withRetry(() => prisma.labourAdvance.create({
-    data: { labour_id, advance_date, amount: Number(amount), description: description || "" },
+    data: { labour_id, advance_date, amount: amt, description: description || "" },
     include: { labour: true },
   }));
   return NextResponse.json({

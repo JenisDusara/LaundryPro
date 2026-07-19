@@ -34,6 +34,22 @@ export async function GET(req: NextRequest, { params }: { params: { customerId: 
     where, include: { items: true }, orderBy: { entry_date: "asc" },
   });
 
+  // Sum the billing adjustments actually stored on these entries so the invoice total matches the
+  // customer's real balance. Without this the invoice only reflected item subtotals (± a one-off
+  // query-param discount) and silently ignored every discount/extra charge saved at billing time.
+  // Raw SQL because these columns aren't in the Prisma schema yet.
+  const entryIds = entries.map(e => e.id);
+  let storedDiscount = 0, storedExtra = 0;
+  if (entryIds.length > 0) {
+    const bill: { discount: number; extra_charge: number }[] = await prisma.$queryRawUnsafe(
+      `SELECT COALESCE(SUM(discount),0)::float8 AS discount, COALESCE(SUM(extra_charge),0)::float8 AS extra_charge
+       FROM laundry_entries WHERE id::text = ANY($1::text[])`,
+      entryIds
+    );
+    storedDiscount = Number(bill[0]?.discount) || 0;
+    storedExtra = Number(bill[0]?.extra_charge) || 0;
+  }
+
   const profile = await getShopProfile(customer.shop_id);
 
   const fmtDate = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -87,10 +103,11 @@ export async function GET(req: NextRequest, { params }: { params: { customerId: 
     profile.email   ? { icon: svgMail,  text: profile.email }   : null,
   ].filter(Boolean) as { icon: string; text: string }[];
 
-  // Totals: subtotal → less discount → plus GST (per-shop rate) → total
+  // Totals: subtotal → less discount (stored + one-off) → plus extra charge → plus GST → total
   const subtotal = grandTotal;
-  const discountAmt = Math.min(discount, subtotal);
-  const taxable = subtotal - discountAmt;
+  const discountAmt = discount + storedDiscount;
+  const extraAmt = storedExtra;
+  const taxable = Math.max(0, subtotal - discountAmt + extraAmt);
   const gstRate = Number(profile.gst_rate) || 0;
   const taxAmt = Math.round(taxable * gstRate / 100);
   const total = taxable + taxAmt;
@@ -203,7 +220,8 @@ export async function GET(req: NextRequest, { params }: { params: { customerId: 
     </div>
     <div class="totals">
       <div class="trow"><span>Subtotal</span><span class="v">${rupee(subtotal)}</span></div>
-      <div class="trow"><span>Discount</span><span class="v">${discountAmt > 0 ? "−" : ""}${rupee(discountAmt)}</span></div>
+      ${discountAmt > 0 ? `<div class="trow"><span>Discount</span><span class="v">−${rupee(discountAmt)}</span></div>` : ""}
+      ${extraAmt > 0 ? `<div class="trow"><span>Extra charge</span><span class="v">+${rupee(extraAmt)}</span></div>` : ""}
       ${gstRate > 0 ? `<div class="trow"><span>Tax (GST ${gstRate}%)</span><span class="v">${rupee(taxAmt)}</span></div>` : ""}
       <div class="tdiv"></div>
       <div class="total"><span class="t">Total</span><span class="tv">${rupee(total)}</span></div>

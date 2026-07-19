@@ -29,6 +29,10 @@ export async function POST(req: NextRequest) {
   if (!date || !category || !amount) {
     return NextResponse.json({ detail: "date, category and amount are required" }, { status: 400 });
   }
+  const amt = Number(amount);
+  if (!Number.isFinite(amt) || amt <= 0) {
+    return NextResponse.json({ detail: "Amount must be a positive number" }, { status: 400 });
+  }
   const shop_id = writeShopId(user, req, "superadmin");
   const expense = await prisma.expense.create({
     data: { date, category, description: description || "", amount: Number(amount), shop_id },

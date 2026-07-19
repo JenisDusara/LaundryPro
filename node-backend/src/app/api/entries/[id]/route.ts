@@ -40,7 +40,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }));
   if (!owned) return NextResponse.json({ detail: "Not found" }, { status: 404 });
 
-  const { notes, items, delivery_date } = await req.json();
+  const { notes, items, delivery_date, discount, extra_charge } = await req.json();
 
   if (!Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ detail: "At least one item is required" }, { status: 400 });
@@ -53,14 +53,20 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
   }
 
-  await withRetry(() => prisma.entryItem.deleteMany({ where: { entry_id: params.id } }));
+  // Preserve the entry's billing adjustments. total_amount = items − discount + extra_charge, so
+  // recomputing it from items alone (as this used to) silently dropped any discount/extra charge
+  // and drifted the customer's balance. Use the values from the edit form when sent, else keep the
+  // stored ones (read via raw SQL — these columns aren't in the Prisma schema yet).
+  const stored: { discount: any; extra_charge: any }[] =
+    await prisma.$queryRawUnsafe(`SELECT discount, extra_charge FROM laundry_entries WHERE id::text = $1`, params.id);
+  const discountN = Math.max(0, Number(discount ?? stored[0]?.discount) || 0);
+  const extraN    = Math.max(0, Number(extra_charge ?? stored[0]?.extra_charge) || 0);
 
-  let total = 0;
+  let itemsTotal = 0;
   const entryItems = (items as any[]).map((item) => {
     const subtotal = Number(item.price_per_unit) * Number(item.quantity);
-    total += subtotal;
+    itemsTotal += subtotal;
     return {
-      entry_id: params.id,
       service_id: item.service_id,
       service_name: item.service_name,
       price_per_unit: Number(item.price_per_unit),
@@ -69,38 +75,45 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       item_status: item.item_status || "pending",
     };
   });
+  const grandTotal = Math.max(0, itemsTotal - discountN + extraN);
 
-  const entry = await withRetry(() => prisma.laundryEntry.update({
-    where: { id: params.id },
-    data: {
-      notes: notes || "",
-      total_amount: total,
-      items: { createMany: { data: entryItems.map(({ entry_id, ...rest }) => rest) } },
-    },
-    include: { customer: true, items: true },
-  }));
-
-  // Items were deleted and recreated above, which resets delivered_qty to its default (0).
-  // Re-derive it from the item_status the client sent so the partial-delivery count and the
-  // "delivered" indicator stay consistent: delivered → full quantity, otherwise nothing.
-  await prisma.$executeRawUnsafe(
-    `UPDATE entry_items SET delivered_qty = CASE WHEN item_status = 'delivered' THEN quantity ELSE 0 END WHERE entry_id::text = $1`,
-    params.id
-  );
-
-  // Update delivery_date via raw SQL if provided
-  if (delivery_date !== undefined) {
-    if (delivery_date) {
-      await prisma.$executeRawUnsafe(`UPDATE laundry_entries SET delivery_date = $1 WHERE id::text = $2`, delivery_date, params.id);
-    } else {
-      await prisma.$executeRawUnsafe(`UPDATE laundry_entries SET delivery_date = NULL WHERE id::text = $1`, params.id);
+  // Delete + recreate items, update the total, and re-derive delivered_qty / discount / extra /
+  // delivery_date — all inside ONE interactive transaction. Previously these ran as separate
+  // statements: a crash between the delete and the recreate left the entry with zero items but a
+  // stale total, and two concurrent edits could interleave. The transaction makes the whole edit
+  // atomic (all-or-nothing).
+  const entry = await withRetry(() => prisma.$transaction(async (tx) => {
+    await tx.entryItem.deleteMany({ where: { entry_id: params.id } });
+    const updated = await tx.laundryEntry.update({
+      where: { id: params.id },
+      data: {
+        notes: notes || "",
+        total_amount: grandTotal,
+        items: { createMany: { data: entryItems } },
+      },
+      include: { customer: true, items: true },
+    });
+    // Recreated items reset delivered_qty to 0; re-derive from the item_status the client sent.
+    await tx.$executeRawUnsafe(
+      `UPDATE entry_items SET delivered_qty = CASE WHEN item_status = 'delivered' THEN quantity ELSE 0 END WHERE entry_id::text = $1`,
+      params.id
+    );
+    await tx.$executeRawUnsafe(
+      `UPDATE laundry_entries SET discount = $1, extra_charge = $2 WHERE id::text = $3`,
+      discountN, extraN, params.id
+    );
+    if (delivery_date !== undefined) {
+      await tx.$executeRawUnsafe(`UPDATE laundry_entries SET delivery_date = $1 WHERE id::text = $2`, delivery_date || null, params.id);
     }
-  }
+    return updated;
+  }));
 
   const ddRows2: { delivery_date: string | null }[] = await prisma.$queryRawUnsafe(`SELECT delivery_date FROM laundry_entries WHERE id::text = $1`, params.id);
   return NextResponse.json({
     ...entry,
     delivery_date: ddRows2[0]?.delivery_date ?? null,
+    discount: discountN,
+    extra_charge: extraN,
     total_amount: Number(entry.total_amount),
     items: entry.items.map(i => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal) })),
   });
