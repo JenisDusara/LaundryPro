@@ -11,11 +11,11 @@ export const waLink = (
 ) => `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 
 export const nav = [
-  { label: "About", href: "#about" },
-  { label: "Features", href: "#features" },
-  { label: "Pricing", href: "#pricing" },
-  { label: "Reviews", href: "#reviews" },
-  { label: "FAQ", href: "#faq" },
+  { label: "About", href: "/#about" },
+  { label: "Features", href: "/features" },
+  { label: "Pricing", href: "/#pricing" },
+  { label: "Reviews", href: "/#reviews" },
+  { label: "FAQ", href: "/#faq" },
 ];
 
 export const stats = [
@@ -381,6 +381,119 @@ export const mobileFeatures = [
   { title: "Company registration", body: "Register a new company or store right from your phone." },
   { title: "Reports", body: "Access invoice, customer and collection reports from your mobile dashboard." },
   { title: "Monthly billing", body: "Send a customer's monthly bill on WhatsApp right from their profile." },
+];
+
+// Detailed /features page — one block per real feature (myuniclean-style).
+export const featureBlocks = [
+  {
+    icon: "receipt",
+    name: "Billing & POS",
+    heading: "Create a bill in 10 seconds",
+    body: "A fast counter screen built for busy shops — find the customer, add services and take payment without slowing the queue.",
+    points: [
+      "Search a customer by name, phone, flat or society",
+      "Add services & garments — rates fill in automatically",
+      "Apply discount or extra charge instantly",
+      "Take payment as Cash, UPI, Online — or mark 'Later'",
+      "Set expected delivery date and order notes",
+    ],
+  },
+  {
+    icon: "users",
+    name: "Customer Management",
+    heading: "Every customer, perfectly organized",
+    body: "Keep every customer, their history and their balance in one place — no more guessing who owes what.",
+    points: [
+      "Add or find customers by name, phone or flat",
+      "See full history — orders, invoices, dues & advances",
+      "Track balance due and advance for each customer",
+      "One-tap call or WhatsApp reminder",
+    ],
+  },
+  {
+    icon: "truck",
+    name: "Orders & Delivery",
+    heading: "Track every order to delivery",
+    body: "See exactly what's pending and what's delivered, month by month — nothing slips through.",
+    points: [
+      "All orders month-wise with clear status",
+      "Pending and delivered clearly marked",
+      "Mark an order delivered in one tap",
+      "Filter by date, customer or status",
+    ],
+  },
+  {
+    icon: "tags",
+    name: "Services & Pricing",
+    heading: "Your services, your rates",
+    body: "Set up exactly the services your shop offers, with your own prices — and change them anytime.",
+    points: [
+      "Create services with sub-items (Shirt, Pant, Saree…)",
+      "Flat-rate or per-item pricing",
+      "Set and edit prices whenever you want",
+      "Add or remove services as your shop grows",
+    ],
+  },
+  {
+    icon: "message",
+    name: "WhatsApp & Monthly Bills",
+    heading: "Professional bills on WhatsApp",
+    body: "Share clean invoices and full monthly bills straight to the customer's WhatsApp — a professional touch with zero effort.",
+    points: [
+      "Share an invoice on WhatsApp in one tap",
+      "Generate a customer's full monthly bill",
+      "Automatic delivery-ready reminders",
+      "'Send bills' to all pending customers at once",
+    ],
+  },
+  {
+    icon: "wallet",
+    name: "Payments & Collections",
+    heading: "Get paid faster",
+    body: "Collect full or partial payments, track balances and keep a clean record of every rupee collected.",
+    points: [
+      "Collect full or partial payments",
+      "Track balance due and advances",
+      "Record collections against invoices",
+      "Clear payment history per customer",
+    ],
+  },
+  {
+    icon: "book",
+    name: "Accounting",
+    heading: "Income, expenses & profit — sorted",
+    body: "Your whole shop's books in one place, month by month, always balanced.",
+    points: [
+      "Total income, expense and net profit at a glance",
+      "Record daily store expenses by category",
+      "Collections and day-wise report",
+      "Month-wise books you can trust",
+    ],
+  },
+  {
+    icon: "chart",
+    name: "Reports & Analytics",
+    heading: "Grow with real numbers",
+    body: "Finally know exactly what you earn, where it comes from, and how you're growing.",
+    points: [
+      "Revenue, entries, average per entry and customers",
+      "Daily earnings chart and trends",
+      "Filter by orders, collection, balance, services or society",
+      "Export everything to Excel in one click",
+    ],
+  },
+  {
+    icon: "labour",
+    name: "Labour & Staff",
+    heading: "Manage your team & wages",
+    body: "Track press work, calculate wages automatically and keep every worker's record clean.",
+    points: [
+      "Track each worker's press count",
+      "Auto-calculate wages and record advances",
+      "Manage staff members and salaries",
+      "Clear, dispute-free records for everyone",
+    ],
+  },
 ];
 
 // Key Features · For Admin — 7 points.

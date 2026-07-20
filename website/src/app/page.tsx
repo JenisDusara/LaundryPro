@@ -9,7 +9,6 @@ import { FeatureShowcase } from "@/components/sections/FeatureShowcase";
 import { Pricing } from "@/components/sections/Pricing";
 import { Testimonials } from "@/components/sections/Testimonials";
 import { FAQ } from "@/components/sections/FAQ";
-import { Demo } from "@/components/sections/Demo";
 import { Footer } from "@/components/sections/Footer";
 import { FloatingButtons } from "@/components/sections/FloatingButtons";
 import { AnimatedBrowser } from "@/components/ui/AnimatedBrowser";
@@ -41,7 +40,6 @@ export default function Home() {
         <Pricing />
         <Testimonials />
         <FAQ />
-        <Demo />
       </main>
       <Footer />
       <FloatingButtons />

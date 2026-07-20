@@ -45,7 +45,7 @@ export function Navbar() {
           <span className="mx-2.5 h-5 w-px bg-line" />
           <ThemeToggle />
           <a
-            href="#demo"
+            href="/#demo"
             className="btn-gradient group ml-2 inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[14px] font-semibold text-white shadow-navy hover:-translate-y-0.5 hover:shadow-navy-lg"
           >
             Get free demo
@@ -89,7 +89,7 @@ export function Navbar() {
                 </a>
               ))}
               <a
-                href="#demo"
+                href="/#demo"
                 onClick={() => setOpen(false)}
                 className="btn-gradient mt-2 inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-3 text-center text-sm font-semibold text-white shadow-navy"
               >

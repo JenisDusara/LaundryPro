@@ -1,4 +1,4 @@
-import { neon } from "@neondatabase/serverless";
+import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 
 /**
  * Neon serverless SQL client for the marketing site.
@@ -7,8 +7,24 @@ import { neon } from "@neondatabase/serverless";
  * touches its own clearly-namespaced tables (`marketing_leads`,
  * `marketing_reviews`). Tables are created with CREATE TABLE IF NOT EXISTS and
  * never dropped, so product tables are never affected.
+ *
+ * The client is created lazily (on first query), NOT at module load — otherwise
+ * `next build` throws when DATABASE_URL isn't present in the build environment.
  */
-export const sql = neon(process.env.DATABASE_URL!);
+let _client: NeonQueryFunction<false, false> | null = null;
+function client(): NeonQueryFunction<false, false> {
+  if (!_client) {
+    const url = process.env.DATABASE_URL;
+    if (!url) throw new Error("DATABASE_URL is not set");
+    _client = neon(url);
+  }
+  return _client;
+}
+
+// Tagged-template proxy so existing `sql`...`` usage keeps working, but neon()
+// is only invoked at request time.
+export const sql = ((strings: TemplateStringsArray, ...values: unknown[]) =>
+  client()(strings, ...values)) as unknown as NeonQueryFunction<false, false>;
 
 export type Lead = {
   id: number;
