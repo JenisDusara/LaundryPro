@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { Menu, X } from "lucide-react";
+import { ArrowRight, Menu, X } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { nav, DEMO_URL } from "@/lib/site";
+import { nav } from "@/lib/site";
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -21,8 +21,10 @@ export function Navbar() {
 
   return (
     <header
-      className={`sticky top-0 z-50 bg-bg/90 backdrop-blur-md transition-shadow duration-300 ${
-        scrolled ? "border-b border-line shadow-[0_2px_20px_-8px_rgba(37,99,235,0.15)]" : "border-b border-transparent"
+      className={`sticky top-0 z-50 bg-bg/80 backdrop-blur-xl transition-shadow duration-300 ${
+        scrolled
+          ? "border-b border-line shadow-[0_4px_30px_-12px_rgba(37,99,235,0.25)]"
+          : "border-b border-transparent"
       }`}
     >
       <nav className="mx-auto flex h-[68px] max-w-content items-center justify-between px-5 sm:px-8">
@@ -30,24 +32,28 @@ export function Navbar() {
           <Logo />
         </Link>
 
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="hidden items-center gap-1 md:flex">
           {nav.map((n) => (
             <a
               key={n.href}
               href={n.href}
-              className="rounded-lg px-3.5 py-2 text-[14px] font-medium text-muted transition-colors hover:text-text"
+              className="rounded-full px-4 py-2 text-[14px] font-medium text-muted transition-colors hover:bg-navy/[0.06] hover:text-text dark:hover:bg-white/[0.06]"
             >
               {n.label}
             </a>
           ))}
-          <span className="mx-2 h-5 w-px bg-line" />
+          <span className="mx-2.5 h-5 w-px bg-line" />
           <ThemeToggle />
-          <Link
-            href={DEMO_URL}
-            className="ml-1 rounded-xl bg-navy px-5 py-2.5 text-[14px] font-semibold text-white shadow-navy transition-all duration-200 hover:-translate-y-0.5 hover:bg-navy-deep"
+          <a
+            href="#demo"
+            className="btn-gradient group ml-2 inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[14px] font-semibold text-white shadow-navy hover:-translate-y-0.5 hover:shadow-navy-lg"
           >
-            Try demo
-          </Link>
+            Get free demo
+            <ArrowRight
+              size={15}
+              className="transition-transform duration-200 group-hover:translate-x-0.5"
+            />
+          </a>
         </div>
 
         <div className="flex items-center gap-2 md:hidden">
@@ -77,18 +83,18 @@ export function Navbar() {
                   key={n.href}
                   href={n.href}
                   onClick={() => setOpen(false)}
-                  className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted hover:text-text"
+                  className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted hover:bg-navy/[0.06] hover:text-text dark:hover:bg-white/[0.06]"
                 >
                   {n.label}
                 </a>
               ))}
-              <Link
-                href={DEMO_URL}
+              <a
+                href="#demo"
                 onClick={() => setOpen(false)}
-                className="mt-2 rounded-xl bg-navy px-4 py-3 text-center text-sm font-semibold text-white"
+                className="btn-gradient mt-2 inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-3 text-center text-sm font-semibold text-white shadow-navy"
               >
-                Try demo
-              </Link>
+                Get free demo <ArrowRight size={15} />
+              </a>
             </div>
           </motion.div>
         )}

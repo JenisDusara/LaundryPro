@@ -52,6 +52,8 @@ const config: Config = {
         card: "0 4px 24px -6px rgba(37, 99, 235, 0.10)",
         "card-hover": "0 18px 44px -12px rgba(37, 99, 235, 0.20)",
         navy: "0 12px 30px -8px rgba(37, 99, 235, 0.40)",
+        "navy-lg": "0 20px 45px -10px rgba(37, 99, 235, 0.50)",
+        amber: "0 12px 30px -8px rgba(234, 88, 12, 0.35)",
       },
       keyframes: {
         floaty: {

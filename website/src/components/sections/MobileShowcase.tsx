@@ -322,10 +322,10 @@ export function MobileShowcase() {
               </div>
 
               <div className="mt-8 flex flex-wrap gap-3">
-                <Link href={DEMO_URL} className="inline-flex items-center gap-2 rounded-xl bg-navy px-6 py-3.5 text-sm font-semibold text-white shadow-navy transition-all duration-200 hover:-translate-y-0.5 hover:bg-navy-deep">
+                <Link href={DEMO_URL} className="btn-gradient inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-sm font-semibold text-white shadow-navy hover:-translate-y-0.5 hover:shadow-navy-lg">
                   Try live demo
                 </Link>
-                <a href={waLink()} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-line bg-card px-6 py-3.5 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-navy/30">
+                <a href={waLink()} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-line bg-card px-6 py-3.5 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-wa/50 hover:shadow-card">
                   WhatsApp us
                 </a>
               </div>

@@ -87,11 +87,116 @@ body * {
   mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
 }
 
-/* soft hero glow — blue + orange, kept subtle */
+/* soft hero glow — blue + orange, layered and a touch stronger */
 .hero-glow {
   background:
-    radial-gradient(60% 55% at 80% 10%, rgba(234, 88, 12, 0.08), transparent 70%),
-    radial-gradient(55% 50% at 10% 6%, rgba(37, 99, 235, 0.1), transparent 70%);
+    radial-gradient(52% 46% at 84% 6%, rgba(234, 88, 12, 0.12), transparent 70%),
+    radial-gradient(50% 44% at 8% 4%, rgba(37, 99, 235, 0.14), transparent 70%),
+    radial-gradient(40% 36% at 50% 100%, rgba(37, 99, 235, 0.06), transparent 70%);
+}
+
+/* dotted grid backdrop — uses the theme --dot token so it flips with dark mode */
+.bg-dots {
+  background-image: radial-gradient(var(--dot) 1.2px, transparent 1.2px);
+  background-size: 22px 22px;
+}
+.bg-dots-fade {
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, #000 40%, transparent 100%);
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, #000 40%, transparent 100%);
+}
+
+/* gradient headline accents */
+.text-gradient-blue {
+  background: linear-gradient(100deg, #2563eb, #38bdf8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.text-gradient-amber {
+  background: linear-gradient(100deg, #ea580c, #f59e0b);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* alternating section band — gives the page visual rhythm */
+.section-band {
+  background: color-mix(in srgb, var(--card) 62%, transparent);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+/* primary gradient button surface */
+.btn-gradient {
+  background-image: linear-gradient(135deg, #2563eb, #1d4ed8 55%, #1e40af);
+  background-size: 150% 150%;
+  background-position: 0% 0%;
+  transition: background-position 300ms ease, transform 200ms ease,
+    box-shadow 200ms ease;
+}
+.btn-gradient:hover {
+  background-position: 100% 100%;
+}
+
+/* slow-moving conic sheen for the CTA panel */
+@keyframes drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(24px, -18px, 0) scale(1.08); }
+}
+.animate-drift {
+  animation: drift 9s ease-in-out infinite;
+}
+
+/* soft pulsing status dot */
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.45); }
+  70% { box-shadow: 0 0 0 6px rgba(37, 211, 102, 0); }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 2.2s ease-out infinite;
+}
+
+/* ===== LAUNDRY MOTIFS ===== */
+
+/* slow drum spin for the washing-machine glyph */
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+  animation: spin-slow 14s linear infinite;
+}
+
+/* gentle vertical bob for floating garment glyphs */
+@keyframes bob {
+  0%, 100% { transform: translateY(0) rotate(var(--tw-rotate, 0)); }
+  50% { transform: translateY(-14px) rotate(var(--tw-rotate, 0)); }
+}
+.animate-bob {
+  animation: bob 7s ease-in-out infinite;
+}
+
+/* rising soap bubbles */
+@keyframes rise {
+  0% { transform: translateY(0) scale(1); opacity: 0; }
+  15% { opacity: 0.7; }
+  100% { transform: translateY(-120px) scale(1.15); opacity: 0; }
+}
+.animate-rise {
+  animation: rise 6s ease-in infinite;
+}
+
+/* soap-bubble scatter backdrop — flips with the theme via --dot */
+.bg-bubbles {
+  background-image:
+    radial-gradient(circle at 12% 20%, var(--dot) 0 6px, transparent 7px),
+    radial-gradient(circle at 78% 12%, var(--dot) 0 10px, transparent 11px),
+    radial-gradient(circle at 32% 72%, var(--dot) 0 5px, transparent 6px),
+    radial-gradient(circle at 88% 62%, var(--dot) 0 8px, transparent 9px),
+    radial-gradient(circle at 55% 38%, var(--dot) 0 4px, transparent 5px),
+    radial-gradient(circle at 22% 90%, var(--dot) 0 7px, transparent 8px);
+  background-repeat: no-repeat;
 }
 
 @media (prefers-reduced-motion: reduce) {
