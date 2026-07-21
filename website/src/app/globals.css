@@ -63,6 +63,19 @@ body * {
   background: rgba(235, 162, 60, 0.28);
 }
 
+/* Accessibility + performance: honour the OS "reduce motion" setting by
+   stopping the looping/entrance animations. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 10px;
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import { motion, useInView } from "framer-motion";
 import {
   LayoutDashboard,
   PlusCircle,
@@ -295,13 +295,15 @@ function BrowserFrame({
   active,
   className = "",
   children,
+  rootRef,
 }: {
   active: number;
   className?: string;
   children: ReactNode;
+  rootRef?: Ref<HTMLDivElement>;
 }) {
   return (
-    <div className={`w-full max-w-[560px] ${className}`}>
+    <div ref={rootRef} className={`w-full max-w-[560px] ${className}`}>
       <div className="overflow-hidden rounded-xl border border-black/60 bg-[#0b0b0d] shadow-[0_30px_70px_-25px_rgba(0,0,0,0.7)]">
         {/* window bar */}
         <div className="flex items-center gap-2 border-b border-white/[0.06] bg-[#141416] px-3 py-2">
@@ -361,15 +363,18 @@ function BrowserFrame({
 
 /** Self-playing dark LaundryMax dashboard — cycles through the real screens. */
 export function AnimatedBrowser({ className = "", start = 0 }: { className?: string; start?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { margin: "200px 0px" });
   const [view, setView] = useState(start % N);
 
   useEffect(() => {
+    if (!inView) return; // only cycle while on screen — saves CPU
     const id = setInterval(() => setView((v) => (v + 1) % N), 2600);
     return () => clearInterval(id);
-  }, []);
+  }, [inView]);
 
   return (
-    <BrowserFrame active={SCREENS[view].nav} className={className}>
+    <BrowserFrame active={SCREENS[view].nav} className={className} rootRef={ref}>
       <motion.div
         key={view}
         initial={{ opacity: 0, y: 14 }}

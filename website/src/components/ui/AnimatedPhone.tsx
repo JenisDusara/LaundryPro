@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
+import { motion, useInView } from "framer-motion";
 import {
   Home,
   ClipboardList,
@@ -180,17 +180,20 @@ const tabs = [Home, ClipboardList, Plus, BarChart3, User];
 
 /** Self-playing phone that cycles through app screens — the "live demo" look. */
 export function AnimatedPhone({ start = 0 }: { start?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { margin: "200px 0px" });
   const [active, setActive] = useState(start % N);
 
   useEffect(() => {
+    if (!inView) return; // only cycle while on screen — saves CPU
     const id = setInterval(() => setActive((a) => (a + 1) % N), 1800);
     return () => clearInterval(id);
-  }, []);
+  }, [inView]);
 
   const activeTab = SCREENS[active].tab;
 
   return (
-    <div className="relative mx-auto flex w-full max-w-sm justify-center">
+    <div ref={ref} className="relative mx-auto flex w-full max-w-sm justify-center">
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-[380px] w-[380px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-navy/20 blur-[90px]" />
       <div className="pointer-events-none absolute right-8 top-10 h-36 w-36 rounded-full bg-amber/20 blur-[70px]" />
 
