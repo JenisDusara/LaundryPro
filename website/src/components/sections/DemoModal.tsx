@@ -2,33 +2,37 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, MessageCircle, ArrowRight, Check } from "lucide-react";
+import { X, ArrowRight, Check, CheckCircle2 } from "lucide-react";
 import { waLink, WHATSAPP_DISPLAY, demo } from "@/lib/site";
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
 /**
- * Global "Book a free demo" popup. Opens whenever the user clicks any link
- * pointing to #demo (navbar CTA, hero button, pricing buttons, etc.) — mounted
- * once in the root layout, so every "Get free demo" button triggers it.
+ * Global "Book a free demo" popup. Opens on any link to #demo. On submit it
+ * saves the lead and emails it to the owner's inbox (no WhatsApp redirect).
  */
 export function DemoModal() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [shop, setShop] = useState("");
   const [phone, setPhone] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
 
-  // Intercept clicks on any <a href="...#demo"> and open the popup instead.
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       const a = (e.target as HTMLElement)?.closest?.('a[href$="#demo"]');
       if (a) {
         e.preventDefault();
+        setSent(false);
         setOpen(true);
       }
     };
     document.addEventListener("click", onClick);
-    const onOpen = () => setOpen(true);
+    const onOpen = () => {
+      setSent(false);
+      setOpen(true);
+    };
     window.addEventListener("open-demo", onOpen);
     return () => {
       document.removeEventListener("click", onClick);
@@ -36,7 +40,6 @@ export function DemoModal() {
     };
   }, []);
 
-  // Esc to close + lock body scroll while open.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
@@ -49,20 +52,23 @@ export function DemoModal() {
     };
   }, [open]);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    fetch("/api/leads", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, shop, phone }),
-    }).catch(() => {});
-    const message =
-      `Hi, I'd like a free demo of LaundryMax.` +
-      (name ? `\nName: ${name}` : "") +
-      (shop ? `\nShop: ${shop}` : "") +
-      (phone ? `\nPhone: ${phone}` : "");
-    window.open(waLink(message), "_blank", "noopener,noreferrer");
-    setOpen(false);
+    setSending(true);
+    try {
+      await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, shop, phone }),
+      });
+    } catch {
+      // ignore — lead may still be saved; show success either way
+    }
+    setSending(false);
+    setSent(true);
+    setName("");
+    setShop("");
+    setPhone("");
   };
 
   const field =
@@ -95,55 +101,82 @@ export function DemoModal() {
               <X size={18} />
             </button>
 
-            <div className="mb-1 text-[11.5px] font-bold uppercase tracking-[0.16em] text-wa-deep">
-              {demo.eyebrow}
-            </div>
-            <h3 className="text-[21px] font-extrabold text-text">Book your free demo</h3>
-            <p className="mt-1 text-[13.5px] text-muted">
-              Fill this in — we&apos;ll reach out on WhatsApp.
-            </p>
-
-            <ul className="mt-4 space-y-2">
-              {demo.points.map((p) => (
-                <li key={p} className="flex items-start gap-2 text-[13px] text-muted">
-                  <span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full bg-wa/15 text-wa-deep">
-                    <Check size={10} strokeWidth={3} />
-                  </span>
-                  {p}
-                </li>
-              ))}
-            </ul>
-
-            <form onSubmit={submit} className="mt-5 space-y-3.5">
-              <div>
-                <label className="mb-1.5 block text-[12.5px] font-semibold text-muted">Your name</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Rajesh Sharma" className={field} />
+            {sent ? (
+              /* ---- success ---- */
+              <div className="py-6 text-center">
+                <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-wa/15 text-wa-deep">
+                  <CheckCircle2 size={34} />
+                </div>
+                <h3 className="mt-5 text-[21px] font-extrabold text-text">
+                  Request received!
+                </h3>
+                <p className="mx-auto mt-2 max-w-xs text-[14px] leading-relaxed text-muted">
+                  Thanks — we&apos;ve got your details and our team will reach out
+                  shortly to set up your free demo.
+                </p>
+                <button
+                  onClick={() => setOpen(false)}
+                  className="btn-gradient mt-6 inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white shadow-navy"
+                >
+                  Done
+                </button>
               </div>
-              <div>
-                <label className="mb-1.5 block text-[12.5px] font-semibold text-muted">Shop name</label>
-                <input value={shop} onChange={(e) => setShop(e.target.value)} placeholder="Shree Chamunda Laundry" className={field} />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-[12.5px] font-semibold text-muted">Phone number</label>
-                <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder={WHATSAPP_DISPLAY} className={field} />
-              </div>
+            ) : (
+              /* ---- form ---- */
+              <>
+                <div className="mb-1 text-[11.5px] font-bold uppercase tracking-[0.16em] text-cyan-600 dark:text-cyan-400">
+                  {demo.eyebrow}
+                </div>
+                <h3 className="text-[21px] font-extrabold text-text">
+                  Book your free demo
+                </h3>
+                <p className="mt-1 text-[13.5px] text-muted">
+                  Fill this in — our team will get in touch with you.
+                </p>
 
-              <button
-                type="submit"
-                className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-wa px-5 py-3.5 text-sm font-bold text-white shadow-[0_12px_30px_-8px_rgba(37,211,102,0.5)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-wa-deep"
-              >
-                <MessageCircle size={17} />
-                Get free demo on WhatsApp
-                <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-0.5" />
-              </button>
-            </form>
+                <ul className="mt-4 space-y-2">
+                  {demo.points.map((p) => (
+                    <li key={p} className="flex items-start gap-2 text-[13px] text-muted">
+                      <span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full bg-wa/15 text-wa-deep">
+                        <Check size={10} strokeWidth={3} />
+                      </span>
+                      {p}
+                    </li>
+                  ))}
+                </ul>
 
-            <p className="mt-3 text-center text-[12px] text-faint">
-              No card needed · Set up the same day · Or call{" "}
-              <a href={waLink()} target="_blank" rel="noreferrer" className="font-semibold text-wa-deep">
-                {WHATSAPP_DISPLAY}
-              </a>
-            </p>
+                <form onSubmit={submit} className="mt-5 space-y-3.5">
+                  <div>
+                    <label className="mb-1.5 block text-[12.5px] font-semibold text-muted">Your name</label>
+                    <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Rajesh Sharma" className={field} />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-[12.5px] font-semibold text-muted">Shop name</label>
+                    <input value={shop} onChange={(e) => setShop(e.target.value)} placeholder="Shree Chamunda Laundry" className={field} />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-[12.5px] font-semibold text-muted">Phone number</label>
+                    <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="+91 12345 67890" className={field} />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={sending}
+                    className="btn-gradient group inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-sm font-bold text-white shadow-navy transition-all duration-200 hover:-translate-y-0.5 hover:shadow-navy-lg disabled:opacity-60"
+                  >
+                    {sending ? "Sending…" : "Book my free demo"}
+                    {!sending && <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-0.5" />}
+                  </button>
+                </form>
+
+                <p className="mt-3 text-center text-[12px] text-faint">
+                  No card needed · Set up the same day · Or call{" "}
+                  <a href={waLink()} target="_blank" rel="noreferrer" className="font-semibold text-wa-deep">
+                    {WHATSAPP_DISPLAY}
+                  </a>
+                </p>
+              </>
+            )}
           </motion.div>
         </motion.div>
       )}

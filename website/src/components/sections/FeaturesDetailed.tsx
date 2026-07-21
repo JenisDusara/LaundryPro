@@ -2,92 +2,17 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
-import {
-  ReceiptIndianRupee,
-  Users,
-  Truck,
-  Tags,
-  MessageCircle,
-  Wallet,
-  BookOpen,
-  BarChart3,
-  HardHat,
-  Check,
-  ArrowRight,
-  type LucideIcon,
-} from "lucide-react";
+import { MessageCircle, Check, ArrowRight } from "lucide-react";
 import { Container, Eyebrow } from "@/components/ui/primitives";
-import { AnimatedBrowser } from "@/components/ui/AnimatedBrowser";
+import { AnimatedBrowser, ProductScreen } from "@/components/ui/AnimatedBrowser";
 import { featureBlocks, waLink } from "@/lib/site";
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
-const iconMap: Record<string, LucideIcon> = {
-  receipt: ReceiptIndianRupee,
-  users: Users,
-  truck: Truck,
-  tags: Tags,
-  message: MessageCircle,
-  wallet: Wallet,
-  book: BookOpen,
-  chart: BarChart3,
-  labour: HardHat,
-};
-
-/** Decorative "screen" panel — a stylised UI so each block has a visual. */
-function Visual({ Icon, name, i }: { Icon: LucideIcon; name: string; i: number }) {
-  const amber = i % 3 === 1;
-  const wa = i % 3 === 2;
-  return (
-    <div className="relative">
-      <div
-        className={`pointer-events-none absolute -inset-4 rounded-[32px] blur-2xl ${
-          amber ? "bg-amber/10" : wa ? "bg-wa/10" : "bg-navy/10"
-        }`}
-        aria-hidden
-      />
-      <div className="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-ink via-[#12244d] to-ink p-6 shadow-navy-lg ring-1 ring-white/10 sm:p-8">
-        <div className="bg-dots pointer-events-none absolute inset-0 opacity-[0.15]" aria-hidden />
-        <div className="relative">
-          <div className="flex items-center gap-3">
-            <span
-              className={`grid h-12 w-12 place-items-center rounded-2xl text-white ring-1 ${
-                amber
-                  ? "bg-amber/25 ring-amber/30"
-                  : wa
-                  ? "bg-wa/25 ring-wa/30"
-                  : "bg-navy/40 ring-white/15"
-              }`}
-            >
-              <Icon size={24} />
-            </span>
-            <div>
-              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/50">
-                LaundryMax
-              </div>
-              <div className="text-[15px] font-bold text-white">{name}</div>
-            </div>
-          </div>
-
-          {/* faux rows */}
-          <div className="mt-6 space-y-2.5">
-            {[0, 1, 2].map((r) => (
-              <div key={r} className="flex items-center gap-3 rounded-xl bg-white/[0.05] p-3">
-                <span className="h-8 w-8 shrink-0 rounded-lg bg-white/10" />
-                <span className="h-2 flex-1 rounded-full bg-white/10" />
-                <span
-                  className={`h-2 w-10 rounded-full ${
-                    amber ? "bg-amber/50" : wa ? "bg-wa/50" : "bg-sky-400/50"
-                  }`}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+// Which real product screen each feature block shows.
+// Screen index → 0 Dashboard · 1 New Entry · 2 Customers · 3 Customer detail
+//                4 Accounting · 5 Reports · 6 Services
+const SCREEN_FOR = [1, 2, 3, 6, 2, 3, 4, 5, 0];
 
 export function FeaturesDetailed() {
   return (
@@ -142,10 +67,9 @@ export function FeaturesDetailed() {
         </Container>
       </section>
 
-      {/* feature blocks */}
+      {/* feature blocks — each with its real matching screen */}
       <div className="space-y-4 py-8 sm:space-y-6 sm:py-12">
         {featureBlocks.map((b, i) => {
-          const Icon = iconMap[b.icon];
           const reverse = i % 2 === 1;
           return (
             <section key={b.name} className={i % 2 === 1 ? "section-band" : ""}>
@@ -184,9 +108,9 @@ export function FeaturesDetailed() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true, margin: "0px 0px -60px 0px" }}
                     transition={{ duration: 0.7, ease, delay: 0.1 }}
-                    className={reverse ? "lg:order-1" : ""}
+                    className={`flex justify-center ${reverse ? "lg:order-1" : ""}`}
                   >
-                    <Visual Icon={Icon} name={b.name} i={i} />
+                    <ProductScreen screen={SCREEN_FOR[i] ?? 0} />
                   </motion.div>
                 </div>
               </Container>

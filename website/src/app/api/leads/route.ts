@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { sql, ensureTables } from "@/lib/db";
 import { isAuthed } from "@/lib/adminAuth";
+import { sendLeadEmail } from "@/lib/mail";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,6 +20,8 @@ export async function POST(req: Request) {
     INSERT INTO marketing_leads (name, shop, phone)
     VALUES (${name}, ${shop}, ${phone})
     RETURNING id`;
+  // Notify the owner by email (does not block or fail the submission).
+  await sendLeadEmail({ name, shop, phone });
   return NextResponse.json({ ok: true, id: rows[0].id });
 }
 
