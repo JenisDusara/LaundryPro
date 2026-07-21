@@ -21,13 +21,14 @@ type Profile = {
   logo_data: string | null;
   weekly_report_enabled: boolean;
   wa_auto_enabled: boolean;
+  wa_show_prices: boolean;
 };
 
 const EMPTY: Profile = {
   shop_name: "", tagline: "", phone: "", address: "",
   email: "", upi_id: "", gst_number: "", gst_rate: 0,
   invoice_terms: "", footer_note: "", default_labour_rate: 2, logo_data: null,
-  weekly_report_enabled: true, wa_auto_enabled: false,
+  weekly_report_enabled: true, wa_auto_enabled: false, wa_show_prices: true,
 };
 
 const LOGO_MAX_BYTES = 150 * 1024; // ~150 KB — logo is embedded in every invoice, keep it small
@@ -111,6 +112,18 @@ export default function Settings() {
       setMsg({ text: e?.response?.data?.detail || "Save failed", ok: false });
     }
   };
+  // "Show prices in WhatsApp" — when off, WhatsApp bills (auto + manual) show only items,
+  // no price/total/balance. Saves instantly. Independent of WhatsApp connection.
+  const toggleShowPrices = async () => {
+    const next = !form.wa_show_prices;
+    setForm(f => ({ ...f, wa_show_prices: next }));
+    try {
+      await api.put("/admin/settings", { ...form, wa_show_prices: next });
+    } catch {
+      setForm(f => ({ ...f, wa_show_prices: !next })); // revert on failure
+    }
+  };
+
   // Weekly-report toggle saves immediately (same as WhatsApp) — no separate "Save changes".
   const toggleWeekly = async () => {
     const next = !form.weekly_report_enabled;
@@ -384,6 +397,32 @@ export default function Settings() {
           </div>
           )}
 
+          {/* Bill price-display card — separate from WhatsApp connection/auto-send */}
+          <div style={{ background: "var(--bg-card)", borderRadius: 14, border: "1px solid var(--border-hard)", padding: 20, marginTop: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, color: "var(--text-primary)" }}>
+              <IndianRupee size={16} color="#16a34a" />
+              <span style={{ fontWeight: 700, fontSize: 14 }}>Bill prices in WhatsApp</span>
+            </div>
+            <p style={{ fontSize: 12.5, color: "var(--text-muted)", margin: "0 0 14px" }}>
+              WhatsApp bills (auto-send + manual) me price dikhani hai ya nahi. Kuch shops sirf items dikhana chahte hain, price/total nahi.
+            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div onClick={toggleShowPrices} style={{ cursor: "pointer", flexShrink: 0 }}>
+                <div style={{ width: 44, height: 24, borderRadius: 12, position: "relative", transition: "background 0.2s", background: form.wa_show_prices ? "#16a34a" : "var(--bg-elevated)" }}>
+                  <div style={{ position: "absolute", top: 2, left: form.wa_show_prices ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.25)", transition: "left 0.2s" }} />
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
+                  Show prices in WhatsApp {form.wa_show_prices ? "ON" : "OFF"} <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>(turant save)</span>
+                </div>
+                <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>
+                  {form.wa_show_prices ? "Bill me items + price/total dono jaate hain." : "Sirf items + quantity jaate hain — price/total nahi."}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* WhatsApp auto-send card */}
           <div style={{ background: "var(--bg-card)", borderRadius: 14, border: "1px solid var(--border-hard)", padding: 20, marginTop: 16 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, color: "var(--text-primary)" }}>
@@ -391,20 +430,21 @@ export default function Settings() {
               <span style={{ fontWeight: 700, fontSize: 14 }}>WhatsApp auto-send</span>
             </div>
             <p style={{ fontSize: 12.5, color: "var(--text-muted)", margin: "0 0 14px" }}>
-              Apna WhatsApp number connect karo — phir customer ko <b style={{ color: "var(--text-secondary)" }}>naye pickup</b> aur <b style={{ color: "var(--text-secondary)" }}>delivery complete</b> hone par automatically WhatsApp message chala jayega. (Price message me nahi jaati — sirf items.)
+              Naye pickup aur delivery complete hone par customer ko automatically WhatsApp message bhejo. Iske liye pehle apna WhatsApp number connect karein.
             </p>
 
             {wa.state === "not_configured" || wa.state === "unavailable" ? (
-              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-                WhatsApp service abhi configure nahi hai. (Admin: <b style={{ color: "var(--text-secondary)" }}>WA_SERVICE_URL</b> set karein.)
+              <div style={{ fontSize: 13, color: "var(--text-muted)", background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", borderRadius: 10, padding: "12px 14px" }}>
+                ⚠️ WhatsApp connect nahi hai. Auto-send ka toggle connect karne ke baad dikhega. (Admin: <b style={{ color: "var(--text-secondary)" }}>WA_SERVICE_URL</b> set karein.)
               </div>
             ) : wa.state === "open" ? (
               <>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, color: "#16a34a", fontWeight: 700, fontSize: 13 }}>
                   ✅ Connected{wa.number ? ` · ${wa.number}` : ""}
                 </div>
+                {/* Auto-send toggle — only shown once WhatsApp is connected */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                  <div onClick={toggleWaAuto} style={{ cursor: "pointer" }}>
+                  <div onClick={toggleWaAuto} style={{ cursor: "pointer", flexShrink: 0 }}>
                     <div style={{ width: 44, height: 24, borderRadius: 12, position: "relative", transition: "background 0.2s", background: form.wa_auto_enabled ? "#16a34a" : "var(--bg-elevated)" }}>
                       <div style={{ position: "absolute", top: 2, left: form.wa_auto_enabled ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.25)", transition: "left 0.2s" }} />
                     </div>
@@ -417,7 +457,6 @@ export default function Settings() {
                   style={{ padding: "9px 16px", border: "1px solid var(--grade-f-border)", borderRadius: 10, background: "var(--grade-f-bg)", color: "var(--grade-f-text)", fontSize: 13, fontWeight: 700, cursor: waBusy ? "not-allowed" : "pointer" }}>
                   Disconnect
                 </button>
-                <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 10 }}>Toggle turant save hota hai.</div>
               </>
             ) : wa.state === "pairing" && wa.pairingCode ? (
               <div>

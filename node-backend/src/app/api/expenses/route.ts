@@ -9,13 +9,18 @@ export async function GET(req: NextRequest) {
   const staff = denyStaff(user); if (staff) return staff;
   const p = new URL(req.url).searchParams;
   const where: any = { ...shopFilter(user, req) };
-  if (p.get("month") && p.get("year")) {
+  // Apply exactly ONE date filter (priority: exact day → range → month) so multiple
+  // params never silently override each other; guard against NaN month/year.
+  if (p.get("date")) {
+    where.date = p.get("date");
+  } else if (p.get("from") && p.get("to")) {
+    where.date = { gte: p.get("from")!, lte: p.get("to")! };
+  } else if (p.get("month") && p.get("year")) {
     const m = parseInt(p.get("month")!), y = parseInt(p.get("year")!);
+    if (Number.isNaN(m) || Number.isNaN(y)) return NextResponse.json({ detail: "Invalid month/year" }, { status: 400 });
     const { start, end } = monthRange(y, m);
-    where.date  = { gte: start, lte: end };
+    where.date = { gte: start, lte: end };
   }
-  if (p.get("date")) where.date = p.get("date");
-  if (p.get("from") && p.get("to")) where.date = { gte: p.get("from")!, lte: p.get("to")! };
   const expenses = await prisma.expense.findMany({ where, orderBy: { date: "desc" } });
   return NextResponse.json(expenses.map(e => ({ ...e, amount: Number(e.amount) })));
 }

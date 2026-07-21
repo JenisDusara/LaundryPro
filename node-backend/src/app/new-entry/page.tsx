@@ -392,7 +392,11 @@ export default function NewEntry() {
                     {/* qty stepper */}
                     <div style={{display:"flex",alignItems:"center",background:"var(--bg-input)",borderRadius:8,border:"1px solid var(--border-hard)",overflow:"hidden",flexShrink:0}}>
                       <button onClick={()=>updateItem(item.id,"quantity",Math.max(1,Number(item.quantity)-1))} style={{width:32,height:34,background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-secondary)"}}><Minus size={14}/></button>
-                      <span style={{width:26,textAlign:"center",fontSize:14,fontWeight:700,color:"var(--text-primary)"}}>{item.quantity}</span>
+                      <input type="text" inputMode="numeric" value={item.quantity}
+                        onChange={e=>{ const d=e.target.value.replace(/[^\d]/g,""); updateItem(item.id,"quantity",d===""?"":Math.max(1,Number(d))); }}
+                        onBlur={e=>{ if(!e.target.value||Number(e.target.value)<1) updateItem(item.id,"quantity",1); }}
+                        onFocus={e=>e.target.select()}
+                        style={{width:40,textAlign:"center",fontSize:14,fontWeight:700,color:"var(--text-primary)",border:"none",outline:"none",background:"transparent",padding:0}}/>
                       <button onClick={()=>updateItem(item.id,"quantity",Number(item.quantity)+1)} style={{width:32,height:34,background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-secondary)"}}><Plus size={14}/></button>
                     </div>
                     {/* price */}

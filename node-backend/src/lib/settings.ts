@@ -15,6 +15,7 @@ export interface ShopProfile {
   logo_data: string | null;
   weekly_report_enabled: boolean;
   wa_auto_enabled: boolean;
+  wa_show_prices: boolean; // when false, WhatsApp bills show only items (no price/total/balance)
 }
 
 // Fields a client is allowed to write. id / shop_id / timestamps are never accepted from the request.
@@ -42,27 +43,34 @@ function defaults(shopName = ""): ShopProfile {
     logo_data: null,
     weekly_report_enabled: true,
     wa_auto_enabled: false,
+    wa_show_prices: true,
   };
 }
 
-// wa_auto_enabled lives in a column the generated Prisma client may not know yet, so it is
-// read/written via raw SQL (same pattern as delivery_date / labour). Defensive: if the
-// column doesn't exist, reads return false and writes are skipped.
-async function readWaAuto(shopId: string): Promise<boolean> {
+// wa_auto_enabled / wa_show_prices live in columns the generated Prisma client may not know
+// yet, so they're read/written via raw SQL (same pattern as delivery_date / labour). Defensive:
+// if a column doesn't exist, wa_auto_enabled defaults false and wa_show_prices defaults true
+// (preserving the current "show prices" behaviour).
+async function readWaFlags(shopId: string): Promise<{ wa_auto_enabled: boolean; wa_show_prices: boolean }> {
+  let wa_auto_enabled = false, wa_show_prices = true;
   try {
-    const r = await prisma.$queryRawUnsafe<{ wa_auto_enabled: boolean }[]>(
-      `SELECT wa_auto_enabled FROM shop_profiles WHERE shop_id = $1`, shopId
-    );
-    return !!r[0]?.wa_auto_enabled;
-  } catch { return false; }
+    const r = await prisma.$queryRawUnsafe<{ wa_auto_enabled: boolean }[]>(`SELECT wa_auto_enabled FROM shop_profiles WHERE shop_id = $1`, shopId);
+    wa_auto_enabled = !!r[0]?.wa_auto_enabled;
+  } catch { /* column not present → false */ }
+  try {
+    const r = await prisma.$queryRawUnsafe<{ wa_show_prices: boolean }[]>(`SELECT wa_show_prices FROM shop_profiles WHERE shop_id = $1`, shopId);
+    wa_show_prices = r[0]?.wa_show_prices !== false; // null/missing → true
+  } catch { /* column not present → true */ }
+  return { wa_auto_enabled, wa_show_prices };
 }
 
 export async function getShopProfile(shopId: string): Promise<ShopProfile> {
   const row = await withRetry(() => prisma.shopProfile.findUnique({ where: { shop_id: shopId } }));
-  const wa_auto_enabled = await readWaAuto(shopId);
-  if (!row) return { ...defaults(), wa_auto_enabled };
+  const { wa_auto_enabled, wa_show_prices } = await readWaFlags(shopId);
+  if (!row) return { ...defaults(), wa_auto_enabled, wa_show_prices };
   return {
     wa_auto_enabled,
+    wa_show_prices,
     shop_name: row.shop_name,
     tagline: row.tagline,
     phone: row.phone,
@@ -95,11 +103,18 @@ export async function upsertShopProfile(shopId: string, data: Record<string, unk
     update: clean,
     create: { shop_id: shopId, ...clean },
   }));
-  // wa_auto_enabled handled separately via raw SQL (see readWaAuto note above).
+  // wa_auto_enabled / wa_show_prices handled separately via raw SQL (see readWaFlags note above).
   if ("wa_auto_enabled" in data) {
     try {
       await prisma.$executeRawUnsafe(
         `UPDATE shop_profiles SET wa_auto_enabled = $1 WHERE shop_id = $2`, Boolean(data.wa_auto_enabled), shopId
+      );
+    } catch { /* column not present yet */ }
+  }
+  if ("wa_show_prices" in data) {
+    try {
+      await prisma.$executeRawUnsafe(
+        `UPDATE shop_profiles SET wa_show_prices = $1 WHERE shop_id = $2`, Boolean(data.wa_show_prices), shopId
       );
     } catch { /* column not present yet */ }
   }

@@ -25,3 +25,13 @@ ALTER TABLE entry_items ADD COLUMN IF NOT EXISTS delivered_qty INTEGER NOT NULL 
 
 -- POS catalog category filter on services.
 ALTER TABLE services ADD COLUMN IF NOT EXISTS category TEXT;
+
+-- WhatsApp bill preference: when false, messages show only items (no price/total/balance).
+-- Defaults true so existing shops keep showing prices.
+ALTER TABLE shop_profiles ADD COLUMN IF NOT EXISTS wa_show_prices BOOLEAN NOT NULL DEFAULT true;
+
+-- Composite indexes for the hottest queries: "this shop's rows in a date range"
+-- (Orders list, Reports, Payments history). Speeds up month/range filtering.
+CREATE INDEX IF NOT EXISTS idx_laundry_entries_shop_date ON laundry_entries (shop_id, entry_date);
+CREATE INDEX IF NOT EXISTS idx_payments_shop_date        ON payments        (shop_id, date);
+CREATE INDEX IF NOT EXISTS idx_expenses_shop_date        ON expenses        (shop_id, date);

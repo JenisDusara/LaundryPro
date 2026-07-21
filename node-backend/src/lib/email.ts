@@ -1,6 +1,13 @@
 import nodemailer from "nodemailer";
 import { LOGO_PNG_BASE64 } from "./logo";
 
+// Escape user-controlled text before interpolating into email HTML. Without this a
+// customer/shop/signup name like `<img src=x onerror=...>` would execute in the
+// recipient's mail client (stored XSS). Applied to every user-supplied value below.
+function esc(s: unknown): string {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
 // SMTP transport. Works with any mail provider: set EMAIL_HOST (+ optional EMAIL_PORT) for a
 // custom-domain mailbox like info@laundrymax.in (GoDaddy / Zoho / Google Workspace / etc.). If
 // EMAIL_HOST is unset it falls back to Gmail's service preset, so the old Gmail setup keeps working.
@@ -31,7 +38,7 @@ function logoHeader(title: string) {
   return `<div style="text-align:center;margin-bottom:8px">
     <img src="cid:${LOGO_CID}" alt="LaundryMax" style="height:56px;display:inline-block" />
   </div>
-  <h2 style="color:#1e3a8a;text-align:center;margin-top:0">${title}</h2>`;
+  <h2 style="color:#1e3a8a;text-align:center;margin-top:0">${esc(title)}</h2>`;
 }
 
 export async function sendEmail(to: string, subject: string, html: string, attachments?: any[]) {
@@ -58,7 +65,7 @@ function deliveredSectionHtml(delivered?: DeliveredNotice[]): string {
   }
   const fmt = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
   const groups = Array.from(byDate.entries()).map(([date, items]) => {
-    const li = items.map(i => `<li style="margin:2px 0">${i.service_name} ×${i.quantity}</li>`).join("");
+    const li = items.map(i => `<li style="margin:2px 0">${esc(i.service_name)} ×${i.quantity}</li>`).join("");
     return `<p style="margin:8px 0 2px;color:#475569;font-size:13px"><strong>Pickup: ${fmt(date)}</strong></p>
       <ul style="margin:0 0 8px 18px;padding:0;color:#334155;font-size:14px">${li}</ul>`;
   }).join("");
@@ -69,13 +76,13 @@ function deliveredSectionHtml(delivered?: DeliveredNotice[]): string {
 
 export function pickupEmailHtml(customerName: string, items: { service_name: string; quantity: number; subtotal: number }[], total: number, shopName: string, delivered?: DeliveredNotice[]) {
   const rows = items.map(i =>
-    `<tr><td style="padding:6px 12px;border-bottom:1px solid #f1f5f9">${i.service_name}</td>
+    `<tr><td style="padding:6px 12px;border-bottom:1px solid #f1f5f9">${esc(i.service_name)}</td>
      <td style="padding:6px 12px;border-bottom:1px solid #f1f5f9;text-align:center">${i.quantity}</td>
      <td style="padding:6px 12px;border-bottom:1px solid #f1f5f9;text-align:right">₹${i.subtotal}</td></tr>`
   ).join("");
   return `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
     ${logoHeader(shopName)}
-    <p>Dear <strong>${customerName}</strong>,</p>
+    <p>Dear <strong>${esc(customerName)}</strong>,</p>
     ${deliveredSectionHtml(delivered)}
     <p>🧺 Your laundry has been picked up.</p>
     <table style="width:100%;border-collapse:collapse;margin:16px 0">
@@ -102,7 +109,7 @@ export interface WeeklyReportStats {
 
 export function weeklyReportEmailHtml(shopName: string, s: WeeklyReportStats): string {
   const rows = s.topServices.map(t =>
-    `<tr><td style="padding:6px 12px;border-bottom:1px solid #f1f5f9">${t.name}</td>
+    `<tr><td style="padding:6px 12px;border-bottom:1px solid #f1f5f9">${esc(t.name)}</td>
      <td style="padding:6px 12px;border-bottom:1px solid #f1f5f9;text-align:center">${t.qty}</td>
      <td style="padding:6px 12px;border-bottom:1px solid #f1f5f9;text-align:right">₹${t.revenue}</td></tr>`
   ).join("");
@@ -138,11 +145,11 @@ export function newSignupRequestEmailHtml(r: { shop_name: string; owner_name: st
   return `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
     ${logoHeader("🆕 New signup request")}
     <table style="width:100%;border-collapse:collapse;margin:16px 0">
-      <tr><td style="padding:6px 12px;color:#475569;font-weight:600">Shop name</td><td style="padding:6px 12px;font-weight:700">${r.shop_name}</td></tr>
-      <tr><td style="padding:6px 12px;color:#475569;font-weight:600">Owner</td><td style="padding:6px 12px">${r.owner_name}</td></tr>
-      <tr><td style="padding:6px 12px;color:#475569;font-weight:600">Phone</td><td style="padding:6px 12px">${r.phone}</td></tr>
-      <tr><td style="padding:6px 12px;color:#475569;font-weight:600">Email</td><td style="padding:6px 12px">${r.email}</td></tr>
-      <tr><td style="padding:6px 12px;color:#475569;font-weight:600">City</td><td style="padding:6px 12px">${r.city || "—"}</td></tr>
+      <tr><td style="padding:6px 12px;color:#475569;font-weight:600">Shop name</td><td style="padding:6px 12px;font-weight:700">${esc(r.shop_name)}</td></tr>
+      <tr><td style="padding:6px 12px;color:#475569;font-weight:600">Owner</td><td style="padding:6px 12px">${esc(r.owner_name)}</td></tr>
+      <tr><td style="padding:6px 12px;color:#475569;font-weight:600">Phone</td><td style="padding:6px 12px">${esc(r.phone)}</td></tr>
+      <tr><td style="padding:6px 12px;color:#475569;font-weight:600">Email</td><td style="padding:6px 12px">${esc(r.email)}</td></tr>
+      <tr><td style="padding:6px 12px;color:#475569;font-weight:600">City</td><td style="padding:6px 12px">${esc(r.city) || "—"}</td></tr>
     </table>
     <div style="text-align:center">
       <a href="${reviewUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px">Review in Superadmin panel</a>
@@ -156,7 +163,7 @@ export function newSignupRequestEmailHtml(r: { shop_name: string; owner_name: st
 export function completeSignupEmailHtml(shopName: string, setupUrl: string): string {
   return `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
     ${logoHeader("Welcome to LaundryMax!")}
-    <p>Hi <strong>${shopName}</strong>, your account request has been approved. Click below to choose your username and password and get started.</p>
+    <p>Hi <strong>${esc(shopName)}</strong>, your account request has been approved. Click below to choose your username and password and get started.</p>
     <div style="text-align:center;margin:20px 0">
       <a href="${setupUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px">Set up your account</a>
     </div>
@@ -175,13 +182,13 @@ export function accountActivatedEmailHtml(shopName: string, username: string, d:
     `<tr><td style="padding:8px 14px;color:#475569;font-weight:600">${label}</td><td style="padding:8px 14px;font-weight:700">${value}</td></tr>`;
   return `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
     ${logoHeader("✅ Account activated")}
-    <p><strong>${shopName}</strong> has finished setting up their account and logged in for the first time.</p>
+    <p><strong>${esc(shopName)}</strong> has finished setting up their account and logged in for the first time.</p>
     <table style="width:100%;border-collapse:collapse;margin:16px 0;background:#f8fafc;border-radius:8px">
-      ${row("Shop ID", d.shopId)}
-      ${row("Owner", d.ownerName || "—")}
-      ${row("Username", `<span style="font-family:monospace">${username}</span>`)}
-      ${row("Phone", d.phone || "—")}
-      ${row("Email", d.email || "—")}
+      ${row("Shop ID", esc(d.shopId))}
+      ${row("Owner", esc(d.ownerName) || "—")}
+      ${row("Username", `<span style="font-family:monospace">${esc(username)}</span>`)}
+      ${row("Phone", esc(d.phone) || "—")}
+      ${row("Email", esc(d.email) || "—")}
       ${row("Plan", d.planType ? d.planType.charAt(0).toUpperCase() + d.planType.slice(1) : "Not set")}
       ${row("Expires", d.expiresAt ? new Date(d.expiresAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—")}
     </table>
@@ -191,8 +198,8 @@ export function accountActivatedEmailHtml(shopName: string, username: string, d:
 export function deliveryEmailHtml(customerName: string, shopName: string) {
   return `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
     ${logoHeader(shopName)}
-    <p>Dear <strong>${customerName}</strong>,</p>
+    <p>Dear <strong>${esc(customerName)}</strong>,</p>
     <p style="color:#059669;font-weight:600">✅ Your laundry is ready and out for delivery!</p>
-    <p style="color:#64748b;font-size:13px">Thank you for choosing ${shopName}.</p>
+    <p style="color:#64748b;font-size:13px">Thank you for choosing ${esc(shopName)}.</p>
   </div>`;
 }

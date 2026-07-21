@@ -40,7 +40,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }));
   if (!owned) return NextResponse.json({ detail: "Not found" }, { status: 404 });
 
-  const { notes, items, delivery_date, discount, extra_charge } = await req.json();
+  let body: any;
+  try { body = await req.json(); } catch { return NextResponse.json({ detail: "Invalid request body" }, { status: 400 }); }
+  const { notes, items, delivery_date, discount, extra_charge } = body;
 
   if (!Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ detail: "At least one item is required" }, { status: 400 });

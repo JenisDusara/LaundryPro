@@ -56,6 +56,10 @@ export async function POST(req: NextRequest) {
   const file = form.get("file");
   if (!file || typeof file === "string") return NextResponse.json({ detail: "No file uploaded" }, { status: 400 });
 
+  // Cap upload size — the whole file is read into memory, so an oversized file could OOM.
+  const MAX_UPLOAD = 5 * 1024 * 1024; // 5 MB is plenty for a customer/price sheet
+  if ((file as File).size > MAX_UPLOAD) return NextResponse.json({ detail: "File too large (max 5 MB)" }, { status: 413 });
+
   const buffer = Buffer.from(await (file as File).arrayBuffer());
   const wb = new ExcelJS.Workbook();
   try { await wb.xlsx.load(buffer as unknown as ExcelJS.Buffer); } catch { return NextResponse.json({ detail: "Could not read the Excel file" }, { status: 400 }); }

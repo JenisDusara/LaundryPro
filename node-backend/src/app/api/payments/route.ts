@@ -65,7 +65,9 @@ export async function POST(req: NextRequest) {
   if (user instanceof NextResponse) return user;
   const ro = requireWrite(user); if (ro) return ro;
 
-  const { customer_id, amount, method, date, note } = await req.json();
+  let body: any;
+  try { body = await req.json(); } catch { return NextResponse.json({ detail: "Invalid request body" }, { status: 400 }); }
+  const { customer_id, amount, method, date, note } = body;
   const amt = Number(amount);
   if (!customer_id || !amt || amt <= 0) {
     return NextResponse.json({ detail: "customer_id and a positive amount are required" }, { status: 400 });

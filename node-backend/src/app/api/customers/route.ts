@@ -29,7 +29,8 @@ export async function POST(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
   const ro = requireWrite(user); if (ro) return ro;
-  const body = await req.json();
+  let body: any;
+  try { body = await req.json(); } catch { return NextResponse.json({ detail: "Invalid request body" }, { status: 400 }); }
   if (!body.phone || !/^\d{10}$/.test(body.phone)) {
     return NextResponse.json({ detail: "Phone number must be exactly 10 digits" }, { status: 400 });
   }

@@ -12,14 +12,18 @@ export async function GET(req: NextRequest) {
   if (user instanceof NextResponse) return user;
   const p = new URL(req.url).searchParams;
   const where: any = { ...shopFilter(user, req) };
-  if (p.get("entry_date")) where.entry_date = p.get("entry_date");
-  if (p.get("month") && p.get("year")) {
+  // Date filter — apply exactly ONE of these (priority: exact day → range → month),
+  // so passing more than one never silently overrides another.
+  if (p.get("entry_date")) {
+    where.entry_date = p.get("entry_date");
+  } else if (p.get("from") && p.get("to")) {
+    where.entry_date = { gte: p.get("from")!, lte: p.get("to")! };
+  } else if (p.get("month") && p.get("year")) {
     const m = parseInt(p.get("month")!), y = parseInt(p.get("year")!);
+    if (Number.isNaN(m) || Number.isNaN(y)) return NextResponse.json({ detail: "Invalid month/year" }, { status: 400 });
     const { start, end } = monthRange(y, m);
     where.entry_date = { gte: start, lte: end };
   }
-  // Date range (from–to) — used by the new Entries filter bar.
-  if (p.get("from") && p.get("to")) where.entry_date = { gte: p.get("from")!, lte: p.get("to")! };
   if (p.get("customer_id")) where.customer_id = p.get("customer_id");
 
   try {
@@ -70,7 +74,9 @@ export async function POST(req: NextRequest) {
   const user = requireAuth(req);
   if (user instanceof NextResponse) return user;
   const ro = requireWrite(user); if (ro) return ro;
-  const { customer_id, notes, items, delivery_date, delivered, discount, extra_charge, amount_paid, payment_method } = await req.json();
+  let body: any;
+  try { body = await req.json(); } catch { return NextResponse.json({ detail: "Invalid request body" }, { status: 400 }); }
+  const { customer_id, notes, items, delivery_date, delivered, discount, extra_charge, amount_paid, payment_method } = body;
   // Billing fields (all optional; default to 0 / empty so old callers keep working).
   const discountN = Math.max(0, Number(discount) || 0);
   const extraN    = Math.max(0, Number(extra_charge) || 0);
@@ -207,12 +213,13 @@ export async function POST(req: NextRequest) {
   // same visit, both the delivery note (with its pickup dates) and the new pickup go out as
   // ONE combined message instead of two.
   if (customer.phone) {
-    let waOn = false;
+    let waOn = false, showPrices = true;
     try {
-      const rows = await prisma.$queryRawUnsafe<{ wa_auto_enabled: boolean }[]>(
-        `SELECT wa_auto_enabled FROM shop_profiles WHERE shop_id = $1`, customer.shop_id
+      const rows = await prisma.$queryRawUnsafe<{ wa_auto_enabled: boolean; wa_show_prices: boolean }[]>(
+        `SELECT wa_auto_enabled, wa_show_prices FROM shop_profiles WHERE shop_id = $1`, customer.shop_id
       );
       waOn = !!rows[0]?.wa_auto_enabled;
+      showPrices = rows[0]?.wa_show_prices !== false; // null/missing → show prices
     } catch { /* column not present yet → feature off */ }
     if (waOn) {
       const prettyDate = fmtDate(today);
@@ -247,20 +254,25 @@ export async function POST(req: NextRequest) {
         (invoiceNo ? `🧾 Invoice: INV-${String(invoiceNo).padStart(4, "0")}\n` : ``) +
         `\n*Items received:*\n${lines}\n\n` +
         `Total items: ${totalQty}\n\n` +
-        `${bill}\n\n` +
+        // Prices/total/balance only when the shop keeps "Show prices in WhatsApp" on.
+        (showPrices ? `${bill}\n\n` : ``) +
         `Warm regards,\n*${shopName}* 🙏`;
       await waSend(customer.shop_id, customer.phone, msg);
     }
   }
 
+  // The billing block (invoice_no + amount_paid + discount/charge + payment row) all persists
+  // inside one transaction; invoiceNo is non-null only when it committed. Report the billing
+  // fields as their PERSISTED values so the client never shows paid/discount that rolled back.
+  const persisted = invoiceNo !== null;
   return NextResponse.json({
     ...entry,
     delivery_date: (entry as any).delivery_date ?? null,
     invoice_no: invoiceNo,
-    discount: discountN,
-    extra_charge: extraN,
-    amount_paid: paidN,
-    payment_method: payMethodRaw,
+    discount: persisted ? discountN : 0,
+    extra_charge: persisted ? extraN : 0,
+    amount_paid: persisted ? paidN : 0,
+    payment_method: persisted ? payMethodRaw : "",
     total_amount: Number(entry.total_amount),
     items: entry.items.map(i => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal) })),
   }, { status: 201 });

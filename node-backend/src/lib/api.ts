@@ -30,6 +30,7 @@ api.interceptors.response.use(
 // Any write (POST/PUT/PATCH/DELETE) clears the cache so data stays correct after
 // a change. JSON GETs only; invoice/export HTML (responseType:"text") is skipped.
 const TTL = 20_000; // ms a cached GET stays "fresh enough" to serve instantly
+const MAX_CACHE = 120; // cap entries so a long read-only session can't grow memory unbounded
 const cache = new Map<string, { ts: number; res: AxiosResponse }>();
 
 const keyOf = (url: string, config?: any) => {
@@ -46,7 +47,11 @@ const rawGet = api.get.bind(api);
   const hit = cache.get(k);
   const now = Date.now();
   if (hit && now - hit.ts < TTL) return Promise.resolve(hit.res);
-  return rawGet(url, config).then(res => { cache.set(k, { ts: Date.now(), res }); return res; });
+  return rawGet(url, config).then(res => {
+    if (cache.size >= MAX_CACHE) { const oldest = cache.keys().next().value; if (oldest !== undefined) cache.delete(oldest); }
+    cache.set(k, { ts: Date.now(), res });
+    return res;
+  });
 };
 
 // Clear the GET cache after any mutation so the next read is fresh.

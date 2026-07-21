@@ -26,6 +26,7 @@ export default function CustomerDetail({ params }: { params: { id: string } }) {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [shopName, setShopName] = useState("");
+  const [waShowPrices, setWaShowPrices] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -63,6 +64,8 @@ export default function CustomerDetail({ params }: { params: { id: string } }) {
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     api.get("/auth/me").then(r => setShopName(r.data.shop_name || "")).catch(() => {});
+    // Shop's WhatsApp price preference — when off, manual WA bills hide prices/total.
+    api.get("/admin/settings").then(r => { setWaShowPrices(r.data?.wa_show_prices !== false); if (r.data?.shop_name) setShopName(r.data.shop_name); }).catch(() => {});
     api.get("/services").then(r => setServices(r.data)).catch(() => {});
   }, []);
 
@@ -104,7 +107,11 @@ export default function CustomerDetail({ params }: { params: { id: string } }) {
 
   const openWA = (msg: string) => { if (!customer?.phone) return; const a = document.createElement("a"); a.href = `whatsapp://send?phone=91${tel(customer.phone)}&text=${encodeURIComponent(msg)}`; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
   const waReminder = () => { const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`; openWA([`Hello ${customer?.name || ""},`, ``, `*${shopName || "Your Laundry"}*`, `Total billed: ${inr(billed)}`, `Total paid: ${inr(paid)}`, balance > 0.5 ? `*Balance due: ${inr(balance)}*` : `✅ Fully settled`, ``, `Thank you! 🙏`].join("\n")); };
-  const waOrder = (e: LaundryEntry) => { const lines = e.items.map(i => `• ${i.service_name} ×${i.quantity} — ₹${i.subtotal}`).join("\n"); openWA(`Hello ${customer?.name || ""},\n\n*${shopName || "Your Laundry"}*\n🧾 ${invFmt(e.invoice_no)}\n📅 ${fmtDate(e.entry_date)}\n\n*Items:*\n${lines}\n\n*Total: ₹${Number(e.total_amount)}*\n\nThank you! 🙏`); };
+  const waOrder = (e: LaundryEntry) => {
+    const lines = e.items.map(i => waShowPrices ? `• ${i.service_name} ×${i.quantity} — ₹${i.subtotal}` : `• ${i.service_name} ×${i.quantity}`).join("\n");
+    const totalLine = waShowPrices ? `*Total: ₹${Number(e.total_amount)}*\n\n` : "";
+    openWA(`Hello ${customer?.name || ""},\n\n*${shopName || "Your Laundry"}*\n🧾 ${invFmt(e.invoice_no)}\n📅 ${fmtDate(e.entry_date)}\n\n*Items:*\n${lines}\n\n${totalLine}Thank you! 🙏`);
+  };
 
   // ── Edit order ──
   const openEdit = (e: LaundryEntry) => { setEditEntry(e); setEditNotes(e.notes || ""); setEditItems(e.items.map(i => ({ localId: i.id, service_id: (i as any).service_id || "", service_name: i.service_name, price_per_unit: Number(i.price_per_unit), quantity: i.quantity, item_status: i.item_status || "pending" }))); };

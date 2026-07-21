@@ -17,7 +17,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (user instanceof NextResponse) return user;
   const ro = requireWrite(user); if (ro) return ro;
 
-  const { amount, method, date, note } = await req.json();
+  let body: any;
+  try { body = await req.json(); } catch { return NextResponse.json({ detail: "Invalid request body" }, { status: 400 }); }
+  const { amount, method, date, note } = body;
   const amt = Number(amount);
   if (!amt || amt <= 0) return NextResponse.json({ detail: "A positive amount is required" }, { status: 400 });
   const pmethod = METHODS.includes(method) ? method : "cash";
