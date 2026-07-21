@@ -14,7 +14,7 @@ export async function GET() {
   if (!isAuthed()) return NextResponse.json({ ok: false }, { status: 401 });
   await ensureTables();
   const leads = await sql`SELECT * FROM marketing_leads ORDER BY created_at DESC`;
-  const cols = ["id", "name", "shop", "phone", "status", "created_at"];
+  const cols = ["id", "name", "shop", "phone", "email", "status", "created_at"];
   const csv = [
     cols.join(","),
     ...leads.map((l) => cols.map((c) => cell((l as Record<string, unknown>)[c])).join(",")),

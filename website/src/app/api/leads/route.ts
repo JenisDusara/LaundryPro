@@ -13,15 +13,26 @@ export async function POST(req: Request) {
   const name = String(body.name || "").slice(0, 120).trim();
   const shop = String(body.shop || "").slice(0, 160).trim();
   const phone = String(body.phone || "").slice(0, 40).trim();
-  if (!name && !shop && !phone) {
-    return NextResponse.json({ ok: false, error: "Empty submission" }, { status: 400 });
+  const email = String(body.email || "").slice(0, 160).trim();
+
+  // Name & shop required; phone must be exactly 10 digits; email optional.
+  const digits = phone.replace(/\D/g, "");
+  if (!name || !shop || digits.length !== 10) {
+    return NextResponse.json(
+      { ok: false, error: "Name, shop and a 10-digit phone number are required" },
+      { status: 400 }
+    );
   }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json({ ok: false, error: "Invalid email" }, { status: 400 });
+  }
+
   const rows = await sql`
-    INSERT INTO marketing_leads (name, shop, phone)
-    VALUES (${name}, ${shop}, ${phone})
+    INSERT INTO marketing_leads (name, shop, phone, email)
+    VALUES (${name}, ${shop}, ${phone}, ${email})
     RETURNING id`;
   // Notify the owner by email (does not block or fail the submission).
-  await sendLeadEmail({ name, shop, phone });
+  await sendLeadEmail({ name, shop, phone, email });
   return NextResponse.json({ ok: true, id: rows[0].id });
 }
 

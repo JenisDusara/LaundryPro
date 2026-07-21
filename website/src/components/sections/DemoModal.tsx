@@ -16,6 +16,8 @@ export function DemoModal() {
   const [name, setName] = useState("");
   const [shop, setShop] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [err, setErr] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
@@ -25,12 +27,14 @@ export function DemoModal() {
       if (a) {
         e.preventDefault();
         setSent(false);
+        setErr("");
         setOpen(true);
       }
     };
     document.addEventListener("click", onClick);
     const onOpen = () => {
       setSent(false);
+      setErr("");
       setOpen(true);
     };
     window.addEventListener("open-demo", onOpen);
@@ -54,12 +58,26 @@ export function DemoModal() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanPhone = phone.replace(/\D/g, "");
+    if (!name.trim() || !shop.trim()) {
+      setErr("Please fill in your name and shop name.");
+      return;
+    }
+    if (cleanPhone.length !== 10) {
+      setErr("Phone number must be exactly 10 digits.");
+      return;
+    }
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setErr("Please enter a valid email, or leave it blank.");
+      return;
+    }
+    setErr("");
     setSending(true);
     try {
       await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, shop, phone }),
+        body: JSON.stringify({ name, shop, phone: cleanPhone, email }),
       });
     } catch {
       // ignore — lead may still be saved; show success either way
@@ -69,6 +87,7 @@ export function DemoModal() {
     setName("");
     setShop("");
     setPhone("");
+    setEmail("");
   };
 
   const field =
@@ -145,19 +164,38 @@ export function DemoModal() {
                   ))}
                 </ul>
 
-                <form onSubmit={submit} className="mt-5 space-y-3.5">
-                  <div>
-                    <label className="mb-1.5 block text-[12.5px] font-semibold text-muted">Your name</label>
-                    <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Rajesh Sharma" className={field} />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-[12.5px] font-semibold text-muted">Shop name</label>
-                    <input value={shop} onChange={(e) => setShop(e.target.value)} placeholder="Shree Chamunda Laundry" className={field} />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-[12.5px] font-semibold text-muted">Phone number</label>
-                    <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="+91 12345 67890" className={field} />
-                  </div>
+                <form onSubmit={submit} className="mt-5 space-y-3">
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Your name *"
+                    className={field}
+                  />
+                  <input
+                    value={shop}
+                    onChange={(e) => setShop(e.target.value)}
+                    placeholder="Shop name *"
+                    className={field}
+                  />
+                  <input
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    inputMode="numeric"
+                    maxLength={10}
+                    placeholder="Phone number * (10 digits)"
+                    className={field}
+                  />
+                  <input
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    type="email"
+                    placeholder="Email (optional)"
+                    className={field}
+                  />
+
+                  {err && (
+                    <p className="text-[12.5px] font-medium text-danger">{err}</p>
+                  )}
 
                   <button
                     type="submit"

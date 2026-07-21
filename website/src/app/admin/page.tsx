@@ -20,6 +20,7 @@ type Lead = {
   name: string;
   shop: string;
   phone: string;
+  email: string;
   status: "new" | "contacted" | "converted";
   created_at: string;
 };
@@ -327,8 +328,16 @@ export default function AdminPage() {
                     <tbody className="divide-y divide-line">
                       {leads.map((l) => (
                         <tr key={l.id} className="hover:bg-navy/[0.02] dark:hover:bg-white/[0.02]">
-                          <td className="px-4 py-3 font-semibold text-text">
-                            {l.name || "—"}
+                          <td className="px-4 py-3">
+                            <div className="font-semibold text-text">{l.name || "—"}</div>
+                            {l.email && (
+                              <a
+                                href={`mailto:${l.email}`}
+                                className="text-[11px] text-muted transition-colors hover:text-navy dark:hover:text-sky-400"
+                              >
+                                {l.email}
+                              </a>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-muted">{l.shop || "—"}</td>
                           <td className="px-4 py-3 text-muted">

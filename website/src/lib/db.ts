@@ -31,6 +31,7 @@ export type Lead = {
   name: string;
   shop: string;
   phone: string;
+  email: string;
   status: "new" | "contacted" | "converted";
   created_at: string;
 };
@@ -57,10 +58,13 @@ export function ensureTables(): Promise<void> {
           name       TEXT NOT NULL DEFAULT '',
           shop       TEXT NOT NULL DEFAULT '',
           phone      TEXT NOT NULL DEFAULT '',
+          email      TEXT NOT NULL DEFAULT '',
           status     TEXT NOT NULL DEFAULT 'new',
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `;
+      // add email to any table created before this column existed
+      await sql`ALTER TABLE marketing_leads ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''`;
       await sql`
         CREATE TABLE IF NOT EXISTS marketing_reviews (
           id         SERIAL PRIMARY KEY,

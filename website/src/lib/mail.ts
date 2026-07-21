@@ -19,46 +19,79 @@ function transport(): Transporter | null {
   return _t;
 }
 
-/** Emails a new demo registration to the owner's inbox. Never throws. */
+function build(lead: { name: string; shop: string; phone: string; email?: string }) {
+  const rows = [
+    ["Name", lead.name || "—"],
+    ["Shop", lead.shop || "—"],
+    ["Phone", lead.phone || "—"],
+    ["Email", lead.email || "—"],
+  ];
+  const html = `
+    <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:auto">
+      <h2 style="color:#12315f;margin:0 0 4px">New demo request</h2>
+      <p style="color:#64748b;margin:0 0 16px">A visitor booked a free demo on the LaundryMax website.</p>
+      <table style="width:100%;border-collapse:collapse">
+        ${rows
+          .map(
+            ([k, v]) =>
+              `<tr><td style="padding:8px 0;color:#64748b;width:90px">${k}</td><td style="padding:8px 0;color:#0f172a;font-weight:600">${v}</td></tr>`
+          )
+          .join("")}
+      </table>
+      <p style="color:#94a3b8;font-size:12px;margin-top:16px">Sent automatically by laundrymax.in</p>
+    </div>`;
+  const text = `New demo request\n\nName: ${lead.name || "—"}\nShop: ${lead.shop || "—"}\nPhone: ${lead.phone || "—"}\nEmail: ${lead.email || "—"}\n\nSent from laundrymax.in`;
+  const subject = `New demo request — ${lead.shop || lead.name || "LaundryMax"}`;
+  return { html, text, subject };
+}
+
+/**
+ * Emails a new demo registration to the owner's inbox. Never throws.
+ *
+ * Prefers Resend (HTTPS API — no SMTP/IP-block issues) when RESEND_API_KEY is
+ * set; otherwise falls back to Titan SMTP via nodemailer.
+ */
 export async function sendLeadEmail(lead: {
   name: string;
   shop: string;
   phone: string;
+  email?: string;
 }): Promise<void> {
+  const to = process.env.LEAD_TO_EMAIL || process.env.EMAIL_USER;
+  if (!to) return;
+  const { html, text, subject } = build(lead);
+
+  // 1) Resend (recommended — reliable from anywhere)
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const from = process.env.RESEND_FROM || "LaundryMax <onboarding@resend.dev>";
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ from, to, subject, html, text }),
+      });
+      if (!res.ok) console.error("Resend send failed:", res.status, await res.text().catch(() => ""));
+    } catch (e) {
+      console.error("Resend error:", e);
+    }
+    return;
+  }
+
+  // 2) Fallback — Titan SMTP
   try {
     const t = transport();
-    const to = process.env.LEAD_TO_EMAIL || process.env.EMAIL_USER;
-    if (!t || !to) return;
-
-    const rows = [
-      ["Name", lead.name || "—"],
-      ["Shop", lead.shop || "—"],
-      ["Phone", lead.phone || "—"],
-    ];
-    const html = `
-      <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:auto">
-        <h2 style="color:#12315f;margin:0 0 4px">New demo request</h2>
-        <p style="color:#64748b;margin:0 0 16px">A visitor booked a free demo on the LaundryMax website.</p>
-        <table style="width:100%;border-collapse:collapse">
-          ${rows
-            .map(
-              ([k, v]) =>
-                `<tr><td style="padding:8px 0;color:#64748b;width:90px">${k}</td><td style="padding:8px 0;color:#0f172a;font-weight:600">${v}</td></tr>`
-            )
-            .join("")}
-        </table>
-        <p style="color:#94a3b8;font-size:12px;margin-top:16px">Sent automatically by laundrymax.in</p>
-      </div>`;
-    const text = `New demo request\n\nName: ${lead.name || "—"}\nShop: ${lead.shop || "—"}\nPhone: ${lead.phone || "—"}\n\nSent from laundrymax.in`;
-
+    if (!t) return;
     await t.sendMail({
       from: `"LaundryMax Website" <${process.env.EMAIL_USER}>`,
       to,
-      subject: `New demo request — ${lead.shop || lead.name || "LaundryMax"}`,
+      subject,
       html,
       text,
     });
-  } catch {
-    // never let email failure break the lead submission
+  } catch (e) {
+    console.error("SMTP send failed:", e instanceof Error ? e.message : e);
   }
 }
