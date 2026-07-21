@@ -14,13 +14,13 @@ export function WhyChoose() {
       <div className="bg-dots pointer-events-none absolute inset-0 opacity-50" aria-hidden />
       <Container className="relative">
         <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
-          {/* image */}
+          {/* phone */}
           <motion.div
             initial={{ opacity: 0, x: -24 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true, margin: "0px 0px -60px 0px" }}
             transition={{ duration: 0.7, ease }}
-            className="order-2 lg:order-1"
+            className="order-2 flex justify-center lg:order-1"
           >
             <AnimatedPhone start={3} />
           </motion.div>
@@ -33,7 +33,7 @@ export function WhyChoose() {
             transition={{ duration: 0.6, ease, delay: 0.1 }}
             className="order-1 lg:order-2"
           >
-            <Eyebrow align="left">Smart, simple, for every laundry business</Eyebrow>
+            <Eyebrow align="left">Smart, simple, for every laundry shop</Eyebrow>
             <SectionHeading align="left">Why choose LaundryMax?</SectionHeading>
 
             <ul className="mt-6 space-y-4">
@@ -50,7 +50,7 @@ export function WhyChoose() {
             </ul>
 
             <a
-              href="#pricing"
+              href="#demo"
               className="btn-gradient group mt-8 inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-sm font-semibold text-white shadow-navy hover:-translate-y-0.5 hover:shadow-navy-lg"
             >
               Start your 1-month free trial

@@ -92,7 +92,7 @@ function NewEntryScreen() {
       <div className="flex-1 px-4">
         <div className="mb-3 flex items-center gap-2.5 rounded-xl bg-white/[0.05] p-2.5">
           <div className="grid h-9 w-9 place-items-center rounded-full bg-[#6EA8FF] text-[12px] font-bold text-[#0b1830]">R</div>
-          <div><div className="text-[12px] font-semibold">Ramesh Patel</div><div className="text-[9.5px] text-slate-400">98765 43210</div></div>
+          <div><div className="text-[12px] font-semibold">Ramesh Patel</div><div className="text-[9.5px] text-slate-400">12345 67890</div></div>
         </div>
         <div className="rounded-2xl bg-white/[0.04] p-3">
           {items.map(([n, q, amt]) => (

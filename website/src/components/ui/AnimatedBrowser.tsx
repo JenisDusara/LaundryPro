@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard,
@@ -290,17 +290,16 @@ const SCREENS = [
 ];
 const N = SCREENS.length;
 
-/** Self-playing dark LaundryMax dashboard in a browser window — the real UI. */
-export function AnimatedBrowser({ className = "", start = 0 }: { className?: string; start?: number }) {
-  const [view, setView] = useState(start % N);
-
-  useEffect(() => {
-    const id = setInterval(() => setView((v) => (v + 1) % N), 2600);
-    return () => clearInterval(id);
-  }, []);
-
-  const active = SCREENS[view].nav;
-
+/** Dark LaundryMax browser window chrome + sidebar; `active` highlights nav. */
+function BrowserFrame({
+  active,
+  className = "",
+  children,
+}: {
+  active: number;
+  className?: string;
+  children: ReactNode;
+}) {
   return (
     <div className={`w-full max-w-[560px] ${className}`}>
       <div className="overflow-hidden rounded-xl border border-black/60 bg-[#0b0b0d] shadow-[0_30px_70px_-25px_rgba(0,0,0,0.7)]">
@@ -352,19 +351,43 @@ export function AnimatedBrowser({ className = "", start = 0 }: { className?: str
                 <span className="absolute -right-1 -top-1 grid h-3 w-3 place-items-center rounded-full bg-red-500 text-[5px] font-bold">32</span>
               </span>
             </div>
-            <div className="relative flex-1 overflow-hidden p-3">
-              <motion.div
-                key={view}
-                initial={{ opacity: 0, y: 14 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, ease }}
-              >
-                {SCREENS[view].panel}
-              </motion.div>
-            </div>
+            <div className="relative flex-1 overflow-hidden p-3">{children}</div>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+/** Self-playing dark LaundryMax dashboard — cycles through the real screens. */
+export function AnimatedBrowser({ className = "", start = 0 }: { className?: string; start?: number }) {
+  const [view, setView] = useState(start % N);
+
+  useEffect(() => {
+    const id = setInterval(() => setView((v) => (v + 1) % N), 2600);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <BrowserFrame active={SCREENS[view].nav} className={className}>
+      <motion.div
+        key={view}
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease }}
+      >
+        {SCREENS[view].panel}
+      </motion.div>
+    </BrowserFrame>
+  );
+}
+
+/** A single static product screen in the browser frame (for feature blocks). */
+export function ProductScreen({ screen = 0, className = "" }: { screen?: number; className?: string }) {
+  const s = SCREENS[((screen % N) + N) % N];
+  return (
+    <BrowserFrame active={s.nav} className={className}>
+      {s.panel}
+    </BrowserFrame>
   );
 }

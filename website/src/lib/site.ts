@@ -4,7 +4,9 @@
 export const WHATSAPP_NUMBER = "919824436736"; // +91 98244 36736
 export const WHATSAPP_DISPLAY = "+91 98244 36736";
 export const EMAIL = "info@laundrymax.in";
-export const DEMO_URL = "/dashboard";
+// "#demo" so every demo button opens the global Book-a-demo popup
+// (there is no separate /dashboard route on the marketing site).
+export const DEMO_URL = "#demo";
 
 export const waLink = (
   message = "Hi, I'm interested in LaundryMax for my laundry shop."
@@ -201,14 +203,14 @@ export const about = {
   eyebrow: "About LaundryMax",
   heading: "Built for Indian laundry & dry-cleaning shops",
   body:
-    "LaundryMax helps you manage your laundry or dry-cleaning business effortlessly — from order booking to billing, reports and customer rewards — all in one laundry business management system. Built for single or multi-branch businesses, it gives you real-time control, smart analytics and a faster way to handle day-to-day operations.",
+    "LaundryMax runs your whole shop from one screen — bill customers at the counter in seconds, track every order and delivery by flat and society, share bills on WhatsApp, and see exactly what you earned each day. Made for Indian laundry & dry-cleaning shops — no register, no guesswork.",
   points: [
-    "Multi-store management",
-    "Expense tracking",
-    "Smart reports & analytics",
-    "Customer loyalty and rewards",
-    "Order management",
-    "Cloud access from anywhere",
+    "Counter billing in seconds",
+    "Bills & monthly bills on WhatsApp",
+    "Dues & advances by flat/society",
+    "Labour press-count & wages",
+    "Daily & monthly earnings",
+    "Expenses & profit tracking",
   ],
   // distinct trust points shown inside the stats card (not the feature list)
   cardPoints: [
@@ -324,36 +326,36 @@ export const heroCopy = {
 
 // "Complete Laundry Management Made Easy" — 8 feature cards.
 export const managementIntro = {
-  heading: "Complete laundry management made easy",
+  heading: "One dashboard for your entire shop",
   body:
-    "From easy order booking to pickup–delivery management and payment status updates, our laundry POS billing software handles it all.",
+    "From the billing counter to accounts, deliveries, labour and reports — everything your laundry shop does, in one place.",
 };
 export const managementCards = [
-  { icon: "dashboard", title: "Manage laundry operations", body: "Run all your laundry operations from one dashboard — from placing orders to tracking deliveries." },
-  { icon: "store", title: "Multi-store management", body: "Handle multiple stores under one brand. Add, edit or remove stores; manage users, taxes and charges." },
-  { icon: "shield", title: "Admin control dashboard", body: "A powerful admin panel with dynamic charts, order reviews, collection tracking and detailed insights." },
-  { icon: "chart", title: "Smart reports & insights", body: "Detailed reports for invoices, payments, customers, discounts and growth. Visualize data to decide faster." },
-  { icon: "users", title: "Customer management", body: "Manage customers with profiles showing total revenue, order history, visits and loyalty." },
-  { icon: "wallet", title: "Expense & discount tracking", body: "Track every expense and discount. Monitor daily spending and analyze cost patterns." },
-  { icon: "trending", title: "Growth & revenue analytics", body: "Compare sales, revenue and performance over time to make data-driven decisions." },
-  { icon: "boxes", title: "Inventory & service management", body: "Manage garments, categories, services and pricing. Assign charges and taxes per store." },
+  { icon: "receipt", title: "Counter billing", body: "Make a bill in 10 seconds — pick the customer, add garments, take payment." },
+  { icon: "users", title: "Customers & dues", body: "Every customer by flat and society, with dues, advances and full history." },
+  { icon: "truck", title: "Orders & delivery", body: "See what's pending and what's delivered — mark it done in one tap." },
+  { icon: "tags", title: "Services & rates", body: "Washing, iron, dry clean, steam — your services at your own prices." },
+  { icon: "message", title: "WhatsApp bills", body: "Share every bill instantly, and send full monthly bills on WhatsApp." },
+  { icon: "wallet", title: "Expenses & accounting", body: "Track daily expenses and collections, and see your real profit." },
+  { icon: "chart", title: "Reports & earnings", body: "Daily and monthly earnings by service and society — export to Excel." },
+  { icon: "labour", title: "Labour & staff", body: "Press-count wages, advances and staff salaries — all sorted." },
 ];
 
 // "Why Choose LaundryMax?" — 6 points.
 export const whyChoose = [
-  { title: "All-in-one laundry software", body: "Manage multiple stores, customers, orders and services effortlessly — everything in one smart platform." },
-  { title: "Data-driven insights", body: "Detailed reports on revenue, customers, discounts and expenses to make informed business decisions." },
-  { title: "Automated laundry POS", body: "From order booking to invoice generation and WhatsApp notifications — automate your entire workflow." },
-  { title: "Customer engagement made easy", body: "Track loyal and new customers, monitor visits, and reward them with discounts and loyalty points." },
-  { title: "Smart billing & monthly bills", body: "Apply taxes and discounts in one click, generate customer monthly bills, and track every expense and profit instantly." },
-  { title: "User-friendly dashboard", body: "An intuitive interface for admins and store teams — simple, fast and efficient for daily use." },
+  { title: "Bill in seconds, not minutes", body: "Your counter never slows down — a full, itemised bill in about 10 seconds." },
+  { title: "Nothing ever gets lost", body: "Every order, payment, due and advance is saved and always there — unlike a register." },
+  { title: "Bills on WhatsApp", body: "Customers get a clean bill the moment it's made, and a full monthly bill when it's due." },
+  { title: "Know your real earnings", body: "See exactly what you earned today and this month, plus your profit after expenses." },
+  { title: "Wages done for you", body: "Each worker's press count turns into wages automatically — no counting, no disputes." },
+  { title: "Works on any phone or computer", body: "Nothing to install, always backed up in the cloud, and live the same day." },
 ];
 
 // How It Works — 3 steps.
 export const workSteps = [
-  { title: "Register your store", body: "Get started in minutes. Register your laundry or dry-cleaning store and configure services, taxes and charges." },
-  { title: "Manage orders & customers", body: "Handle garments, track visits, generate invoices with QR codes, and reward customers with loyalty points." },
-  { title: "Track growth & insights", body: "Monitor expenses, collections and customer reports — all in real time with visual charts and downloads." },
+  { title: "Set up your services & rates", body: "Add your services in minutes — shirt ₹30, iron ₹8, dry clean, steam — at your own prices." },
+  { title: "Bill customers at the counter", body: "Search the customer, add garments, take payment and share the bill on WhatsApp." },
+  { title: "Watch your earnings grow", body: "Daily and monthly reports, dues, expenses and worker wages — all in real time." },
 ];
 
 // Key Features · For Stores (Web App).

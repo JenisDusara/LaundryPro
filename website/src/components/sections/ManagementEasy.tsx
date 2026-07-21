@@ -2,28 +2,28 @@
 
 import { motion } from "framer-motion";
 import {
-  LayoutDashboard,
-  Store,
-  ShieldCheck,
-  BarChart3,
+  ReceiptIndianRupee,
   Users,
+  Truck,
+  Tags,
+  MessageCircle,
   Wallet,
-  TrendingUp,
-  Boxes,
+  BarChart3,
+  HardHat,
   type LucideIcon,
 } from "lucide-react";
 import { Container, Eyebrow, SectionHeading } from "@/components/ui/primitives";
 import { managementIntro, managementCards } from "@/lib/site";
 
 const icons: Record<string, LucideIcon> = {
-  dashboard: LayoutDashboard,
-  store: Store,
-  shield: ShieldCheck,
-  chart: BarChart3,
+  receipt: ReceiptIndianRupee,
   users: Users,
+  truck: Truck,
+  tags: Tags,
+  message: MessageCircle,
   wallet: Wallet,
-  trending: TrendingUp,
-  boxes: Boxes,
+  chart: BarChart3,
+  labour: HardHat,
 };
 
 export function ManagementEasy() {
