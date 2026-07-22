@@ -33,7 +33,13 @@ export type Lead = {
   phone: string;
   email: string;
   status: "new" | "contacted" | "converted";
+  notes: string;
+  follow_up_date: string;
+  archived_at: string | null;
+  email_status: "pending" | "sent" | "failed" | "";
+  email_error: string;
   created_at: string;
+  ip: string;
 };
 
 export type Review = {
@@ -65,6 +71,20 @@ export function ensureTables(): Promise<void> {
       `;
       // add email to any table created before this column existed
       await sql`ALTER TABLE marketing_leads ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''`;
+      await sql`ALTER TABLE marketing_leads ADD COLUMN IF NOT EXISTS ip TEXT NOT NULL DEFAULT ''`;
+      await sql`ALTER TABLE marketing_leads ADD COLUMN IF NOT EXISTS notes TEXT NOT NULL DEFAULT ''`;
+      await sql`ALTER TABLE marketing_leads ADD COLUMN IF NOT EXISTS follow_up_date TEXT NOT NULL DEFAULT ''`;
+      await sql`ALTER TABLE marketing_leads ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ`;
+      await sql`ALTER TABLE marketing_leads ADD COLUMN IF NOT EXISTS email_status TEXT NOT NULL DEFAULT 'pending'`;
+      await sql`ALTER TABLE marketing_leads ADD COLUMN IF NOT EXISTS email_error TEXT NOT NULL DEFAULT ''`;
+      await sql`
+        CREATE INDEX IF NOT EXISTS marketing_leads_status_created_idx
+        ON marketing_leads (status, created_at DESC)
+      `;
+      await sql`
+        CREATE INDEX IF NOT EXISTS marketing_leads_archived_created_idx
+        ON marketing_leads (archived_at, created_at DESC)
+      `;
       await sql`
         CREATE TABLE IF NOT EXISTS marketing_reviews (
           id         SERIAL PRIMARY KEY,
@@ -76,6 +96,33 @@ export function ensureTables(): Promise<void> {
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `;
+      await sql`
+        CREATE TABLE IF NOT EXISTS marketing_admin_login_events (
+          id         SERIAL PRIMARY KEY,
+          ip         TEXT NOT NULL DEFAULT '',
+          ok         BOOLEAN NOT NULL DEFAULT false,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `;
+      await sql`
+        CREATE INDEX IF NOT EXISTS marketing_admin_login_events_ip_created_idx
+        ON marketing_admin_login_events (ip, created_at DESC)
+      `;
+      await sql`
+        CREATE TABLE IF NOT EXISTS marketing_admin_activity (
+          id         SERIAL PRIMARY KEY,
+          action     TEXT NOT NULL DEFAULT '',
+          entity     TEXT NOT NULL DEFAULT '',
+          entity_id  INTEGER,
+          detail     TEXT NOT NULL DEFAULT '',
+          ip         TEXT NOT NULL DEFAULT '',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `;
+      await sql`
+        CREATE INDEX IF NOT EXISTS marketing_admin_activity_created_idx
+        ON marketing_admin_activity (created_at DESC)
+      `;
     })().catch((e) => {
       // reset so a later request can retry if the first attempt failed
       ready = null;
@@ -83,4 +130,22 @@ export function ensureTables(): Promise<void> {
     });
   }
   return ready;
+}
+
+export async function logActivity(
+  action: string,
+  entity: string,
+  entityId: number | null,
+  detail = "",
+  ip = ""
+): Promise<void> {
+  try {
+    await ensureTables();
+    await sql`
+      INSERT INTO marketing_admin_activity (action, entity, entity_id, detail, ip)
+      VALUES (${action}, ${entity}, ${entityId}, ${detail.slice(0, 500)}, ${ip})
+    `;
+  } catch (e) {
+    console.error("Marketing admin activity not recorded:", e instanceof Error ? e.message : e);
+  }
 }

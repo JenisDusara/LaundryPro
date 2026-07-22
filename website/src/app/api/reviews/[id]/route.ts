@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { sql, ensureTables } from "@/lib/db";
-import { isAuthed } from "@/lib/adminAuth";
+import { sql, ensureTables, logActivity } from "@/lib/db";
+import { clientIp, requireAdmin } from "@/lib/adminAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,14 +9,18 @@ export async function PATCH(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  if (!isAuthed()) return NextResponse.json({ ok: false }, { status: 401 });
+  const auth = requireAdmin(req); if (auth) return auth;
   await ensureTables();
   const id = Number(params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return NextResponse.json({ ok: false, error: "Bad review id" }, { status: 400 });
+  }
   const body = await req.json().catch(() => ({}));
 
   // Publish / unpublish toggle
   if (typeof body.published === "boolean") {
     await sql`UPDATE marketing_reviews SET published = ${body.published} WHERE id = ${id}`;
+    await logActivity(body.published ? "review.publish" : "review.unpublish", "review", id, "", clientIp(req));
     return NextResponse.json({ ok: true });
   }
 
@@ -35,16 +39,21 @@ export async function PATCH(
     UPDATE marketing_reviews
     SET name = ${name}, city = ${city}, quote = ${quote}, rating = ${rating}
     WHERE id = ${id}`;
+  await logActivity("review.update", "review", id, name, clientIp(req));
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: { id: string } }
 ) {
-  if (!isAuthed()) return NextResponse.json({ ok: false }, { status: 401 });
+  const auth = requireAdmin(req); if (auth) return auth;
   await ensureTables();
   const id = Number(params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return NextResponse.json({ ok: false, error: "Bad review id" }, { status: 400 });
+  }
   await sql`DELETE FROM marketing_reviews WHERE id = ${id}`;
+  await logActivity("review.delete", "review", id, "", clientIp(req));
   return NextResponse.json({ ok: true });
 }

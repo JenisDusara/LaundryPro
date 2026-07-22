@@ -2,6 +2,15 @@ import nodemailer, { type Transporter } from "nodemailer";
 
 let _t: Transporter | null = null;
 
+function esc(v: unknown): string {
+  return String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function transport(): Transporter | null {
   const host = process.env.EMAIL_HOST;
   const user = process.env.EMAIL_USER;
@@ -34,7 +43,7 @@ function build(lead: { name: string; shop: string; phone: string; email?: string
         ${rows
           .map(
             ([k, v]) =>
-              `<tr><td style="padding:8px 0;color:#64748b;width:90px">${k}</td><td style="padding:8px 0;color:#0f172a;font-weight:600">${v}</td></tr>`
+              `<tr><td style="padding:8px 0;color:#64748b;width:90px">${esc(k)}</td><td style="padding:8px 0;color:#0f172a;font-weight:600">${esc(v)}</td></tr>`
           )
           .join("")}
       </table>
@@ -56,9 +65,9 @@ export async function sendLeadEmail(lead: {
   shop: string;
   phone: string;
   email?: string;
-}): Promise<void> {
+}): Promise<{ ok: boolean; error?: string }> {
   const to = process.env.LEAD_TO_EMAIL || process.env.EMAIL_USER;
-  if (!to) return;
+  if (!to) return { ok: false, error: "Lead recipient email is not configured" };
   const { html, text, subject } = build(lead);
 
   // 1) Resend (recommended — reliable from anywhere)
@@ -73,17 +82,22 @@ export async function sendLeadEmail(lead: {
         },
         body: JSON.stringify({ from, to, subject, html, text }),
       });
-      if (!res.ok) console.error("Resend send failed:", res.status, await res.text().catch(() => ""));
+      if (!res.ok) {
+        const err = `Resend send failed: ${res.status} ${await res.text().catch(() => "")}`.slice(0, 300);
+        console.error(err);
+        return { ok: false, error: err };
+      }
+      return { ok: true };
     } catch (e) {
       console.error("Resend error:", e);
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
     }
-    return;
   }
 
   // 2) Fallback — Titan SMTP
   try {
     const t = transport();
-    if (!t) return;
+    if (!t) return { ok: false, error: "SMTP email is not configured" };
     await t.sendMail({
       from: `"LaundryMax Website" <${process.env.EMAIL_USER}>`,
       to,
@@ -91,7 +105,10 @@ export async function sendLeadEmail(lead: {
       html,
       text,
     });
+    return { ok: true };
   } catch (e) {
-    console.error("SMTP send failed:", e instanceof Error ? e.message : e);
+    const err = e instanceof Error ? e.message : String(e);
+    console.error("SMTP send failed:", err);
+    return { ok: false, error: err };
   }
 }

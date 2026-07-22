@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { sql, ensureTables } from "@/lib/db";
-import { isAuthed } from "@/lib/adminAuth";
+import { sql, ensureTables, logActivity } from "@/lib/db";
+import { clientIp, isAuthed, requireAdmin } from "@/lib/adminAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export async function GET(req: Request) {
 
 /** Admin only: add a review. */
 export async function POST(req: Request) {
-  if (!isAuthed()) return NextResponse.json({ ok: false }, { status: 401 });
+  const auth = requireAdmin(req); if (auth) return auth;
   await ensureTables();
   const body = await req.json().catch(() => ({}));
   const name = String(body.name || "").slice(0, 120).trim();
@@ -41,5 +41,6 @@ export async function POST(req: Request) {
     INSERT INTO marketing_reviews (name, city, quote, rating)
     VALUES (${name}, ${city}, ${quote}, ${rating})
     RETURNING id`;
+  await logActivity("review.create", "review", rows[0].id, name, clientIp(req));
   return NextResponse.json({ ok: true, id: rows[0].id });
 }
