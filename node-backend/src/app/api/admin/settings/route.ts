@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, requireWrite, denyStaff } from "@/lib/auth";
+import { requireActiveAuth, requireWrite, denyStaff } from "@/lib/auth";
 import { getShopProfile, upsertShopProfile } from "@/lib/settings";
 
 // Resolve which shop the settings request targets.
@@ -13,7 +13,7 @@ function resolveShopId(user: { role: string; shop_id: string }, req: NextRequest
 }
 
 export async function GET(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const shopId = resolveShopId(user, req);
   if (!shopId) return NextResponse.json({ detail: "Select a shop first" }, { status: 400 });
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const staff = denyStaff(user); if (staff) return staff;
   const ro = requireWrite(user); if (ro) return ro;

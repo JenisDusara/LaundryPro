@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
-import { requireAuth, shopFilter, requireWrite } from "@/lib/auth";
+import { requireActiveAuth, shopFilter, requireWrite } from "@/lib/auth";
 
 // Marks how much of an item has been handed over.
 //   ?status=delivered            → deliver the whole quantity
@@ -10,7 +10,7 @@ import { requireAuth, shopFilter, requireWrite } from "@/lib/auth";
 // delivered_qty lives in a column the generated client may not know yet, so it is read
 // and written via raw SQL (same pattern as delivery_date).
 export async function PATCH(req: NextRequest, { params }: { params: { id: string; itemId: string } }) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const ro = requireWrite(user); if (ro) return ro;
 
@@ -20,9 +20,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   // Ownership check — the parent entry (and thus the item) must belong to the caller's shop.
   const owned = await withRetry(() => prisma.laundryEntry.findFirst({
-    where: { id: params.id, ...shopFilter(user, req) },
+    where: { id: params.id, deleted_at: null, ...shopFilter(user, req) },
     select: { id: true },
-  }));
+  } as any));
   if (!owned) return NextResponse.json({ detail: "Not found" }, { status: 404 });
 
   // The item must belong to this entry (blocks cross-entry/cross-shop item writes).

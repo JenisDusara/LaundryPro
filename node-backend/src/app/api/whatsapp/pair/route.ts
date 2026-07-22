@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, denyStaff, requireWrite } from "@/lib/auth";
+import { requireActiveAuth, denyStaff, requireWrite } from "@/lib/auth";
 import { waPair, waConfigured } from "@/lib/waAuto";
 
 function shopOf(req: NextRequest, user: { role: string; shop_id: string }): string {
@@ -9,7 +9,7 @@ function shopOf(req: NextRequest, user: { role: string; shop_id: string }): stri
 
 // Link this shop's WhatsApp via an 8-char pairing code (single-phone friendly) instead of a QR.
 export async function POST(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const staff = denyStaff(user); if (staff) return staff;
   const ro = requireWrite(user); if (ro) return ro;

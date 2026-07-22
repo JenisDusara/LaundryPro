@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import prisma, { withRetry } from "@/lib/prisma";
-import { requireAuth, shopFilter, requireWrite } from "@/lib/auth";
+import { requireActiveAuth, shopFilter, requireWrite } from "@/lib/auth";
 import { monthRange, todayIST } from "@/lib/dates";
 
 const METHODS = ["cash", "upi", "card", "other"];
@@ -17,11 +17,11 @@ function shopSql(user: { role: string; shop_id: string }, req: NextRequest): Pri
 }
 
 export async function GET(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
 
   const p = new URL(req.url).searchParams;
-  const conds: Prisma.Sql[] = [shopSql(user, req)];
+  const conds: Prisma.Sql[] = [shopSql(user, req), Prisma.sql`p.deleted_at IS NULL`];
   if (p.get("month") && p.get("year")) {
     const { start, end } = monthRange(parseInt(p.get("year")!), parseInt(p.get("month")!));
     conds.push(Prisma.sql`p.date >= ${start} AND p.date <= ${end}`);
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     SELECT p.id::text, p.customer_id::text, c.name AS customer_name,
            p.amount::float8 AS amount, p.method, p.date, p.note, p.created_at
     FROM payments p
-    JOIN customers c ON c.id = p.customer_id
+    JOIN customers c ON c.id = p.customer_id AND c.deleted_at IS NULL
     ${where}
     ORDER BY p.date DESC, p.created_at DESC
   `);
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const ro = requireWrite(user); if (ro) return ro;
 
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
 
   // Verify the customer belongs to the caller's shop; bind the payment to the customer's shop
   // (same rule as entries — a superadmin's payment lands in the selected shop, not "superadmin").
-  const customer = await prisma.customer.findFirst({ where: { id: customer_id, ...shopFilter(user, req) } });
+  const customer = await prisma.customer.findFirst({ where: { id: customer_id, deleted_at: null, ...shopFilter(user, req) } as any });
   if (!customer) return NextResponse.json({ detail: "Customer not found" }, { status: 404 });
 
   const rows = await withRetry(() => prisma.$queryRaw<{

@@ -30,28 +30,43 @@ export async function sendWeeklyReportForShop(
 
   try {
     const entries = await withRetry(() => prisma.laundryEntry.findMany({
-      where: { shop_id: shopId, entry_date: { gte: start, lte: end } },
+      where: { shop_id: shopId, entry_date: { gte: start, lte: end }, deleted_at: null },
       include: { customer: true, items: true },
       orderBy: { entry_date: "asc" },
     }));
 
     const newCustomers = await withRetry(() => prisma.customer.count({
-      where: { shop_id: shopId, created_at: { gte: new Date(`${start}T00:00:00+05:30`), lte: new Date(`${end}T23:59:59+05:30`) } },
+      where: {
+        shop_id: shopId,
+        deleted_at: null,
+        created_at: { gte: new Date(`${start}T00:00:00+05:30`), lte: new Date(`${end}T23:59:59+05:30`) },
+      },
     }));
 
     const expenseAgg = await withRetry(() => prisma.expense.aggregate({
-      where: { shop_id: shopId, date: { gte: start, lte: end } },
+      where: { shop_id: shopId, deleted_at: null, date: { gte: start, lte: end } },
       _sum: { amount: true },
     }));
 
     const dueRows = await withRetry(() => prisma.$queryRaw<{ outstanding: number }[]>`
       SELECT COALESCE(e.billed, 0)::float8 - COALESCE(pm.paid, 0)::float8 AS outstanding
       FROM customers c
-      LEFT JOIN (SELECT customer_id, SUM(total_amount) AS billed FROM laundry_entries GROUP BY customer_id) e
+      LEFT JOIN (
+        SELECT customer_id, SUM(total_amount) AS billed
+        FROM laundry_entries
+        WHERE shop_id = ${shopId} AND deleted_at IS NULL
+        GROUP BY customer_id
+      ) e
              ON e.customer_id = c.id
-      LEFT JOIN (SELECT customer_id, SUM(amount) AS paid FROM payments GROUP BY customer_id) pm
+      LEFT JOIN (
+        SELECT customer_id, SUM(amount) AS paid
+        FROM payments
+        WHERE shop_id = ${shopId} AND deleted_at IS NULL
+        GROUP BY customer_id
+      ) pm
              ON pm.customer_id = c.id
       WHERE c.shop_id = ${shopId}
+        AND c.deleted_at IS NULL
     `);
     const totalDue = dueRows.reduce((s, r) => s + Math.max(0, Number(r.outstanding)), 0);
 

@@ -1,9 +1,9 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
-import { requireAuth, shopFilter, requireWrite, writeShopId } from "@/lib/auth";
+import { requireActiveAuth, shopFilter, requireWrite, writeShopId } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const all = await withRetry(() => prisma.service.findMany({
     where: { is_active: true, ...shopFilter(user, req) },
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const ro = requireWrite(user); if (ro) return ro;
   const { name, price, parent_id, category } = await req.json();

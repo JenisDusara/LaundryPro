@@ -134,6 +134,7 @@ export default function CustomerDetail({ params }: { params: { id: string } }) {
 
   const name = customer?.name || entries[0]?.customer?.name || "Customer";
   const addr = [customer?.flat_number, customer?.society_name, customer?.address].filter(Boolean).join(", ");
+  const billingType = customer?.billing_type === "monthly" ? "Monthly bill" : "Per order";
 
   return (
     <ProtectedLayout>
@@ -165,6 +166,7 @@ export default function CustomerDetail({ params }: { params: { id: string } }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 16px" }}>
             <div><div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Name</div><div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-primary)" }}>{name}</div></div>
             <div><div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Phone</div><div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-primary)" }}>{customer?.phone || "—"}</div></div>
+            <div><div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Billing</div><div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-primary)" }}>{billingType}</div></div>
             {customer?.flat_number && <div><div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Flat</div><div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-primary)" }}>{customer.flat_number}</div></div>}
             {customer?.society_name && <div><div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Society</div><div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-primary)" }}>{customer.society_name}</div></div>}
             {customer?.address && <div style={{ gridColumn: "1 / -1" }}><div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Address</div><div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-primary)" }}>{customer.address}</div></div>}

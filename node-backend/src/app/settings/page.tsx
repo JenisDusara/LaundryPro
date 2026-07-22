@@ -31,7 +31,7 @@ const EMPTY: Profile = {
   weekly_report_enabled: true, wa_auto_enabled: false, wa_show_prices: true,
 };
 
-const LOGO_MAX_BYTES = 150 * 1024; // ~150 KB — logo is embedded in every invoice, keep it small
+const LOGO_MAX_BYTES = 150 * 1024; // ~150 KB, stored in the shop profile.
 
 // Reads the logged-in user's role from the JWT (same approach as the Sidebar). The weekly
 // report is a superadmin-managed feature, so the card is hidden from regular shop admins.
@@ -263,7 +263,7 @@ export default function Settings() {
                   )}
                 </div>
                 <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8 }}>
-                  PNG/JPG, 150 KB se chhoti. Logo na hone par invoice par blank rahega.
+                  PNG/JPG, 150 KB se chhoti. Simple black-and-white invoice me logo use nahi hota.
                 </div>
               </div>
             </div>
@@ -299,7 +299,7 @@ export default function Settings() {
               </div>
               <div>
                 <label style={label}>GST rate (%)</label>
-                <input style={inp} type="number" min={0} step="0.01" value={form.gst_rate} onChange={set("gst_rate")} placeholder="e.g. 5 (0 = no tax on invoice)" />
+                <input style={inp} type="number" min={0} step="0.01" value={form.gst_rate} onChange={set("gst_rate")} placeholder="Stored for profile; totals use ledger amount" />
               </div>
               <div style={{ gridColumn: "1 / -1" }}>
                 <label style={label}>Address</label>

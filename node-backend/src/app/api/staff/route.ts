@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
-import { requireAuth, requireWrite } from "@/lib/auth";
+import { requireActiveAuth, requireWrite } from "@/lib/auth";
 
 // GET — list all staff for the logged-in admin's shop
 export async function GET(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   if (user.role !== "admin") return NextResponse.json({ detail: "Forbidden" }, { status: 403 });
 
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 
 // POST — create new staff for admin's shop
 export async function POST(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   if (user.role !== "admin") return NextResponse.json({ detail: "Forbidden" }, { status: 403 });
   const ro = requireWrite(user); if (ro) return ro;

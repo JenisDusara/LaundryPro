@@ -1,11 +1,11 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAuth, shopFilter, denyStaff } from "@/lib/auth";
+import { requireActiveAuth, shopFilter, denyStaff } from "@/lib/auth";
 import { monthRange } from "@/lib/dates";
 import ExcelJS from "exceljs";
 
 export async function GET(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const staff = denyStaff(user); if (staff) return staff;
 
@@ -26,17 +26,17 @@ export async function GET(req: NextRequest) {
   const sf = shopFilter(user, req);
   const [entries, customers, payments, expenses, labours, allEnt, allPay] = await Promise.all([
     prisma.laundryEntry.findMany({
-      where: { entry_date: { gte: start, lte: end }, ...sf },
+      where: { entry_date: { gte: start, lte: end }, deleted_at: null, ...sf },
       include: { customer: true, items: true },
       orderBy: { entry_date: "asc" },
-    }),
-    prisma.customer.findMany({ where: { ...sf }, orderBy: { name: "asc" } }),
-    prisma.payment.findMany({ where: { date: { gte: start, lte: end }, ...sf }, include: { customer: true }, orderBy: [{ date: "desc" }] }),
-    prisma.expense.findMany({ where: { date: { gte: start, lte: end }, ...sf }, orderBy: [{ date: "desc" }] }),
-    prisma.labour.findMany({ where: { ...sf }, include: { works: true, advances: true } }),
-    prisma.laundryEntry.findMany({ where: { ...sf }, select: { customer_id: true, total_amount: true } }),
-    prisma.payment.findMany({ where: { ...sf }, select: { customer_id: true, amount: true } }),
-  ]);
+    } as any),
+    prisma.customer.findMany({ where: { deleted_at: null, ...sf } as any, orderBy: { name: "asc" } }),
+    prisma.payment.findMany({ where: { date: { gte: start, lte: end }, deleted_at: null, ...sf } as any, include: { customer: true }, orderBy: [{ date: "desc" }] } as any),
+    prisma.expense.findMany({ where: { date: { gte: start, lte: end }, deleted_at: null, ...sf } as any, orderBy: [{ date: "desc" }] }),
+    prisma.labour.findMany({ where: { ...sf }, include: { works: { where: { deleted_at: null } }, advances: { where: { deleted_at: null } } } } as any),
+    prisma.laundryEntry.findMany({ where: { deleted_at: null, ...sf } as any, select: { customer_id: true, total_amount: true } }),
+    prisma.payment.findMany({ where: { deleted_at: null, ...sf } as any, select: { customer_id: true, amount: true } }),
+  ]) as [any[], any[], any[], any[], any[], any[], any[]];
   // All-time billed/paid per customer → outstanding (udhaar) for the Customers sheet.
   const billedMap = new Map<string, number>();
   allEnt.forEach(e => billedMap.set(e.customer_id, (billedMap.get(e.customer_id) || 0) + Number(e.total_amount)));
@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
   const deliveredCount   = entries.filter(e => e.delivery_status === "delivered").length;
   const pendingCount     = entries.filter(e => e.delivery_status !== "delivered").length;
   const uniqueCustomers  = new Set(entries.map(e => e.customer_id)).size;
-  const totalItems       = entries.reduce((s, e) => s + e.items.reduce((ss, i) => ss + i.quantity, 0), 0);
+  const totalItems       = entries.reduce((s, e) => s + e.items.reduce((ss: number, i: any) => ss + i.quantity, 0), 0);
 
   const summaryData = [
     ["Month",              monthName],
@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
   svcHeaderRow.getCell(1).font = { bold: true, size: 12, color: { argb: "FF1E3A8A" } };
 
   const svcMap = new Map<string, { qty: number; revenue: number }>();
-  entries.forEach(e => e.items.forEach(item => {
+  entries.forEach(e => e.items.forEach((item: any) => {
     const ex = svcMap.get(item.service_name) || { qty: 0, revenue: 0 };
     ex.qty     += item.quantity;
     ex.revenue += Number(item.subtotal);
@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
 
   let rowNum = 2;
   entries.forEach(e => {
-    e.items.forEach(item => {
+    e.items.forEach((item: any) => {
       wsEntries.addRow({
         date:     e.entry_date,
         customer: e.customer?.name || "",
@@ -236,10 +236,10 @@ export async function GET(req: NextRequest) {
   styleHeader(wsLab);
   const inR = (d: string) => d >= start && d <= end;
   labours.forEach(l => {
-    const w = l.works.filter(x => inR(x.work_date));
-    const press = w.reduce((s, x) => s + x.press_count, 0);
-    const pay = w.reduce((s, x) => s + x.press_count * Number(x.rate_per_piece), 0);
-    const adv = l.advances.filter(a => inR(a.advance_date)).reduce((s, a) => s + Number(a.amount), 0);
+    const w = l.works.filter((x: any) => inR(x.work_date));
+    const press = w.reduce((s: number, x: any) => s + x.press_count, 0);
+    const pay = w.reduce((s: number, x: any) => s + x.press_count * Number(x.rate_per_piece), 0);
+    const adv = l.advances.filter((a: any) => inR(a.advance_date)).reduce((s: number, a: any) => s + Number(a.amount), 0);
     wsLab.addRow({ name: l.name, press, pay, adv, net: pay - adv });
   });
   stripeRows(wsLab, 2, labours.length + 1);

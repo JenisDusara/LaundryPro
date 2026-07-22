@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
-import { requireAuth, requireWrite, denyStaff } from "@/lib/auth";
+import { requireActiveAuth, requireWrite, denyStaff } from "@/lib/auth";
 import { monthRange } from "@/lib/dates";
 
 function labourFilter(user: { role: string; shop_id: string }, req: NextRequest) {
@@ -10,7 +10,7 @@ function labourFilter(user: { role: string; shop_id: string }, req: NextRequest)
 }
 
 export async function GET(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const staff = denyStaff(user); if (staff) return staff;
   const p = new URL(req.url).searchParams;
@@ -18,11 +18,11 @@ export async function GET(req: NextRequest) {
 
   // If labour_id given → return full history for that labour (no month filter)
   if (labourId) {
-    const works = await withRetry(() => prisma.labourWork.findMany({
-      where: { labour_id: labourId, ...labourFilter(user, req) },
+    const works: any[] = await withRetry(() => prisma.labourWork.findMany({
+      where: { labour_id: labourId, deleted_at: null, ...labourFilter(user, req) },
       include: { labour: true },
       orderBy: { work_date: "desc" },
-    }));
+    } as any));
     return NextResponse.json(works.map(w => ({
       id: w.id, labour_id: w.labour_id, labour_name: w.labour.name,
       work_date: w.work_date, press_count: w.press_count,
@@ -34,11 +34,11 @@ export async function GET(req: NextRequest) {
   const month = parseInt(p.get("month") || "1");
   const year = parseInt(p.get("year") || String(new Date().getFullYear()));
   const { start, end } = monthRange(year, month);
-  const works = await withRetry(() => prisma.labourWork.findMany({
-    where: { work_date: { gte: start, lte: end }, ...labourFilter(user, req) },
+  const works: any[] = await withRetry(() => prisma.labourWork.findMany({
+    where: { work_date: { gte: start, lte: end }, deleted_at: null, ...labourFilter(user, req) },
     include: { labour: true },
     orderBy: { work_date: "asc" },
-  }));
+  } as any));
   return NextResponse.json(works.map(w => ({
     id: w.id,
     labour_id: w.labour_id,
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const staff = denyStaff(user); if (staff) return staff;
   const ro = requireWrite(user); if (ro) return ro;
@@ -80,7 +80,8 @@ export async function POST(req: NextRequest) {
     INSERT INTO labour_work (id, labour_id, work_date, press_count, rate_per_piece, created_at)
     VALUES (gen_random_uuid(), ${labour_id}, ${work_date}, ${pc}, ${rate}::numeric, now())
     ON CONFLICT (labour_id, work_date)
-    DO UPDATE SET press_count = EXCLUDED.press_count, rate_per_piece = EXCLUDED.rate_per_piece
+    DO UPDATE SET press_count = EXCLUDED.press_count, rate_per_piece = EXCLUDED.rate_per_piece,
+                  deleted_at = NULL, deleted_by = '', deleted_by_username = '', delete_reason = ''
     RETURNING id::text, labour_id::text, work_date, press_count, rate_per_piece::float8 AS rate_per_piece
   `);
   const w = rows[0];

@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { requireActiveAuth } from "@/lib/auth";
+import { logSuperadminAction } from "@/lib/superadminAudit";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   if (user.role !== "superadmin") return NextResponse.json({ detail: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
+  const existingClient = await prisma.admin.findFirst({
+    where: { id: params.id, role: "admin" },
+    select: { id: true, username: true, shop_id: true, shop_name: true, plan_type: true, expires_at: true },
+  });
+  if (!existingClient) return NextResponse.json({ detail: "Client not found" }, { status: 404 });
 
   // Renewal: plan_type provided → use custom expires_at if given, else auto-calculate
   if (body.plan_type) {
@@ -36,27 +42,52 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       else newExpiry.setFullYear(newExpiry.getFullYear() + 1);
     }
 
-    await prisma.$executeRaw`UPDATE admins SET plan_type = ${plan}, expires_at = ${newExpiry}, is_active = true WHERE id = ${params.id}`;
-    const shopRow = await prisma.$queryRaw<{ shop_id: string }[]>`SELECT shop_id FROM admins WHERE id = ${params.id}`;
-    if (shopRow[0]) {
-      await prisma.$executeRaw`UPDATE admins SET is_active = true WHERE shop_id = ${shopRow[0].shop_id} AND role = 'staff'`;
-    }
+    await prisma.$executeRaw`UPDATE admins SET plan_type = ${plan}, expires_at = ${newExpiry}, is_active = true, token_version = token_version + 1 WHERE id = ${params.id}`;
+    await prisma.$executeRaw`UPDATE admins SET is_active = true, token_version = token_version + 1 WHERE shop_id = ${existingClient.shop_id} AND role = 'staff'`;
+    await logSuperadminAction(req, user, {
+      action: "client.renew",
+      target_admin_id: existingClient.id,
+      target_shop_id: existingClient.shop_id,
+      target_shop_name: existingClient.shop_name,
+      metadata: {
+        old_plan_type: existingClient.plan_type,
+        old_expires_at: existingClient.expires_at,
+        new_plan_type: plan,
+        new_expires_at: newExpiry,
+      },
+    });
     return NextResponse.json({ id: params.id, plan_type: plan, expires_at: newExpiry, is_active: true });
   }
 
   // Toggle is_active
   const val = Boolean(body.is_active);
-  await prisma.$executeRaw`UPDATE admins SET is_active = ${val} WHERE id = ${params.id}`;
-  const rows = await prisma.$queryRaw<{ is_active: boolean }[]>`SELECT is_active FROM admins WHERE id = ${params.id}`;
-  return NextResponse.json({ id: params.id, is_active: rows[0]?.is_active ?? val });
+  await prisma.$executeRaw`UPDATE admins SET is_active = ${val}, token_version = token_version + 1 WHERE shop_id = ${existingClient.shop_id} AND role IN ('admin','staff')`;
+  await logSuperadminAction(req, user, {
+    action: val ? "client.enable" : "client.disable",
+    target_admin_id: existingClient.id,
+    target_shop_id: existingClient.shop_id,
+    target_shop_name: existingClient.shop_name,
+    metadata: { is_active: val },
+  });
+  return NextResponse.json({ id: params.id, is_active: val });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   if (user.role !== "superadmin") return NextResponse.json({ detail: "Forbidden" }, { status: 403 });
 
-  const { username, password, name, shop_id, shop_name } = await req.json();
+  const body = await req.json().catch(() => ({}));
+  const username = typeof body.username === "string" ? body.username.trim() : "";
+  const password = typeof body.password === "string" ? body.password : "";
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const shop_id = typeof body.shop_id === "string" ? body.shop_id.trim() : "";
+  const shop_name = typeof body.shop_name === "string" ? body.shop_name.trim() : "";
+  const before = await prisma.admin.findFirst({
+    where: { id: params.id, role: "admin" },
+    select: { id: true, username: true, name: true, shop_id: true, shop_name: true },
+  });
+  if (!before) return NextResponse.json({ detail: "Client not found" }, { status: 404 });
 
   // Check username conflict (ignore self)
   if (username) {
@@ -75,15 +106,23 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ detail: `Shop ID "${shop_id}" is already in use by another client.` }, { status: 400 });
     }
   }
+  if (password && password.length < 6) {
+    return NextResponse.json({ detail: "Temporary password must be at least 6 characters" }, { status: 400 });
+  }
 
   const data: any = {};
   if (username)  data.username  = username;
   if (name)      data.name      = name;
   if (shop_id)   data.shop_id   = shop_id;
   if (shop_name) data.shop_name = shop_name;
-  if (password)  data.password_hash = await bcrypt.hash(password, 12);
+  if (password) {
+    data.password_hash = await bcrypt.hash(password, 12);
+  }
 
   const updated = await prisma.admin.update({ where: { id: params.id }, data });
+  if (password) {
+    await prisma.$executeRaw`UPDATE admins SET token_version = token_version + 1, must_change_password = true WHERE id = ${updated.id}`;
+  }
 
   // Resetting the password also lifts any active brute-force lockout, so the client
   // (or their staff, who share the login-attempt window by username) can sign in at once.
@@ -93,6 +132,19 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       where: { username: updated.username, status: "failed", created_at: { gte: since } },
     }).catch(() => {});
   }
+
+  await logSuperadminAction(req, user, {
+    action: password ? "client.edit_with_password_reset" : "client.edit",
+    target_admin_id: updated.id,
+    target_shop_id: updated.shop_id,
+    target_shop_name: updated.shop_name,
+    metadata: {
+      before: { username: before.username, name: before.name, shop_id: before.shop_id, shop_name: before.shop_name },
+      after: { username: updated.username, name: updated.name, shop_id: updated.shop_id, shop_name: updated.shop_name },
+      password_reset: Boolean(password),
+      temporary_password: Boolean(password),
+    },
+  });
 
   return NextResponse.json({
     id: updated.id, username: updated.username, name: updated.name,

@@ -1,11 +1,11 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAuth, shopFilter, denyStaff } from "@/lib/auth";
+import { requireActiveAuth, shopFilter, denyStaff } from "@/lib/auth";
 import { monthRange } from "@/lib/dates";
 import ExcelJS from "exceljs";
 
 export async function GET(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const staff = denyStaff(user); if (staff) return staff;
   const p = new URL(req.url).searchParams;
@@ -13,11 +13,11 @@ export async function GET(req: NextRequest) {
   const year = parseInt(p.get("year") || String(new Date().getFullYear()));
   const { start, end } = monthRange(year, month);
 
-  const entries = await prisma.laundryEntry.findMany({
-    where: { entry_date: { gte: start, lte: end }, ...shopFilter(user, req) },
+  const entries: any[] = await prisma.laundryEntry.findMany({
+    where: { entry_date: { gte: start, lte: end }, deleted_at: null, ...shopFilter(user, req) },
     include: { customer: true, items: true },
     orderBy: { entry_date: "asc" },
-  });
+  } as any);
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Entries");
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
   ];
   ws.getRow(1).font = { bold: true };
   entries.forEach(e => {
-    e.items.forEach(item => {
+    e.items.forEach((item: any) => {
       ws.addRow({
         date: e.entry_date,
         customer: e.customer?.name || "",

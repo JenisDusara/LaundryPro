@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, denyStaff, requireWrite } from "@/lib/auth";
+import { requireActiveAuth, denyStaff, requireWrite } from "@/lib/auth";
 import { waConnect, waConfigured } from "@/lib/waAuto";
 
 function shopOf(req: NextRequest, user: { role: string; shop_id: string }): string {
@@ -10,7 +10,7 @@ function shopOf(req: NextRequest, user: { role: string; shop_id: string }): stri
 // Starts/resumes linking this shop's WhatsApp number. The QR is returned here (and also
 // via GET /api/whatsapp/status) — the UI polls status until state === "open".
 export async function POST(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const staff = denyStaff(user); if (staff) return staff;
   const ro = requireWrite(user); if (ro) return ro;

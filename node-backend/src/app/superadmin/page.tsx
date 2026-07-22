@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import {
   Building2, Plus, Trash2, X, Eye, EyeOff,
   Pencil, Check, Search, Users, RefreshCw, KeyRound,
-  CalendarClock, AlertTriangle, RotateCcw, UserCheck, UserX, TrendingUp,
+  CalendarClock, AlertTriangle, RotateCcw, UserCheck, UserX, TrendingUp, History,
 } from "lucide-react";
 import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
@@ -15,6 +15,33 @@ interface Client {
   shop_id: string; shop_name: string; is_active: boolean; created_at: string;
   staff_count: number; plan_type: string | null; expires_at: string | null;
   total_entries?: number; month_revenue?: number; last_activity?: string | null;
+  must_change_password?: boolean;
+}
+
+interface ActionLog {
+  id: string;
+  actor_username: string;
+  action: string;
+  target_shop_id: string;
+  target_shop_name: string;
+  metadata: unknown;
+  ip: string;
+  created_at: string;
+}
+
+interface MigrationStatus {
+  ok: boolean;
+  checks: { key: string; label: string; ok: boolean; detail: string }[];
+}
+
+interface DeletedRecord {
+  entity_type: string;
+  entity_id: string;
+  shop_id: string;
+  entity_label: string;
+  deleted_at: string;
+  deleted_by_username: string;
+  delete_reason: string;
 }
 
 // Human-friendly "last active" label from a YYYY-MM-DD date string.
@@ -56,12 +83,46 @@ const AVATAR_COLORS = ["#6d28d9","#1d4ed8","#059669","#d97706","#be185d","#0891b
 function avatarBg(s: string) { return AVATAR_COLORS[s.charCodeAt(0) % AVATAR_COLORS.length]; }
 
 const emptyForm = { username: "", password: "", name: "", shop_id: "", shop_name: "", plan_type: "monthly", expires_at: "" };
+type ClientFilter = "all" | "active" | "disabled" | "expired" | "expiring" | "idle";
+const ACTION_OPTIONS = [
+  "client.create",
+  "client.edit",
+  "client.edit_with_password_reset",
+  "client.renew",
+  "client.enable",
+  "client.disable",
+  "client.remove_access",
+  "customer.soft_deleted",
+  "customer.restored",
+  "customer.restored_by_readd",
+  "entry.soft_deleted",
+  "entry.restored",
+  "payment.soft_deleted",
+  "payment.restored",
+  "expense.soft_deleted",
+  "expense.restored",
+  "labour_work.soft_deleted",
+  "labour_work.restored",
+  "labour_advance.soft_deleted",
+  "labour_advance.restored",
+  "login.success",
+  "login.failed",
+];
+const DELETED_TYPES = [
+  { value: "customer", label: "Customers" },
+  { value: "entry", label: "Orders" },
+  { value: "payment", label: "Payments" },
+  { value: "expense", label: "Expenses" },
+  { value: "labour_work", label: "Labour work" },
+  { value: "labour_advance", label: "Labour advances" },
+];
 
 export default function SuperAdminPage() {
   const router = useRouter();
   const [clients,    setClients]    = useState<Client[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [search,     setSearch]     = useState("");
+  const [clientFilter, setClientFilter] = useState<ClientFilter>("all");
   const [showForm,   setShowForm]   = useState(false);
   const [saving,     setSaving]     = useState(false);
   const [deleteId,   setDeleteId]   = useState<string|null>(null);
@@ -76,11 +137,30 @@ export default function SuperAdminPage() {
   const [renewPlan,   setRenewPlan]   = useState<"monthly"|"yearly">("monthly");
   const [renewDate,   setRenewDate]   = useState("");
   const [renewSaving, setRenewSaving] = useState(false);
+  const [showLogs,    setShowLogs]    = useState(false);
+  const [logs,        setLogs]        = useState<ActionLog[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logShop,     setLogShop]     = useState("");
+  const [logAction,   setLogAction]   = useState("");
+  const [logFrom,     setLogFrom]     = useState("");
+  const [logTo,       setLogTo]       = useState("");
+  const [migrationStatus, setMigrationStatus] = useState<MigrationStatus | null>(null);
+  const [migrationLoading, setMigrationLoading] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [deletedRows, setDeletedRows] = useState<DeletedRecord[]>([]);
+  const [deletedLoading, setDeletedLoading] = useState(false);
+  const [deletedShop, setDeletedShop] = useState("");
+  const [deletedType, setDeletedType] = useState("");
+  const [deletedSearch, setDeletedSearch] = useState("");
+  const [deletedFrom, setDeletedFrom] = useState("");
+  const [deletedTo, setDeletedTo] = useState("");
+  const [restoringKey, setRestoringKey] = useState("");
 
   useEffect(() => {
     api.get("/auth/me").then(r => {
       if (r.data.role !== "superadmin") { router.replace("/dashboard"); return; }
       load();
+      loadMigrationStatus();
     }).catch(() => router.replace("/login"));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -88,6 +168,80 @@ export default function SuperAdminPage() {
   const load = () => {
     setLoading(true);
     api.get("/admin/shops").then(r => setClients(r.data)).finally(() => setLoading(false));
+  };
+
+  const loadMigrationStatus = async () => {
+    setMigrationLoading(true);
+    try {
+      const r = await api.get("/admin/migration-status", { params: { _: Date.now() } });
+      setMigrationStatus(r.data);
+    } catch {
+      setMigrationStatus({ ok: false, checks: [{ key: "status", label: "Migration status unavailable", ok: false, detail: "Check server logs or run Prisma migration status manually." }] });
+    } finally {
+      setMigrationLoading(false);
+    }
+  };
+
+  const loadLogs = async () => {
+    setLogsLoading(true);
+    try {
+      const r = await api.get("/admin/action-logs", {
+        params: { limit: 100, shop_id: logShop, action: logAction, from: logFrom, to: logTo, _: Date.now() },
+      });
+      setLogs(r.data || []);
+    } catch {
+      flash("Could not load audit logs", false);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  const openLogs = async () => {
+    setShowLogs(true);
+    await loadLogs();
+  };
+
+  const loadDeleted = async () => {
+    setDeletedLoading(true);
+    try {
+      const r = await api.get("/admin/deleted-records", {
+        params: {
+          limit: 100,
+          shop_id: deletedShop,
+          type: deletedType,
+          search: deletedSearch,
+          from: deletedFrom,
+          to: deletedTo,
+          _: Date.now(),
+        },
+      });
+      setDeletedRows(r.data || []);
+    } catch {
+      flash("Could not load deleted data", false);
+    } finally {
+      setDeletedLoading(false);
+    }
+  };
+
+  const openDeleted = async () => {
+    setShowDeleted(true);
+    await loadDeleted();
+  };
+
+  const restoreDeleted = async (r: DeletedRecord) => {
+    if (!confirm(`Restore ${r.entity_type.replaceAll("_"," ")}: ${r.entity_label}?`)) return;
+    const key = `${r.entity_type}:${r.entity_id}`;
+    setRestoringKey(key);
+    try {
+      await api.post("/admin/deleted-records/restore", { entity_type: r.entity_type, entity_id: r.entity_id });
+      flash("Restored", true);
+      await loadDeleted();
+      load();
+    } catch (e: any) {
+      flash(e.response?.data?.detail || "Restore failed", false);
+    } finally {
+      setRestoringKey("");
+    }
   };
 
   const flash = (text: string, ok: boolean) => { setMsg({text,ok}); setTimeout(()=>setMsg(null),4000); };
@@ -143,12 +297,40 @@ export default function SuperAdminPage() {
     setDeleteId(null);
   };
 
-  const filtered = clients.filter(c => !search ||
-    c.shop_name.toLowerCase().includes(search.toLowerCase()) ||
-    c.username.toLowerCase().includes(search.toLowerCase()) ||
-    c.shop_id.toLowerCase().includes(search.toLowerCase()) ||
-    c.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const matchesClientFilter = (c: Client, f: ClientFilter) => {
+    const d = daysLeft(c.expires_at);
+    if (f === "active") return c.is_active;
+    if (f === "disabled") return !c.is_active;
+    if (f === "expired") return d !== null && d < 0;
+    if (f === "expiring") return d !== null && d >= 0 && d <= 7;
+    if (f === "idle") return lastActiveLabel(c.last_activity).stale;
+    return true;
+  };
+  const filterCounts: Record<ClientFilter, number> = {
+    all: clients.length,
+    active: clients.filter(c=>c.is_active).length,
+    disabled: clients.filter(c=>!c.is_active).length,
+    expired: clients.filter(c=>{ const d = daysLeft(c.expires_at); return d !== null && d < 0; }).length,
+    expiring: clients.filter(c=>{ const d = daysLeft(c.expires_at); return d !== null && d >= 0 && d <= 7; }).length,
+    idle: clients.filter(c=>lastActiveLabel(c.last_activity).stale).length,
+  };
+  const filterTabs: { key: ClientFilter; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "active", label: "Active" },
+    { key: "disabled", label: "Disabled" },
+    { key: "expired", label: "Expired" },
+    { key: "expiring", label: "Expiring" },
+    { key: "idle", label: "Idle" },
+  ];
+  const filtered = clients.filter(c => {
+    const q = search.trim().toLowerCase();
+    const searchOk = !q ||
+      c.shop_name.toLowerCase().includes(q) ||
+      c.username.toLowerCase().includes(q) ||
+      c.shop_id.toLowerCase().includes(q) ||
+      c.name.toLowerCase().includes(q);
+    return searchOk && matchesClientFilter(c, clientFilter);
+  });
 
   const inp: React.CSSProperties = { width:"100%", padding:"11px 14px", border:"1px solid var(--border-hard)", borderRadius:10, fontSize:14, outline:"none", boxSizing:"border-box", background:"var(--bg-input)", color:"var(--text-primary)" };
   const lbl: React.CSSProperties = { fontSize:12, fontWeight:600, color:"var(--text-secondary)", marginBottom:6, display:"block" };
@@ -163,18 +345,13 @@ export default function SuperAdminPage() {
       `}</style>
 
       {/* Header */}
-      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:24,flexWrap:"wrap",gap:14}}>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:14}}>
         <div>
           <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:4}}>Super Admin</div>
           <h2 style={{color:"var(--text-primary)",margin:"0 0 4px",fontSize:26,fontWeight:900,letterSpacing:-0.5}}>Client management</h2>
           <p style={{color:"var(--text-muted)",fontSize:13,margin:0}}>{clients.filter(c=>c.is_active).length} active · {clients.length} total shops</p>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <div style={{position:"relative"}}>
-            <Search size={14} style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:"var(--text-muted)",pointerEvents:"none"}}/>
-            <input placeholder="Search shop, username…" value={search} onChange={e=>setSearch(e.target.value)}
-              style={{padding:"10px 14px 10px 34px",border:"1px solid var(--border-hard)",borderRadius:10,fontSize:13,outline:"none",background:"var(--bg-input)",width:200,color:"var(--text-primary)",boxSizing:"border-box"}}/>
-          </div>
           <button onClick={load} style={{width:38,height:38,borderRadius:10,border:"1px solid var(--border-hard)",background:"var(--bg-card)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-secondary)"}}>
             <RefreshCw size={15} style={{animation:loading?"spin 1s linear infinite":undefined}}/>
           </button>
@@ -182,6 +359,47 @@ export default function SuperAdminPage() {
             style={{display:"flex",alignItems:"center",gap:8,padding:"10px 20px",borderRadius:10,border:"none",background:"#2563eb",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",boxShadow:"0 4px 14px rgba(37,99,235,0.28)"}}>
             <Plus size={16}/> New client
           </button>
+        </div>
+      </div>
+
+      <div style={{background:"var(--bg-card)",border:"1px solid var(--border-hard)",borderRadius:14,padding:12,marginBottom:18}}>
+        <div style={{display:"flex",gap:10,alignItems:"center",justifyContent:"space-between",flexWrap:"wrap"}}>
+          <div style={{position:"relative",flex:"1 1 280px",minWidth:220}}>
+            <Search size={14} style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:"var(--text-muted)",pointerEvents:"none"}}/>
+            <input placeholder="Search shop, owner, username, shop ID" value={search} onChange={e=>setSearch(e.target.value)}
+              style={{padding:"10px 14px 10px 34px",border:"1px solid var(--border-hard)",borderRadius:10,fontSize:13,outline:"none",background:"var(--bg-input)",width:"100%",color:"var(--text-primary)",boxSizing:"border-box"}}/>
+          </div>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            <button onClick={openLogs}
+              style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderRadius:10,border:"1px solid var(--border-hard)",background:"var(--bg-input)",color:"var(--text-primary)",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+              <History size={15}/> Audit logs
+            </button>
+            <button onClick={openDeleted}
+              style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderRadius:10,border:"1px solid var(--border-hard)",background:"var(--bg-input)",color:"var(--text-primary)",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+              <Trash2 size={15}/> Deleted data
+            </button>
+            <button onClick={loadMigrationStatus}
+              style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderRadius:10,border:"1px solid var(--border-hard)",background:"var(--bg-input)",color:"var(--text-primary)",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+              <Check size={15}/> Check DB
+            </button>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",marginTop:12}}>
+          <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+            {filterTabs.map(t => {
+              const active = clientFilter === t.key;
+              return (
+                <button key={t.key} onClick={()=>setClientFilter(t.key)}
+                  style={{display:"flex",alignItems:"center",gap:7,padding:"7px 11px",borderRadius:20,border:`1px solid ${active ? "#2563eb" : "var(--border-hard)"}`,background:active ? "rgba(37,99,235,0.1)" : "transparent",color:active ? "#2563eb" : "var(--text-secondary)",fontSize:12,fontWeight:800,cursor:"pointer"}}>
+                  {t.label}
+                  <span style={{fontSize:10.5,padding:"1px 6px",borderRadius:10,background:active ? "#2563eb" : "var(--bg-elevated)",color:active ? "#fff" : "var(--text-muted)"}}>{filterCounts[t.key]}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{fontSize:12,color:"var(--text-muted)",fontWeight:600}}>
+            Showing {filtered.length} of {clients.length}
+          </div>
         </div>
       </div>
 
@@ -203,6 +421,32 @@ export default function SuperAdminPage() {
           </div>
         ))}
       </div>
+
+      {migrationStatus && (
+        <div style={{background:migrationStatus.ok ? "rgba(5,150,105,0.1)" : "rgba(239,68,68,0.08)",border:`1px solid ${migrationStatus.ok ? "rgba(5,150,105,0.28)" : "rgba(239,68,68,0.24)"}`,borderRadius:12,padding:"14px 18px",marginBottom:20,display:"flex",gap:14,alignItems:"flex-start"}}>
+          <div style={{width:34,height:34,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",background:migrationStatus.ok ? "rgba(5,150,105,0.16)" : "rgba(239,68,68,0.12)",color:migrationStatus.ok ? "#059669" : "#ef4444",flexShrink:0}}>
+            {migrationStatus.ok ? <Check size={18}/> : <AlertTriangle size={18}/>}
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontWeight:800,color:"var(--text-primary)",fontSize:14}}>
+              {migrationStatus.ok ? "DB migrations OK" : "DB migrations pending"}
+              {migrationLoading && <span style={{fontWeight:600,color:"var(--text-muted)",fontSize:12}}> · checking...</span>}
+            </div>
+            <div style={{fontSize:12,color:"var(--text-muted)",marginTop:4}}>
+              {migrationStatus.ok ? "Required billing, settings, session, and audit schema is available." : "Apply pending Prisma migrations before deploying these features to live users."}
+            </div>
+            {!migrationStatus.ok && (
+              <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:10}}>
+                {migrationStatus.checks.filter(c=>!c.ok).map(c=>(
+                  <span key={c.key} title={c.detail} style={{fontSize:11,fontWeight:700,color:"#b91c1c",background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.22)",borderRadius:20,padding:"4px 9px"}}>
+                    {c.label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Expiry alerts */}
       {expiryAlerts.length > 0 && (
@@ -237,7 +481,7 @@ export default function SuperAdminPage() {
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
             <div>
               <h3 style={{margin:0,color:"var(--text-primary)",fontSize:17,fontWeight:800}}>New client</h3>
-              <p style={{margin:"4px 0 0",fontSize:12,color:"var(--text-muted)"}}>Create a new shop admin account</p>
+              <p style={{margin:"4px 0 0",fontSize:12,color:"var(--text-muted)"}}>Create a shop admin account with a temporary password</p>
             </div>
             <X size={20} style={{cursor:"pointer",color:"var(--text-secondary)"}} onClick={()=>setShowForm(false)}/>
           </div>
@@ -255,9 +499,9 @@ export default function SuperAdminPage() {
               <input style={inp} placeholder="Login username" value={form.username} onChange={e=>setForm(f=>({...f,username:e.target.value}))}/>
             </div>
             <div>
-              <label style={lbl}>Password *</label>
+              <label style={lbl}>Temporary Password *</label>
               <div style={{position:"relative"}}>
-                <input type={showPass?"text":"password"} placeholder="Login password" value={form.password}
+                <input type={showPass?"text":"password"} placeholder="Client must change after first login" value={form.password}
                   onChange={e=>setForm(f=>({...f,password:e.target.value}))} style={{...inp,paddingRight:42}}/>
                 <button onClick={()=>setShowPass(v=>!v)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",display:"flex",padding:2}}>
                   {showPass?<EyeOff size={16} color="var(--text-muted)"/>:<Eye size={16} color="var(--text-muted)"/>}
@@ -322,7 +566,7 @@ export default function SuperAdminPage() {
           <div style={{fontWeight:600,fontSize:14}}>Loading clients…</div>
         </div>
       ) : filtered.length === 0 ? (
-        <EmptyState title={search?"No results found":"No clients yet"} subtitle={search?"Try a different search.":"Add your first client above."}/>
+        <EmptyState title={search || clientFilter !== "all" ? "No clients found" : "No clients yet"} subtitle={search || clientFilter !== "all" ? "Try a different search or status filter." : "Add your first client above."}/>
       ) : (
         <div className="mob-scroll" style={{borderRadius:14}}>
         <div style={{background:"var(--bg-card)",border:"1px solid var(--border-hard)",borderRadius:14,overflow:"hidden",minWidth:700}}>
@@ -354,6 +598,11 @@ export default function SuperAdminPage() {
                     <div style={{fontSize:12,color:"var(--text-muted)",marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
                       {c.name||"—"} · <span style={{fontFamily:"monospace"}}>@{c.username}</span>
                     </div>
+                    {c.must_change_password && (
+                      <div style={{display:"inline-flex",alignItems:"center",gap:5,marginTop:5,fontSize:10.5,fontWeight:800,color:"#d97706",background:"rgba(245,158,11,0.12)",border:"1px solid rgba(245,158,11,0.24)",borderRadius:20,padding:"2px 8px"}}>
+                        <KeyRound size={10}/> Password change pending
+                      </div>
+                    )}
                     {(() => { const la = lastActiveLabel(c.last_activity); return (
                       <div style={{display:"flex",alignItems:"center",gap:8,marginTop:4,whiteSpace:"nowrap"}}>
                         <span style={{fontSize:11,fontWeight:600,color:"var(--text-secondary)"}}>📋 {c.total_entries ?? 0}</span>
@@ -453,9 +702,9 @@ export default function SuperAdminPage() {
                 <div><label style={lbl}>Username *</label><input style={inp} value={editForm.username} onChange={e=>setEditForm(f=>({...f,username:e.target.value}))} placeholder="Username"/></div>
                 <div><label style={lbl}>Owner Name</label><input style={inp} value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} placeholder="Owner name"/></div>
                 <div style={{gridColumn:"1 / -1"}}>
-                  <label style={lbl}><KeyRound size={11} style={{display:"inline",marginRight:4}}/>New Password <span style={{fontWeight:400,color:"var(--text-muted)"}}>— blank = keep current</span></label>
+                  <label style={lbl}><KeyRound size={11} style={{display:"inline",marginRight:4}}/>Temporary Password <span style={{fontWeight:400,color:"var(--text-muted)"}}>— blank = keep current</span></label>
                   <div style={{position:"relative"}}>
-                    <input type={showEditPass?"text":"password"} placeholder="Enter new password to change"
+                    <input type={showEditPass?"text":"password"} placeholder="Client must change after next login"
                       value={editForm.password} onChange={e=>setEditForm(f=>({...f,password:e.target.value}))}
                       style={{...inp,paddingRight:42}}/>
                     <button onClick={()=>setShowEditPass(v=>!v)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",display:"flex",padding:2}}>
@@ -547,6 +796,134 @@ export default function SuperAdminPage() {
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>setDeleteId(null)} style={{flex:1,padding:"11px",border:"1px solid var(--border-hard)",borderRadius:10,background:"transparent",fontWeight:600,fontSize:14,cursor:"pointer",color:"var(--text-secondary)"}}>Cancel</button>
               <button onClick={()=>deleteClient(deleteId)} style={{flex:1,padding:"11px",border:"none",borderRadius:10,background:"#ef4444",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer"}}>Remove</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Audit logs modal */}
+      {showLogs&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setShowLogs(false)}>
+          <div style={{background:"var(--bg-card)",borderRadius:16,width:"100%",maxWidth:760,maxHeight:"86vh",border:"1px solid var(--border-hard)",overflow:"hidden",display:"flex",flexDirection:"column"}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 20px",borderBottom:"1px solid var(--border-hard)"}}>
+              <div>
+                <div style={{fontWeight:800,fontSize:16,color:"var(--text-primary)"}}>Audit logs</div>
+                <div style={{fontSize:12,color:"var(--text-muted)",marginTop:2}}>Latest superadmin actions</div>
+              </div>
+              <button onClick={()=>setShowLogs(false)} style={{width:32,height:32,background:"var(--bg-elevated)",border:"none",borderRadius:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <X size={15} color="var(--text-secondary)"/>
+              </button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1.2fr 1.1fr 0.8fr 0.8fr auto",gap:8,padding:"12px 16px",borderBottom:"1px solid var(--border-hard)",background:"var(--bg-elevated)"}}>
+              <select value={logShop} onChange={e=>setLogShop(e.target.value)}
+                style={{minWidth:0,padding:"9px 10px",border:"1px solid var(--border-hard)",borderRadius:8,background:"var(--bg-input)",color:"var(--text-primary)",fontSize:12,fontWeight:600}}>
+                <option value="">All clients</option>
+                {clients.map(c=><option key={c.id} value={c.shop_id}>{c.shop_name || c.shop_id}</option>)}
+              </select>
+              <select value={logAction} onChange={e=>setLogAction(e.target.value)}
+                style={{minWidth:0,padding:"9px 10px",border:"1px solid var(--border-hard)",borderRadius:8,background:"var(--bg-input)",color:"var(--text-primary)",fontSize:12,fontWeight:600}}>
+                <option value="">All actions</option>
+                {ACTION_OPTIONS.map(a=><option key={a} value={a}>{a.replaceAll("_"," ")}</option>)}
+              </select>
+              <input type="date" value={logFrom} onChange={e=>setLogFrom(e.target.value)}
+                style={{minWidth:0,padding:"9px 10px",border:"1px solid var(--border-hard)",borderRadius:8,background:"var(--bg-input)",color:"var(--text-primary)",fontSize:12,fontWeight:600}}/>
+              <input type="date" value={logTo} onChange={e=>setLogTo(e.target.value)}
+                style={{minWidth:0,padding:"9px 10px",border:"1px solid var(--border-hard)",borderRadius:8,background:"var(--bg-input)",color:"var(--text-primary)",fontSize:12,fontWeight:600}}/>
+              <button onClick={loadLogs}
+                style={{padding:"9px 14px",borderRadius:8,border:"none",background:"#2563eb",color:"#fff",fontSize:12,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}}>
+                Apply
+              </button>
+            </div>
+            <div style={{overflowY:"auto"}}>
+              {logsLoading ? (
+                <div style={{padding:30,textAlign:"center",color:"var(--text-muted)",fontSize:14}}>Loading logs...</div>
+              ) : logs.length === 0 ? (
+                <div style={{padding:30,textAlign:"center",color:"var(--text-muted)",fontSize:14}}>No audit logs yet</div>
+              ) : logs.map(l => (
+                <div key={l.id} style={{padding:"13px 18px",borderBottom:"1px solid var(--border-hard)",display:"grid",gridTemplateColumns:"170px 1fr",gap:14}}>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:800,color:"var(--text-primary)"}}>{new Date(l.created_at).toLocaleString("en-IN",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"})}</div>
+                    <div style={{fontSize:11,color:"var(--text-muted)",marginTop:3}}>{l.ip || "unknown IP"}</div>
+                  </div>
+                  <div style={{minWidth:0}}>
+                    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                      <span style={{fontSize:12,fontWeight:800,color:"#2563eb",background:"rgba(37,99,235,0.1)",border:"1px solid rgba(37,99,235,0.2)",borderRadius:20,padding:"3px 9px"}}>{l.action}</span>
+                      <span style={{fontSize:12,color:"var(--text-secondary)"}}>by <b style={{color:"var(--text-primary)"}}>@{l.actor_username}</b></span>
+                      {(l.target_shop_name || l.target_shop_id) && <span style={{fontSize:12,color:"var(--text-muted)"}}>for {l.target_shop_name || l.target_shop_id}</span>}
+                    </div>
+                    {l.metadata != null && (
+                      <pre style={{whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:11,margin:"8px 0 0",padding:"8px 10px",borderRadius:8,background:"var(--bg-elevated)",color:"var(--text-secondary)",fontFamily:"monospace"}}>
+                        {JSON.stringify(l.metadata, null, 2)}
+                      </pre>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deleted data restore modal */}
+      {showDeleted&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setShowDeleted(false)}>
+          <div style={{background:"var(--bg-card)",borderRadius:16,width:"100%",maxWidth:860,maxHeight:"86vh",border:"1px solid var(--border-hard)",overflow:"hidden",display:"flex",flexDirection:"column"}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 20px",borderBottom:"1px solid var(--border-hard)"}}>
+              <div>
+                <div style={{fontWeight:800,fontSize:16,color:"var(--text-primary)"}}>Deleted data</div>
+                <div style={{fontSize:12,color:"var(--text-muted)",marginTop:2}}>Soft-deleted records available for restore</div>
+              </div>
+              <button onClick={()=>setShowDeleted(false)} style={{width:32,height:32,background:"var(--bg-elevated)",border:"none",borderRadius:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <X size={15} color="var(--text-secondary)"/>
+              </button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1.1fr 1fr 1.1fr 0.8fr 0.8fr auto",gap:8,padding:"12px 16px",borderBottom:"1px solid var(--border-hard)",background:"var(--bg-elevated)"}}>
+              <select value={deletedShop} onChange={e=>setDeletedShop(e.target.value)}
+                style={{minWidth:0,padding:"9px 10px",border:"1px solid var(--border-hard)",borderRadius:8,background:"var(--bg-input)",color:"var(--text-primary)",fontSize:12,fontWeight:600}}>
+                <option value="">All clients</option>
+                {clients.map(c=><option key={c.id} value={c.shop_id}>{c.shop_name || c.shop_id}</option>)}
+              </select>
+              <select value={deletedType} onChange={e=>setDeletedType(e.target.value)}
+                style={{minWidth:0,padding:"9px 10px",border:"1px solid var(--border-hard)",borderRadius:8,background:"var(--bg-input)",color:"var(--text-primary)",fontSize:12,fontWeight:600}}>
+                <option value="">All types</option>
+                {DELETED_TYPES.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+              <input placeholder="Search label" value={deletedSearch} onChange={e=>setDeletedSearch(e.target.value)}
+                style={{minWidth:0,padding:"9px 10px",border:"1px solid var(--border-hard)",borderRadius:8,background:"var(--bg-input)",color:"var(--text-primary)",fontSize:12,fontWeight:600}}/>
+              <input type="date" value={deletedFrom} onChange={e=>setDeletedFrom(e.target.value)}
+                style={{minWidth:0,padding:"9px 10px",border:"1px solid var(--border-hard)",borderRadius:8,background:"var(--bg-input)",color:"var(--text-primary)",fontSize:12,fontWeight:600}}/>
+              <input type="date" value={deletedTo} onChange={e=>setDeletedTo(e.target.value)}
+                style={{minWidth:0,padding:"9px 10px",border:"1px solid var(--border-hard)",borderRadius:8,background:"var(--bg-input)",color:"var(--text-primary)",fontSize:12,fontWeight:600}}/>
+              <button onClick={loadDeleted}
+                style={{padding:"9px 14px",borderRadius:8,border:"none",background:"#2563eb",color:"#fff",fontSize:12,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}}>
+                Apply
+              </button>
+            </div>
+            <div style={{overflowY:"auto"}}>
+              {deletedLoading ? (
+                <div style={{padding:30,textAlign:"center",color:"var(--text-muted)",fontSize:14}}>Loading deleted data...</div>
+              ) : deletedRows.length === 0 ? (
+                <div style={{padding:30,textAlign:"center",color:"var(--text-muted)",fontSize:14}}>No deleted records found</div>
+              ) : deletedRows.map(r => {
+                const key = `${r.entity_type}:${r.entity_id}`;
+                return (
+                  <div key={key} style={{padding:"13px 18px",borderBottom:"1px solid var(--border-hard)",display:"grid",gridTemplateColumns:"130px 1fr 150px 110px",gap:14,alignItems:"center"}}>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:800,color:"#ef4444",textTransform:"capitalize"}}>{r.entity_type.replaceAll("_"," ")}</div>
+                      <div style={{fontSize:11,color:"var(--text-muted)",marginTop:3}}>{new Date(r.deleted_at).toLocaleString("en-IN",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"})}</div>
+                    </div>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:800,color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.entity_label}</div>
+                      <div style={{fontSize:11,color:"var(--text-muted)",marginTop:3}}>Shop: {r.shop_id} · by @{r.deleted_by_username || "unknown"}{r.delete_reason ? ` · ${r.delete_reason}` : ""}</div>
+                    </div>
+                    <div style={{fontSize:11,color:"var(--text-muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={r.entity_id}>{r.entity_id}</div>
+                    <button onClick={()=>restoreDeleted(r)} disabled={restoringKey === key}
+                      style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,padding:"9px 12px",borderRadius:8,border:"1px solid rgba(5,150,105,0.25)",background:restoringKey === key ? "var(--bg-elevated)" : "rgba(5,150,105,0.1)",color:restoringKey === key ? "var(--text-muted)" : "#059669",fontSize:12,fontWeight:800,cursor:restoringKey === key ? "not-allowed" : "pointer"}}>
+                      <RotateCcw size={13}/>{restoringKey === key ? "Restoring" : "Restore"}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

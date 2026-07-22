@@ -15,6 +15,15 @@ export async function GET(req: NextRequest) {
   if (admin.is_active === false) {
     return NextResponse.json({ detail: "Account disabled" }, { status: 401 });
   }
+  const versionRows = await prisma.$queryRaw<{ token_version: number }[]>`SELECT token_version FROM admins WHERE id = ${admin.id}`;
+  const tokenVersion = Number(versionRows[0]?.token_version ?? 0);
+  if (user.token_version !== undefined && user.token_version !== tokenVersion) {
+    return NextResponse.json({ detail: "Session expired" }, { status: 401 });
+  }
+  const mustChangeRows = await prisma.$queryRaw<{ must_change_password: boolean }[]>`
+    SELECT must_change_password FROM admins WHERE id = ${admin.id}
+  `.catch(() => [{ must_change_password: false }]);
+  const mustChangePassword = Boolean(mustChangeRows[0]?.must_change_password);
 
   // Resolve the LIVE subscription expiry from the DB, not the token. The token bakes in
   // whatever expiry was current at login, so after a superadmin renews the plan the token
@@ -42,10 +51,16 @@ export async function GET(req: NextRequest) {
   // the new expiry immediately — no manual re-login needed. The client stores this token.
   const liveIso = expiresAt ? new Date(expiresAt).toISOString() : undefined;
   let refreshed: string | undefined;
-  if (admin.role !== "superadmin" && liveIso !== user.expires_at) {
+  if (
+    user.token_version === undefined ||
+    user.must_change_password !== mustChangePassword ||
+    (admin.role !== "superadmin" && liveIso !== user.expires_at)
+  ) {
     refreshed = signToken({
       sub: admin.id, username: admin.username,
       shop_id: admin.shop_id, shop_name: admin.shop_name, role: admin.role,
+      token_version: tokenVersion,
+      must_change_password: mustChangePassword,
       ...(liveIso ? { expires_at: liveIso } : {}),
     });
   }
@@ -54,6 +69,7 @@ export async function GET(req: NextRequest) {
     id: admin.id, username: admin.username, name: admin.name, role: admin.role,
     shop_id: admin.shop_id, shop_name: admin.shop_name,
     read_only, expires_at: liveIso ?? null,
+    must_change_password: mustChangePassword,
     ...(refreshed ? { access_token: refreshed } : {}),
   });
 }

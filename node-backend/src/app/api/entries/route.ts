@@ -1,6 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
-import { requireAuth, shopFilter, requireWrite } from "@/lib/auth";
+import { requireActiveAuth, shopFilter, requireWrite } from "@/lib/auth";
 import { sendEmail, pickupEmailHtml } from "@/lib/email";
 import { sendSms } from "@/lib/sms";
 import { waSend } from "@/lib/waAuto";
@@ -8,10 +8,10 @@ import { getShopProfile } from "@/lib/settings";
 import { todayIST, monthRange } from "@/lib/dates";
 
 export async function GET(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const p = new URL(req.url).searchParams;
-  const where: any = { ...shopFilter(user, req) };
+  const where: any = { deleted_at: null, ...shopFilter(user, req) };
   // Date filter — apply exactly ONE of these (priority: exact day → range → month),
   // so passing more than one never silently overrides another.
   if (p.get("entry_date")) {
@@ -27,22 +27,22 @@ export async function GET(req: NextRequest) {
   if (p.get("customer_id")) where.customer_id = p.get("customer_id");
 
   try {
-    const entries = await withRetry(() => prisma.laundryEntry.findMany({
+    const entries: any[] = await withRetry(() => prisma.laundryEntry.findMany({
       where,
       include: { customer: true, items: true },
       orderBy: { entry_date: "desc" },
-    }));
+    } as any));
     // Fetch delivery_date + billing columns via raw SQL (Prisma client may not include them yet)
     const ids = entries.map(e => e.id);
     const ddRows: { id: string; delivery_date: string | null; discount: any; extra_charge: any; amount_paid: any; payment_method: string | null; invoice_no: number | null }[] = ids.length > 0
       ? await prisma.$queryRawUnsafe(
-          `SELECT id::text, delivery_date, discount, extra_charge, amount_paid, payment_method, invoice_no FROM laundry_entries WHERE id::text = ANY($1::text[])`,
+          `SELECT id::text, delivery_date, discount, extra_charge, amount_paid, payment_method, invoice_no FROM laundry_entries WHERE deleted_at IS NULL AND id::text = ANY($1::text[])`,
           ids
         )
       : [];
     const ddMap = new Map(ddRows.map(r => [r.id, r]));
     // Fetch delivered_qty per item the same way (column may not be in the client yet).
-    const itemIds = entries.flatMap(e => e.items.map(i => i.id));
+    const itemIds = entries.flatMap((e: any) => e.items.map((i: any) => i.id));
     const dqRows: { id: string; delivered_qty: number }[] = itemIds.length > 0
       ? await prisma.$queryRawUnsafe(
           `SELECT id::text, delivered_qty FROM entry_items WHERE id::text = ANY($1::text[])`,
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
         payment_method: extra?.payment_method ?? "",
         invoice_no: extra?.invoice_no ?? null,
         total_amount: Number(e.total_amount),
-        items: e.items.map(i => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal), delivered_qty: dqMap.get(i.id) ?? 0 })),
+        items: e.items.map((i: any) => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal), delivered_qty: dqMap.get(i.id) ?? 0 })),
       };
     }));
   } catch (err: any) {
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const ro = requireWrite(user); if (ro) return ro;
   let body: any;
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
           .map((d: any) => ({ service_name: String(d.service_name), quantity: Number(d.quantity) || 0, pickup_date: String(d.pickup_date) }))
       : [];
 
-  const customer = await prisma.customer.findFirst({ where: { id: customer_id, ...shopFilter(user, req) } });
+  const customer = await prisma.customer.findFirst({ where: { id: customer_id, deleted_at: null, ...shopFilter(user, req) } as any });
   if (!customer) return NextResponse.json({ detail: "Customer not found" }, { status: 404 });
 
   if (!Array.isArray(items) || items.length === 0) {
@@ -161,7 +161,7 @@ export async function POST(req: NextRequest) {
       }
       await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`, `invoice:${customer.shop_id}`);
       const rows = await tx.$queryRawUnsafe<{ n: bigint }[]>(
-        `SELECT COALESCE(MAX(invoice_no), 0) + 1 AS n FROM laundry_entries WHERE shop_id = $1`, customer.shop_id);
+        `SELECT COALESCE(MAX(invoice_no), 0) + 1 AS n FROM laundry_entries WHERE shop_id = $1 AND deleted_at IS NULL`, customer.shop_id);
       const n = Number(rows[0]?.n ?? 1);
       await tx.$executeRawUnsafe(
         `UPDATE laundry_entries SET invoice_no = $1, discount = $2, extra_charge = $3, amount_paid = $4, payment_method = $5 WHERE id::text = $6`,

@@ -15,8 +15,10 @@ const PAY_METHODS = [
   { key: "card", label: "Card",  icon: CreditCard },
 ] as const;
 
-const empty = { name: "", phone: "", flat_number: "", society_name: "", address: "", email: "" };
+type BillingType = "per_order" | "monthly";
+const empty = { name: "", phone: "", flat_number: "", society_name: "", address: "", email: "", billing_type: "per_order" as BillingType };
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const BILLING_LABEL: Record<BillingType, string> = { per_order: "Per order", monthly: "Monthly bill" };
 const AVATAR_COLORS = ["#6366f1","#8b5cf6","#ec4899","#f59e0b","#10b981","#3b82f6","#ef4444","#14b8a6"];
 const getColor = (name: string) => AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length];
 const getInitials = (name: string) => name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
@@ -38,9 +40,10 @@ export default function Customers() {
   const [fPhone,       setFPhone]       = useState("");
   const [societyFilter, setSocietyFilter] = useState("all");
   const [balanceFilter, setBalanceFilter] = useState("all");
+  const [billingFilter, setBillingFilter] = useState("all");
   const applyFilters = (v: Record<string,string>) => {
     setFName(v.name || ""); setFPhone(v.phone || "");
-    setSocietyFilter(v.society || "all"); setBalanceFilter(v.balance || "all");
+    setSocietyFilter(v.society || "all"); setBalanceFilter(v.balance || "all"); setBillingFilter(v.billing || "all");
   };
   const [showForm,     setShowForm]     = useState(false);
   const [form,         setForm]         = useState(empty);
@@ -210,6 +213,17 @@ export default function Customers() {
     finally { setLoading(false); }
   };
 
+  const toggleBillingType = async (c: Customer) => {
+    const current = (c.billing_type || "per_order") as BillingType;
+    const next: BillingType = current === "monthly" ? "per_order" : "monthly";
+    try {
+      await api.put(`/customers/${c.id}`, { billing_type: next });
+      setCustomers(cs => cs.map(x => x.id === c.id ? { ...x, billing_type: next } : x));
+    } catch (e: any) {
+      alert(e.response?.data?.detail || "Billing type update failed");
+    }
+  };
+
   const del = async (id: string) => {
     if (!confirm("Delete this customer?")) return;
     await api.delete(`/customers/${id}`);
@@ -231,6 +245,7 @@ export default function Customers() {
     if (fPhone && !c.phone.includes(fPhone)) return false;
     if (societyFilter !== "all" && c.society_name !== societyFilter) return false;
     if (balanceFilter === "udhaar" && !((balances[c.id]?.outstanding ?? 0) > 0)) return false;
+    if (billingFilter !== "all" && (c.billing_type || "per_order") !== billingFilter) return false;
     return true;
   });
 
@@ -289,6 +304,7 @@ export default function Customers() {
         selects={[
           { key:"society", label:"Society", options:[{value:"all",label:"All societies"}, ...societyOptions.map(s=>({value:s,label:s}))] },
           { key:"balance", label:"Balance", options:[{value:"all",label:"All"},{value:"udhaar",label:"Udhaar wale (due)"}] },
+          { key:"billing", label:"Billing", options:[{value:"all",label:"All billing"},{value:"monthly",label:"Monthly bill"},{value:"per_order",label:"Per order"}] },
         ]}
         texts={[
           { key:"name",  label:"Search by name",  placeholder:"Customer name" },
@@ -306,6 +322,7 @@ export default function Customers() {
             const isOpen = expanded === c.id;
             const bal = balances[c.id];
             const due = bal ? bal.outstanding : 0;
+            const billingType = (c.billing_type || "per_order") as BillingType;
 
             return (
               <div key={c.id} style={{ background: "var(--bg-card-solid)", borderRadius: 14, overflow: "hidden", boxShadow: "var(--shadow-web-lift)", border: "1px solid var(--border)" }}>
@@ -321,6 +338,11 @@ export default function Customers() {
                   <div className="cust-info" style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
+                      <button title={`Billing type: ${BILLING_LABEL[billingType]} — click to switch`}
+                        onClick={e => { e.stopPropagation(); toggleBillingType(c); }}
+                        style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: billingType === "monthly" ? "var(--grade-c-bg)" : "var(--bg-input)", color: billingType === "monthly" ? "var(--grade-c-text)" : "var(--text-secondary)", border: billingType === "monthly" ? "1px solid var(--grade-c-border)" : "1px solid var(--border-hard)", whiteSpace: "nowrap", cursor: "pointer" }}>
+                        {BILLING_LABEL[billingType]}
+                      </button>
                       {/* Running balance (udhaar / advance) — auto-nets payments against all bills */}
                       {bal && (bal.billed > 0 || bal.paid > 0) && (
                         due > 0.5 ? (
@@ -354,7 +376,7 @@ export default function Customers() {
                       <IndianRupee size={13} color="var(--grade-c-text)" />
                     </button>
 
-                    <button onClick={e => { e.stopPropagation(); setForm({ name: c.name, phone: c.phone, flat_number: c.flat_number || "", society_name: c.society_name || "", address: c.address || "", email: c.email || "" }); setEditId(c.id); setPhoneError(""); setShowForm(true); }}
+                    <button onClick={e => { e.stopPropagation(); setForm({ name: c.name, phone: c.phone, flat_number: c.flat_number || "", society_name: c.society_name || "", address: c.address || "", email: c.email || "", billing_type: (c.billing_type || "per_order") as BillingType }); setEditId(c.id); setPhoneError(""); setShowForm(true); }}
                       style={{ width: 30, height: 30, borderRadius: 8, background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <Edit2 size={13} color="var(--grade-b-text)" />
                     </button>
@@ -382,6 +404,7 @@ export default function Customers() {
                       {(c.flat_number || c.society_name) && <span>🏠 {c.flat_number}{c.flat_number && c.society_name ? ", " : ""}{c.society_name}</span>}
                       {c.address && <span>📍 {c.address}</span>}
                       {c.email && <span>✉️ {c.email}</span>}
+                      <span>🧾 Billing: {BILLING_LABEL[billingType]}</span>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
                         <button onClick={(e) => { e.stopPropagation(); openStatement(c); }}
                           style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, background: "var(--grade-b-bg)", color: "var(--grade-b-text)", border: "1px solid var(--grade-b-border)", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
@@ -480,6 +503,25 @@ export default function Customers() {
                   </div>
                   {/* Remaining fields stacked */}
                   {fields.filter(f => f.key !== "name" && f.key !== "phone").map(renderField)}
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
+                      <FileText size={15} /> Billing Type
+                    </label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      {(["per_order", "monthly"] as BillingType[]).map(bt => {
+                        const active = form.billing_type === bt;
+                        return (
+                          <button key={bt} type="button" onClick={() => setForm({ ...form, billing_type: bt })}
+                            style={{ padding: "10px 8px", borderRadius: 10, cursor: "pointer", fontWeight: 700, fontSize: 12.5,
+                              border: `1.5px solid ${active ? "var(--accent-primary)" : "var(--border-hard)"}`,
+                              background: active ? "var(--grade-b-bg)" : "var(--bg-input)",
+                              color: active ? "var(--grade-b-text)" : "var(--text-secondary)" }}>
+                            {BILLING_LABEL[bt]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               );
             })()}
@@ -514,7 +556,9 @@ export default function Customers() {
 
       {/* ── Bulk monthly billing modal ── */}
       {showBulk && (() => {
-        const activeCount = entryMap.size;
+        const monthlyIds = new Set(customers.filter(c => (c.billing_type || "per_order") === "monthly").map(c => c.id));
+        const activeCount = Array.from(entryMap.keys()).filter(id => monthlyIds.has(id)).length;
+        const perOrderSkipped = Array.from(entryMap.keys()).filter(id => !monthlyIds.has(id)).length;
         const CH = [
           { key: "both",     label: "WhatsApp + Email" },
           { key: "whatsapp", label: "WhatsApp only" },
@@ -547,7 +591,8 @@ export default function Customers() {
                   </div>
 
                   <div style={{ padding: "12px 14px", borderRadius: 10, marginBottom: 16, background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", fontSize: 13.5, color: "var(--text-primary)", fontWeight: 600 }}>
-                    <b style={{ color: "var(--accent-primary)" }}>{activeCount}</b> customer{activeCount === 1 ? "" : "s"} ki is mahine entries hain — sabko unka {MONTHS[month - 1]} ka bill jayega.
+                    <b style={{ color: "var(--accent-primary)" }}>{activeCount}</b> monthly customer{activeCount === 1 ? "" : "s"} ki is mahine entries hain — sirf monthly billing wale customers ko {MONTHS[month - 1]} ka bill jayega.
+                    {perOrderSkipped > 0 && <div style={{marginTop:6,fontSize:12,color:"var(--text-muted)",fontWeight:600}}>{perOrderSkipped} active per-order customer{perOrderSkipped === 1 ? "" : "s"} skipped rahenge.</div>}
                   </div>
 
                   <label style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", display: "block", marginBottom: 6 }}>Kaha bhejein?</label>
@@ -625,7 +670,7 @@ export default function Customers() {
               {row("Record payment", <IndianRupee size={16} color="var(--grade-c-text)" />, () => openPay(c))}
               {row("View orders", <FileText size={16} color="var(--grade-a-text)" />, () => { window.location.href = `/customer/${c.id}`; })}
               {row("Statement", <Wallet size={16} color="var(--grade-b-text)" />, () => openStatement(c))}
-              {row("Edit customer", <Edit2 size={16} color="var(--grade-b-text)" />, () => { setForm({ name: c.name, phone: c.phone, flat_number: c.flat_number || "", society_name: c.society_name || "", address: c.address || "", email: c.email || "" }); setEditId(c.id); setPhoneError(""); setShowForm(true); })}
+              {row("Edit customer", <Edit2 size={16} color="var(--grade-b-text)" />, () => { setForm({ name: c.name, phone: c.phone, flat_number: c.flat_number || "", society_name: c.society_name || "", address: c.address || "", email: c.email || "", billing_type: (c.billing_type || "per_order") as BillingType }); setEditId(c.id); setPhoneError(""); setShowForm(true); })}
               {row("Delete", <Trash2 size={16} color="var(--grade-f-text)" />, () => del(c.id), true)}
             </div>
           </>

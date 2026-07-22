@@ -16,10 +16,12 @@ model Admin {
   shop_name           String    @default("My Shop")
   role                String    @default("admin")
   is_active           Boolean   @default(true)
+  token_version       Int       @default(0)
+  must_change_password Boolean  @default(false)
   plan_type           String?   // "monthly" | "yearly"
   expires_at          DateTime?
   created_at          DateTime  @default(now())
-  setup_token         String?   @unique // pending "choose your username/password" link after signup-request approval
+  setup_token         String?   @unique // legacy signup setup token; public signup is disabled
   setup_token_expires DateTime?
 
   @@map("admins")
@@ -42,6 +44,7 @@ model ShopProfile {
   logo_data  String?  @db.Text // base64 data-URL, embedded in invoice header
   weekly_report_enabled Boolean @default(true) // auto-email the Sunday weekly report to `email`
   wa_auto_enabled       Boolean @default(false) // auto-send a WhatsApp bill on new entry (via WA-Service)
+  wa_show_prices        Boolean @default(true) // when false, WhatsApp bills show only items
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
@@ -70,7 +73,12 @@ model Customer {
   society_name String         @default("")
   address      String         @default("")
   email        String?
+  billing_type String         @default("per_order") // "per_order" | "monthly"
   shop_id      String         @default("shop1")
+  deleted_at   DateTime?
+  deleted_by   String         @default("")
+  deleted_by_username String  @default("")
+  delete_reason String        @default("")
   created_at   DateTime       @default(now())
   updated_at   DateTime       @updatedAt
   entries      LaundryEntry[]
@@ -78,6 +86,7 @@ model Customer {
 
   @@unique([phone, shop_id])
   @@index([shop_id])
+  @@index([deleted_at])
   @@map("customers")
 }
 
@@ -90,11 +99,16 @@ model Payment {
   date        String   // YYYY-MM-DD (payment received date, IST)
   note        String   @default("")
   shop_id     String   @default("shop1")
+  deleted_at  DateTime?
+  deleted_by  String   @default("")
+  deleted_by_username String @default("")
+  delete_reason String @default("")
   created_at  DateTime @default(now())
 
   @@index([shop_id])
   @@index([customer_id])
   @@index([date])
+  @@index([deleted_at])
   @@map("payments")
 }
 
@@ -134,12 +148,17 @@ model LaundryEntry {
   amount_paid     Decimal     @default(0) @db.Decimal(10, 2)
   payment_method  String      @default("")
   shop_id         String      @default("shop1")
+  deleted_at      DateTime?
+  deleted_by      String      @default("")
+  deleted_by_username String  @default("")
+  delete_reason   String      @default("")
   created_at      DateTime    @default(now())
   updated_at      DateTime    @updatedAt
   items           EntryItem[]
 
   @@index([entry_date])
   @@index([shop_id])
+  @@index([deleted_at])
   @@map("laundry_entries")
 }
 
@@ -179,11 +198,16 @@ model LabourWork {
   work_date      String
   press_count    Int
   rate_per_piece Decimal  @default(2) @db.Decimal(10, 2)
+  deleted_at     DateTime?
+  deleted_by     String   @default("")
+  deleted_by_username String @default("")
+  delete_reason  String   @default("")
   created_at     DateTime @default(now())
 
   // One work row per labourer per day — the POST handler upserts on this, so concurrent
   // submits can't create duplicate rows that double-count the labourer's pay.
   @@unique([labour_id, work_date])
+  @@index([deleted_at])
   @@map("labour_work")
 }
 
@@ -194,8 +218,13 @@ model LabourAdvance {
   advance_date String
   amount       Decimal  @db.Decimal(10, 2)
   description  String   @default("")
+  deleted_at   DateTime?
+  deleted_by   String   @default("")
+  deleted_by_username String @default("")
+  delete_reason String  @default("")
   created_at   DateTime @default(now())
 
+  @@index([deleted_at])
   @@map("labour_advances")
 }
 
@@ -216,6 +245,47 @@ model LoginLog {
   @@map("login_logs")
 }
 
+model SuperadminActionLog {
+  id              String   @id @default(uuid())
+  actor_id        String
+  actor_username  String
+  action          String
+  target_admin_id String   @default("")
+  target_shop_id  String   @default("")
+  target_shop_name String  @default("")
+  metadata        Json?
+  ip              String   @default("")
+  created_at      DateTime @default(now())
+
+  @@index([actor_id])
+  @@index([target_shop_id])
+  @@index([action])
+  @@index([created_at])
+  @@map("superadmin_action_logs")
+}
+
+model DataActionLog {
+  id                String   @id @default(uuid())
+  actor_id          String
+  actor_username    String
+  actor_role        String
+  shop_id           String
+  action            String
+  entity_type       String
+  entity_id         String
+  entity_label      String   @default("")
+  metadata          Json?
+  ip                String   @default("")
+  created_at        DateTime @default(now())
+
+  @@index([shop_id])
+  @@index([action])
+  @@index([entity_type])
+  @@index([entity_id])
+  @@index([created_at])
+  @@map("data_action_logs")
+}
+
 model Expense {
   id          String   @id @default(uuid())
   date        String
@@ -223,16 +293,20 @@ model Expense {
   description String   @default("")
   amount      Decimal  @db.Decimal(10, 2)
   shop_id     String   @default("shop1")
+  deleted_at  DateTime?
+  deleted_by  String   @default("")
+  deleted_by_username String @default("")
+  delete_reason String @default("")
   created_at  DateTime @default(now())
 
   @@index([shop_id])
   @@index([date])
+  @@index([deleted_at])
   @@map("expenses")
 }
 
-// Public "Start free trial" leads from the marketing site. Superadmin reviews
-// and either approves (creates the actual Admin/ShopProfile) or rejects each
-// one; approved + rejected rows stay around as a marketing contact list.
+// Legacy public signup leads. Public signup is disabled; clients are now created
+// manually by superadmin with a temporary password.
 model SignupRequest {
   id          String    @id @default(uuid())
   shop_name   String
@@ -249,4 +323,3 @@ model SignupRequest {
   @@index([created_at])
   @@map("signup_requests")
 }
-

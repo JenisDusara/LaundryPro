@@ -22,10 +22,11 @@ export interface ShopProfile {
 const EDITABLE: (keyof ShopProfile)[] = [
   "shop_name", "tagline", "phone", "address", "email", "upi_id", "gst_number", "gst_rate",
   "invoice_terms", "footer_note", "default_labour_rate", "logo_data", "weekly_report_enabled",
+  "wa_auto_enabled", "wa_show_prices",
 ];
 
 const NUMERIC: (keyof ShopProfile)[] = ["gst_rate", "default_labour_rate"];
-const BOOLEAN: (keyof ShopProfile)[] = ["weekly_report_enabled"];
+const BOOLEAN: (keyof ShopProfile)[] = ["weekly_report_enabled", "wa_auto_enabled", "wa_show_prices"];
 
 function defaults(shopName = ""): ShopProfile {
   return {
@@ -103,7 +104,7 @@ export async function upsertShopProfile(shopId: string, data: Record<string, unk
     update: clean,
     create: { shop_id: shopId, ...clean },
   }));
-  // wa_auto_enabled / wa_show_prices handled separately via raw SQL (see readWaFlags note above).
+  // Defensive fallback for older databases where these columns have not been migrated yet.
   if ("wa_auto_enabled" in data) {
     try {
       await prisma.$executeRawUnsafe(

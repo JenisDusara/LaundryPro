@@ -1,33 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import crypto from "crypto";
 import prisma from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { requireActiveAuth } from "@/lib/auth";
 import { todayIST, monthRange } from "@/lib/dates";
-import { sendEmail, completeSignupEmailHtml } from "@/lib/email";
-
-const SETUP_LINK_VALID_DAYS = 3;
-
-async function uniquePlaceholderUsername(): Promise<string> {
-  for (let i = 0; i < 5; i++) {
-    const candidate = `pending_${crypto.randomBytes(6).toString("hex")}`;
-    if (!(await prisma.admin.findUnique({ where: { username: candidate } }))) return candidate;
-  }
-  throw new Error("Could not generate a unique placeholder username");
-}
+import { logSuperadminAction } from "@/lib/superadminAudit";
 
 export async function GET(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   if (user.role !== "superadmin") return NextResponse.json({ detail: "Forbidden" }, { status: 403 });
 
   const clients = await prisma.$queryRaw<{
     id: string; username: string; name: string;
     shop_id: string; shop_name: string; is_active: boolean; created_at: Date;
-    staff_count: bigint; plan_type: string | null; expires_at: Date | null;
+    staff_count: bigint; plan_type: string | null; expires_at: Date | null; must_change_password: boolean;
   }[]>`
     SELECT a.id, a.username, a.name, a.shop_id, a.shop_name, a.is_active, a.created_at,
-           a.plan_type, a.expires_at, COUNT(s.id) AS staff_count
+           a.plan_type, a.expires_at, a.must_change_password, COUNT(s.id) AS staff_count
     FROM admins a
     LEFT JOIN admins s ON s.shop_id = a.shop_id AND s.role = 'staff'
     WHERE a.role = 'admin'
@@ -46,6 +35,7 @@ export async function GET(req: NextRequest) {
            SUM(CASE WHEN entry_date >= ${start} AND entry_date <= ${end} THEN total_amount ELSE 0 END) AS month_revenue,
            MAX(entry_date) AS last_activity
     FROM laundry_entries
+    WHERE deleted_at IS NULL
     GROUP BY shop_id
   `;
   const statMap = new Map(stats.map(s => [s.shop_id, s]));
@@ -63,6 +53,7 @@ export async function GET(req: NextRequest) {
       staff_count: Number(c.staff_count),
       plan_type: c.plan_type,
       expires_at: c.expires_at,
+      must_change_password: c.must_change_password,
       total_entries: Number(st?.total_entries ?? 0),
       month_revenue: Number(st?.month_revenue ?? 0),
       last_activity: st?.last_activity ?? null,
@@ -71,11 +62,22 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   if (user.role !== "superadmin") return NextResponse.json({ detail: "Forbidden" }, { status: 403 });
 
-  const { username, password, name, shop_id, shop_name, plan_type, expires_at, signup_request_id } = await req.json();
+  const body = await req.json().catch(() => ({}));
+  const username = typeof body.username === "string" ? body.username.trim() : "";
+  const password = typeof body.password === "string" ? body.password : "";
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const shop_id = typeof body.shop_id === "string" ? body.shop_id.trim() : "";
+  const shop_name = typeof body.shop_name === "string" ? body.shop_name.trim() : "";
+  const plan_type = body.plan_type;
+  const expires_at = body.expires_at;
+  const signup_request_id = body.signup_request_id;
+  if (signup_request_id) {
+    return NextResponse.json({ detail: "Public signup approval is disabled. Create the client manually with a temporary password." }, { status: 410 });
+  }
   if (!shop_id || !shop_name) {
     return NextResponse.json({ detail: "shop_id and shop_name are required" }, { status: 400 });
   }
@@ -88,18 +90,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ detail: `Shop ID "${shop_id}" is already in use. Choose a unique Shop ID.` }, { status: 400 });
   }
 
-  // Approving a signup request just means: create the shop as usual, then link
-  // the two records — copy the lead's contact details into ShopProfile and mark
-  // the request approved, so the new admin's email is pre-filled (weekly report,
-  // invoices) without them having to re-enter it in Settings.
-  let signupRequest = null;
-  if (signup_request_id) {
-    signupRequest = await prisma.signupRequest.findUnique({ where: { id: signup_request_id } });
-    if (!signupRequest || signupRequest.status !== "pending") {
-      return NextResponse.json({ detail: "Signup request not found or already reviewed" }, { status: 400 });
-    }
-  } else if (!username || !password) {
+  if (!username || !password) {
     return NextResponse.json({ detail: "username and password are required" }, { status: 400 });
+  }
+  if (password.length < 6) {
+    return NextResponse.json({ detail: "Temporary password must be at least 6 characters" }, { status: 400 });
   }
 
   if (username) {
@@ -107,55 +102,33 @@ export async function POST(req: NextRequest) {
     if (existing) return NextResponse.json({ detail: "Username already taken" }, { status: 400 });
   }
 
-  const TRIAL_DAYS = 7;
   let expiryDate = expires_at ? (() => { const d = new Date(expires_at); d.setHours(23,59,59,999); return d; })() : null;
   let finalPlan: string | null = plan_type || null;
-  // Approving a signup must never create a permanently-free account: if no expiry/plan was
-  // supplied, fall back to a 7-day trial so the subscription clock always starts ticking.
-  if (signupRequest && !expiryDate) {
-    const d = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
-    d.setHours(23, 59, 59, 999);
-    expiryDate = d;
-    finalPlan = finalPlan || "trial";
-  }
-
-  // For a signup-request approval, the customer chooses their own username/password
-  // via a setup link — the account starts with an unusable random password and a
-  // placeholder username that gets overwritten when they complete setup.
-  const finalUsername = signupRequest ? await uniquePlaceholderUsername() : username;
-  const finalPassword = signupRequest ? crypto.randomBytes(24).toString("hex") : password;
-  const setupToken = signupRequest ? crypto.randomBytes(32).toString("hex") : null;
-  const setupTokenExpires = signupRequest ? new Date(Date.now() + SETUP_LINK_VALID_DAYS * 24 * 60 * 60 * 1000) : null;
-
-  const hash = await bcrypt.hash(finalPassword, 12);
+  const hash = await bcrypt.hash(password, 12);
 
   const client = await prisma.admin.create({
     data: {
-      username: finalUsername, password_hash: hash, name: name || finalUsername,
+      username, password_hash: hash, name: name || username,
       shop_id, shop_name, role: "admin",
       plan_type: finalPlan,
       expires_at: expiryDate,
-      setup_token: setupToken,
-      setup_token_expires: setupTokenExpires,
     },
   });
+  await prisma.$executeRaw`
+    UPDATE admins SET must_change_password = true WHERE id = ${client.id}
+  `;
 
-  if (signupRequest) {
-    await prisma.shopProfile.upsert({
-      where: { shop_id },
-      update: { email: signupRequest.email, phone: signupRequest.phone },
-      create: { shop_id, shop_name, email: signupRequest.email, phone: signupRequest.phone },
-    });
-    await prisma.signupRequest.update({
-      where: { id: signupRequest.id },
-      data: { status: "approved", reviewed_at: new Date() },
-    });
-
-    // Best-effort — a failed email shouldn't undo the account that was just created.
-    const setupUrl = `${new URL(req.url).origin}/complete-signup?token=${setupToken}`;
-    sendEmail(signupRequest.email, `Welcome to LaundryMax — ${shop_name}`, completeSignupEmailHtml(shop_name, setupUrl))
-      .catch(err => console.error("Failed to send complete-signup email:", err));
-  }
+  await logSuperadminAction(req, user, {
+    action: "client.create",
+    target_admin_id: client.id,
+    target_shop_id: client.shop_id,
+    target_shop_name: client.shop_name,
+    metadata: {
+      plan_type: client.plan_type,
+      expires_at: client.expires_at,
+      temporary_password: true,
+    },
+  });
 
   return NextResponse.json({
     id: client.id, username: client.username, name: client.name,

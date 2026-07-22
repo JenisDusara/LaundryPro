@@ -1,14 +1,14 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAuth, shopFilter, requireWrite, denyStaff, writeShopId } from "@/lib/auth";
+import { requireActiveAuth, shopFilter, requireWrite, denyStaff, writeShopId } from "@/lib/auth";
 import { monthRange } from "@/lib/dates";
 
 export async function GET(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const staff = denyStaff(user); if (staff) return staff;
   const p = new URL(req.url).searchParams;
-  const where: any = { ...shopFilter(user, req) };
+  const where: any = { deleted_at: null, ...shopFilter(user, req) };
   // Apply exactly ONE date filter (priority: exact day → range → month) so multiple
   // params never silently override each other; guard against NaN month/year.
   if (p.get("date")) {
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const staff = denyStaff(user); if (staff) return staff;
   const ro = requireWrite(user); if (ro) return ro;

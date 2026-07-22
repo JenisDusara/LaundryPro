@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
 
 // Resolve the JWT signing secret lazily (at request time, not module import) so a
 // missing SECRET_KEY never crashes `next build` while it collects route data. In
@@ -23,6 +24,8 @@ export interface TokenPayload {
   shop_name: string;
   role: string;
   expires_at?: string; // ISO string — shop subscription expiry
+  token_version?: number;
+  must_change_password?: boolean;
   read_only?: boolean; // true when in 3-day grace period after expiry
 }
 
@@ -56,6 +59,89 @@ export function requireAuth(req: NextRequest): TokenPayload | NextResponse {
     const now = Date.now();
     payload.read_only = now > expiry && now <= expiry + THREE_DAYS_MS;
   }
+  return payload;
+}
+
+export async function requireActiveAuth(req: NextRequest): Promise<TokenPayload | NextResponse> {
+  const payload = requireAuth(req);
+  if (payload instanceof NextResponse) return payload;
+
+  type LiveAdminRow = {
+    id: string;
+    username: string;
+    shop_id: string;
+    shop_name: string;
+    role: string;
+    is_active: boolean;
+    expires_at: Date | null;
+    token_version: number;
+    must_change_password: boolean;
+  };
+
+  let tokenVersionAvailable = true;
+  let rows: LiveAdminRow[];
+  try {
+    rows = await prisma.$queryRaw<LiveAdminRow[]>`
+      SELECT id, username, shop_id, shop_name, role, is_active, expires_at, token_version, must_change_password
+      FROM admins
+      WHERE id = ${payload.sub}
+      LIMIT 1
+    `;
+  } catch (e: any) {
+    const msg = String(e?.message || "");
+    if (!msg.includes("token_version") && !msg.includes("must_change_password")) throw e;
+    tokenVersionAvailable = false;
+    rows = await prisma.$queryRaw<LiveAdminRow[]>`
+      SELECT id, username, shop_id, shop_name, role, is_active, expires_at, 0::int AS token_version, false AS must_change_password
+      FROM admins
+      WHERE id = ${payload.sub}
+      LIMIT 1
+    `;
+  }
+  const live = rows[0];
+  if (!live) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (live.is_active === false) return NextResponse.json({ detail: "Account disabled" }, { status: 401 });
+  if (tokenVersionAvailable && (payload.token_version === undefined || Number(payload.token_version) !== Number(live.token_version || 0))) {
+    return NextResponse.json({ detail: "Session expired" }, { status: 401 });
+  }
+
+  payload.username = live.username;
+  payload.shop_id = live.shop_id;
+  payload.shop_name = live.shop_name;
+  payload.role = live.role;
+  payload.token_version = Number(live.token_version || 0);
+  payload.must_change_password = Boolean(live.must_change_password);
+
+  const pathname = new URL(req.url).pathname;
+  if (payload.must_change_password && pathname !== "/api/admin/change-password") {
+    return NextResponse.json({ detail: "Password change required" }, { status: 403 });
+  }
+
+  let expiresAt = live.expires_at;
+  if (live.role === "staff" && !expiresAt) {
+    const adminRows = await prisma.$queryRaw<{ expires_at: Date | null }[]>`
+      SELECT expires_at FROM admins WHERE shop_id = ${live.shop_id} AND role = 'admin' LIMIT 1
+    `;
+    expiresAt = adminRows[0]?.expires_at ?? null;
+  }
+
+  if (expiresAt && live.role !== "superadmin") {
+    const expiry = new Date(expiresAt).getTime();
+    const now = Date.now();
+    if (now > expiry + THREE_DAYS_MS) {
+      await prisma.$executeRaw`
+        UPDATE admins SET is_active = false, token_version = token_version + 1
+        WHERE shop_id = ${live.shop_id} AND role IN ('admin','staff')
+      `.catch(() => {});
+      return NextResponse.json({ detail: "Subscription expired. Contact administrator to renew." }, { status: 403 });
+    }
+    payload.expires_at = new Date(expiresAt).toISOString();
+    payload.read_only = now > expiry && now <= expiry + THREE_DAYS_MS;
+  } else {
+    payload.expires_at = undefined;
+    payload.read_only = false;
+  }
+
   return payload;
 }
 

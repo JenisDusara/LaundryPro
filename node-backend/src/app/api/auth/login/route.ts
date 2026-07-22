@@ -5,10 +5,16 @@ import { signToken } from "@/lib/auth";
 import { getClientIp } from "@/lib/ip";
 
 export async function POST(req: NextRequest) {
-  const { username, password } = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => ({}));
+  const username = typeof body.username === "string" ? body.username.trim() : "";
+  const password = typeof body.password === "string" ? body.password : "";
   const ip = getClientIp(req);
 
   try {
+    if (!username || !password) {
+      return NextResponse.json({ detail: "Username and password are required" }, { status: 400 });
+    }
+
     const WINDOW_MIN = 15, MAX_USER_FAILS = 8, MAX_IP_FAILS = 30;
     const since = new Date(Date.now() - WINDOW_MIN * 60 * 1000);
 
@@ -39,7 +45,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ detail: "Invalid credentials" }, { status: 401 });
     }
 
-    const valid = await bcrypt.compare(password, admin.password_hash);
+    const passwordCandidates = password.trim() !== password
+      ? [password, password.trim()]
+      : [password];
+
+    let valid = false;
+    for (const candidate of passwordCandidates) {
+      if (await bcrypt.compare(candidate, admin.password_hash)) {
+        valid = true;
+        break;
+      }
+    }
 
     if (!valid) {
       // Per-username brute-force throttle, applied ONLY on the wrong-password path. A correct
@@ -60,7 +76,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ detail: "Invalid credentials" }, { status: 401 });
     }
 
-    const activeRow = await prisma.$queryRaw<{ is_active: boolean; expires_at: Date | null }[]>`SELECT is_active, expires_at FROM admins WHERE id = ${admin.id}`;
+    const activeRow = await prisma.$queryRaw<{ is_active: boolean; expires_at: Date | null; token_version: number; must_change_password: boolean }[]>`
+      SELECT is_active, expires_at, token_version, must_change_password FROM admins WHERE id = ${admin.id}
+    `;
     if (activeRow[0]?.is_active === false) {
       await withRetry(() => prisma.loginLog.create({
         data: { username: admin.username, name: admin.name, shop_id: admin.shop_id, shop_name: admin.shop_name, role: admin.role, status: "failed", reason: "Account disabled", ip },
@@ -102,6 +120,8 @@ export async function POST(req: NextRequest) {
             sub: admin.id, username: admin.username,
             shop_id: admin.shop_id, shop_name: admin.shop_name,
             role: admin.role, expires_at: expiresAt.toISOString(),
+            token_version: Number(activeRow[0]?.token_version ?? 0),
+            must_change_password: Boolean(activeRow[0]?.must_change_password),
           });
           return NextResponse.json({ access_token: token, token_type: "bearer", read_only: true });
         }
@@ -111,6 +131,8 @@ export async function POST(req: NextRequest) {
           sub: admin.id, username: admin.username,
           shop_id: admin.shop_id, shop_name: admin.shop_name,
           role: admin.role, expires_at: expiresAt.toISOString(),
+          token_version: Number(activeRow[0]?.token_version ?? 0),
+          must_change_password: Boolean(activeRow[0]?.must_change_password),
         });
         await withRetry(() => prisma.loginLog.create({
           data: { username: admin.username, name: admin.name, shop_id: admin.shop_id, shop_name: admin.shop_name, role: admin.role, status: "success", reason: "", ip },
@@ -129,9 +151,12 @@ export async function POST(req: NextRequest) {
       shop_id:   admin.shop_id,
       shop_name: admin.shop_name,
       role:      admin.role,
+      token_version: Number(activeRow[0]?.token_version ?? 0),
+      must_change_password: Boolean(activeRow[0]?.must_change_password),
     });
     return NextResponse.json({ access_token: token, token_type: "bearer" });
-  } catch {
+  } catch (error) {
+    console.error("Login error:", error);
     return NextResponse.json({ detail: "Server error" }, { status: 500 });
   }
 }

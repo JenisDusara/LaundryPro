@@ -12,6 +12,7 @@ export interface Customer {
   society_name: string;
   address: string;
   email: string | null;
+  billing_type: "per_order" | "monthly";
   created_at: string;
 }
 

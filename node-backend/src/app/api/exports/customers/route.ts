@@ -1,13 +1,13 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAuth, shopFilter, denyStaff } from "@/lib/auth";
+import { requireActiveAuth, shopFilter, denyStaff } from "@/lib/auth";
 import ExcelJS from "exceljs";
 
 export async function GET(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const staff = denyStaff(user); if (staff) return staff;
-  const customers = await prisma.customer.findMany({ where: { ...shopFilter(user, req) }, orderBy: { name: "asc" } });
+  const customers = await prisma.customer.findMany({ where: { deleted_at: null, ...shopFilter(user, req) } as any, orderBy: { name: "asc" } });
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Customers");
   ws.columns = [

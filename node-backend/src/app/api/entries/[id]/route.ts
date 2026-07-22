@@ -1,17 +1,18 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
-import { requireAuth, shopFilter, requireWrite } from "@/lib/auth";
+import { requireActiveAuth, shopFilter, requireWrite } from "@/lib/auth";
+import { logDataAction } from "@/lib/dataAudit";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
-  const entry = await withRetry(() => prisma.laundryEntry.findFirst({
-    where: { id: params.id, ...shopFilter(user, req) },
+  const entry: any = await withRetry(() => prisma.laundryEntry.findFirst({
+    where: { id: params.id, deleted_at: null, ...shopFilter(user, req) },
     include: { customer: true, items: true },
-  }));
+  } as any));
   if (!entry) return NextResponse.json({ detail: "Not found" }, { status: 404 });
   const ex: { delivery_date: string | null; invoice_no: number | null; discount: any; extra_charge: any; amount_paid: any; payment_method: string | null }[] =
-    await prisma.$queryRawUnsafe(`SELECT delivery_date, invoice_no, discount, extra_charge, amount_paid, payment_method FROM laundry_entries WHERE id::text = $1`, params.id);
+    await prisma.$queryRawUnsafe(`SELECT delivery_date, invoice_no, discount, extra_charge, amount_paid, payment_method FROM laundry_entries WHERE deleted_at IS NULL AND id::text = $1`, params.id);
   const dqRows: { id: string; delivered_qty: number }[] = await prisma.$queryRawUnsafe(`SELECT id::text, delivered_qty FROM entry_items WHERE entry_id::text = $1`, params.id);
   const dqMap = new Map(dqRows.map(r => [r.id, Number(r.delivered_qty) || 0]));
   const b = ex[0];
@@ -24,20 +25,20 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     amount_paid: b?.amount_paid != null ? Number(b.amount_paid) : 0,
     payment_method: b?.payment_method ?? "",
     total_amount: Number(entry.total_amount),
-    items: entry.items.map(i => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal), delivered_qty: dqMap.get(i.id) ?? 0 })),
+    items: entry.items.map((i: any) => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal), delivered_qty: dqMap.get(i.id) ?? 0 })),
   });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const ro = requireWrite(user); if (ro) return ro;
 
   // Ownership check — ensure this entry belongs to the caller's shop before mutating.
   const owned = await withRetry(() => prisma.laundryEntry.findFirst({
-    where: { id: params.id, ...shopFilter(user, req) },
+    where: { id: params.id, deleted_at: null, ...shopFilter(user, req) },
     select: { id: true },
-  }));
+  } as any));
   if (!owned) return NextResponse.json({ detail: "Not found" }, { status: 404 });
 
   let body: any;
@@ -60,7 +61,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   // and drifted the customer's balance. Use the values from the edit form when sent, else keep the
   // stored ones (read via raw SQL — these columns aren't in the Prisma schema yet).
   const stored: { discount: any; extra_charge: any }[] =
-    await prisma.$queryRawUnsafe(`SELECT discount, extra_charge FROM laundry_entries WHERE id::text = $1`, params.id);
+    await prisma.$queryRawUnsafe(`SELECT discount, extra_charge FROM laundry_entries WHERE deleted_at IS NULL AND id::text = $1`, params.id);
   const discountN = Math.max(0, Number(discount ?? stored[0]?.discount) || 0);
   const extraN    = Math.max(0, Number(extra_charge ?? stored[0]?.extra_charge) || 0);
 
@@ -110,7 +111,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return updated;
   }));
 
-  const ddRows2: { delivery_date: string | null }[] = await prisma.$queryRawUnsafe(`SELECT delivery_date FROM laundry_entries WHERE id::text = $1`, params.id);
+  const ddRows2: { delivery_date: string | null }[] = await prisma.$queryRawUnsafe(`SELECT delivery_date FROM laundry_entries WHERE deleted_at IS NULL AND id::text = $1`, params.id);
   return NextResponse.json({
     ...entry,
     delivery_date: ddRows2[0]?.delivery_date ?? null,
@@ -122,9 +123,27 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const ro = requireWrite(user); if (ro) return ro;
-  await withRetry(() => prisma.laundryEntry.deleteMany({ where: { id: params.id, ...shopFilter(user, req) } }));
+  const existing: any = await withRetry(() => prisma.laundryEntry.findFirst({
+    where: { id: params.id, deleted_at: null, ...shopFilter(user, req) },
+    include: { customer: true },
+  } as any));
+  if (!existing) return NextResponse.json({ detail: "Not found" }, { status: 404 });
+  const reason = new URL(req.url).searchParams.get("reason") || "entry_delete";
+  const updated = await withRetry(() => prisma.laundryEntry.updateMany({
+    where: { id: params.id, deleted_at: null, ...shopFilter(user, req) } as any,
+    data: { deleted_at: new Date(), deleted_by: user.sub, deleted_by_username: user.username, delete_reason: reason } as any,
+  }));
+  if (updated.count === 0) return NextResponse.json({ detail: "Not found" }, { status: 404 });
+  await logDataAction(req, user, {
+    action: "entry.soft_deleted",
+    shop_id: existing.shop_id,
+    entity_type: "entry",
+    entity_id: existing.id,
+    entity_label: `${existing.customer?.name || "Customer"} ${existing.entry_date}`,
+    metadata: { reason, total_amount: Number(existing.total_amount) },
+  });
   return NextResponse.json({ message: "Deleted" });
 }

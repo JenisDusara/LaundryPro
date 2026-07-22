@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAuth, requireWrite } from "@/lib/auth";
+import { requireActiveAuth, requireWrite } from "@/lib/auth";
 
 // PATCH — toggle is_active for a staff member
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   if (user.role !== "admin") return NextResponse.json({ detail: "Forbidden" }, { status: 403 });
   const ro = requireWrite(user); if (ro) return ro;
@@ -24,7 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
 // DELETE — remove a staff member
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   if (user.role !== "admin") return NextResponse.json({ detail: "Forbidden" }, { status: 403 });
   const ro = requireWrite(user); if (ro) return ro;

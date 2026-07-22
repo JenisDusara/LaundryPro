@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAuth, shopFilter, requireWrite } from "@/lib/auth";
+import { requireActiveAuth, shopFilter, requireWrite } from "@/lib/auth";
 import { monthRange } from "@/lib/dates";
 import { getShopProfile } from "@/lib/settings";
 import { waSendDocument } from "@/lib/waAuto";
 import { sendEmail } from "@/lib/email";
 import { buildInvoicePdf } from "@/lib/invoicePdf";
 
-// Bulk monthly billing: send every customer WITH activity in the given month their invoice
-// for that month, in one shot. WhatsApp (from the shop's own number) and/or email, chosen
-// via ?channel=whatsapp|email|both (default both). Sends are sequential with a small delay
-// so a burst of WhatsApp messages doesn't get the shop's number flagged.
+const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+
+// Bulk monthly billing: send every MONTHLY-billing customer with activity in the selected
+// month their invoice in one shot.
 export async function POST(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const ro = requireWrite(user); if (ro) return ro;
 
@@ -20,6 +20,12 @@ export async function POST(req: NextRequest) {
   const month = parseInt(p.get("month") || String(new Date().getMonth() + 1));
   const year  = parseInt(p.get("year")  || String(new Date().getFullYear()));
   const channel = (p.get("channel") || "both") as "whatsapp" | "email" | "both";
+  if (!Number.isInteger(month) || !Number.isInteger(year) || month < 1 || month > 12 || year < 2000 || year > 2100) {
+    return NextResponse.json({ detail: "Invalid month/year" }, { status: 400 });
+  }
+  if (channel !== "whatsapp" && channel !== "email" && channel !== "both") {
+    return NextResponse.json({ detail: "Invalid channel" }, { status: 400 });
+  }
   const wantWa    = channel === "whatsapp" || channel === "both";
   const wantEmail = channel === "email"    || channel === "both";
 
@@ -31,11 +37,17 @@ export async function POST(req: NextRequest) {
   const shopId = scope.shop_id;
 
   const { start, end } = monthRange(year, month);
-  const entries = await prisma.laundryEntry.findMany({
-    where: { entry_date: { gte: start, lte: end }, shop_id: shopId },
+  const monthlyCustomers = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT id::text AS id
+    FROM customers
+    WHERE shop_id = ${shopId} AND billing_type = 'monthly' AND deleted_at IS NULL
+  `;
+  const monthlyCustomerIds = monthlyCustomers.map(c => c.id);
+  const entries: any[] = await prisma.laundryEntry.findMany({
+    where: { entry_date: { gte: start, lte: end }, deleted_at: null, shop_id: shopId, customer_id: { in: monthlyCustomerIds } },
     include: { customer: true, items: true },
     orderBy: { entry_date: "asc" },
-  });
+  } as any);
 
   // Group this month's entries by customer.
   const byCustomer = new Map<string, { customer: NonNullable<typeof entries[number]["customer"]>; items: typeof entries[number]["items"]; total: number }>();
@@ -66,7 +78,7 @@ export async function POST(req: NextRequest) {
     const { customer, items, total } = g;
     let did = false;
 
-    // Build the same designed invoice we print — as a PDF — for both channels.
+    // Build the same simple invoice we print as a PDF for both channels.
     const pdf = await buildInvoicePdf({
       shopName, tagline: profile.tagline, phone: profile.phone, address: profile.address,
       email: profile.email, gstNumber: profile.gst_number, upiId: profile.upi_id, footerNote: profile.footer_note,
@@ -74,9 +86,9 @@ export async function POST(req: NextRequest) {
       customerSub: [customer.flat_number, customer.society_name].filter(Boolean).join(", ") || undefined,
       customerContact: [customer.phone, customer.email].filter(Boolean).join("  ·  ") || undefined,
       period: monthName,
-      invoiceNo: String(1000 + (customer.id.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 9000)),
+      invoiceNo: String(1000 + (customer.id.split("").reduce((a: number, c: string) => a + c.charCodeAt(0), 0) % 9000)),
       dateStr,
-      items: items.map(i => ({ service_name: i.service_name, quantity: i.quantity, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal) })),
+      items: items.map((i: any) => ({ service_name: i.service_name, quantity: i.quantity, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal) })),
       total,
       logo,
     });
@@ -93,11 +105,11 @@ export async function POST(req: NextRequest) {
 
     // ── Email: attach the same PDF ──
     if (wantEmail && customer.email) {
-      const html = `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
-        <h2 style="color:#1e3a8a">${shopName}</h2>
-        <p>Dear <strong>${customer.name}</strong>, please find your invoice for ${monthName} attached.</p>
-        <p style="font-weight:700;color:#1e3a8a;font-size:16px">Total: ${inr(total)}</p>
-        ${profile.upi_id ? `<p style="color:#64748b;font-size:13px">Pay via UPI: <strong>${profile.upi_id}</strong></p>` : ""}
+      const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#000">
+        <h2 style="margin:0 0 8px">${esc(shopName)}</h2>
+        <p>Dear <strong>${esc(customer.name)}</strong>, please find your invoice for ${monthName} attached.</p>
+        <p style="font-weight:700;font-size:16px">Total: ${inr(total)}</p>
+        ${profile.upi_id ? `<p>Pay via UPI: <strong>${esc(profile.upi_id)}</strong></p>` : ""}
       </div>`;
       try {
         await sendEmail(customer.email, `Invoice - ${shopName} - ${monthName}`, html, [{ filename, content: pdf }]);

@@ -23,6 +23,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const submittingRef = useRef(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -40,13 +41,15 @@ export default function LoginPage() {
   const handleMouseLeave = useCallback(() => { if(cardRef.current) cardRef.current.style.transform="perspective(800px) rotateX(0deg) rotateY(0deg)"; }, []);
 
   const handleLogin = async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setLoading(true); setError("");
     try {
-      const res = await api.post("/auth/login", { username, password });
+      const res = await api.post("/auth/login", { username: username.trim(), password });
       localStorage.setItem("token", res.data.access_token);
       router.push("/dashboard");
     } catch { setError("Invalid username or password"); }
-    finally { setLoading(false); }
+    finally { submittingRef.current = false; setLoading(false); }
   };
 
   return (
@@ -85,9 +88,13 @@ export default function LoginPage() {
               placeholder="Enter your username"
               value={username}
               onChange={e => setUsername(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleLogin()}
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleLogin(); } }}
               onFocus={e => e.target.style.borderColor = "var(--border-active)"}
               onBlur={e => e.target.style.borderColor = "var(--border)"}
+              autoCapitalize="none"
+              autoCorrect="off"
+              autoComplete="username"
+              spellCheck={false}
             />
           </div>
 
@@ -99,9 +106,13 @@ export default function LoginPage() {
               placeholder="Enter your password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleLogin()}
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleLogin(); } }}
               onFocus={e => e.target.style.borderColor = "var(--border-active)"}
               onBlur={e => e.target.style.borderColor = "var(--border)"}
+              autoCapitalize="none"
+              autoCorrect="off"
+              autoComplete="current-password"
+              spellCheck={false}
             />
           </div>
 
@@ -112,17 +123,6 @@ export default function LoginPage() {
           >
             {loading ? "Signing in…" : "Sign In"}
           </button>
-
-          {/* New client → start free trial (goes to the public signup form) */}
-          <div style={{ marginTop: 20, paddingTop: 18, borderTop: "1px solid var(--border-hard)" }}>
-            <p style={{ fontSize: 13.5, color: "var(--text-secondary)", margin: 0 }}>
-              New business?{" "}
-              <span onClick={() => router.push("/trial")}
-                style={{ color: "var(--accent-primary)", fontWeight: 700, cursor: "pointer" }}>
-                Start your free trial →
-              </span>
-            </p>
-          </div>
 
           <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 20, marginBottom: 0 }}>LaundryMax © 2025 · Ahmedabad</p>
         </div>

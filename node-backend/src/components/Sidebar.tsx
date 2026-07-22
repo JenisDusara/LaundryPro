@@ -6,7 +6,7 @@ import {
   BarChart3, Wrench, Hammer, LogOut, X, Key, Eye, EyeOff,
   Building2, Wallet, Activity, ShieldCheck, ChevronRight, ChevronDown,
   UserCog, MoreHorizontal, Sun, Moon, Monitor, Check, Settings, Bell,
-  UserPlus, Mail, FileSpreadsheet, Receipt,
+  Mail, FileSpreadsheet, Receipt,
 } from "lucide-react";
 import api from "@/lib/api";
 import { isEntryPending } from "@/lib/entry-status";
@@ -70,7 +70,7 @@ const mobileNavRight = [
   { path: "/customers", label: "Customers", icon: Users },
 ];
 
-type Profile = { name: string; username: string; role?: string; read_only?: boolean; expires_at?: string | null };
+type Profile = { name: string; username: string; role?: string; read_only?: boolean; expires_at?: string | null; must_change_password?: boolean };
 
 export default function Sidebar({ children }: { children: React.ReactNode }) {
   const router   = useRouter();
@@ -117,7 +117,6 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
 
   const [allPending,     setAllPending]     = useState<LaundryEntry[]>([]);
   const [showNotifSheet, setShowNotifSheet] = useState(false);
-  const [pendingRequests, setPendingRequests] = useState(0);
   const today = todayIST();
 
   useEffect(() => {
@@ -126,17 +125,16 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
       // so the subscription lift takes effect on this load instead of after a re-login.
       if (r.data?.access_token && typeof window !== "undefined") localStorage.setItem("token", r.data.access_token);
       setProfile(r.data);
+      if (r.data?.must_change_password) {
+        setShowProfile(true);
+        setShowPassForm(true);
+      }
     }).catch(() => {});
     if (typeof window !== "undefined") setSelectedShopId(localStorage.getItem("sa_shop_id") || "");
   }, []);
 
   useEffect(() => {
     if (profile?.role === "superadmin") api.get("/admin/shops").then(r => setShops(r.data)).catch(() => {});
-  }, [profile?.role]);
-
-  useEffect(() => {
-    if (profile?.role !== "superadmin") return;
-    api.get("/admin/signup-requests").then(r => setPendingRequests(r.data.filter((x: { status: string }) => x.status === "pending").length)).catch(() => {});
   }, [profile?.role]);
 
   useEffect(() => {
@@ -156,9 +154,13 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
   const openAlerts = () => setShowNotifSheet(true);
 
   useEffect(() => {
+    if (profile?.must_change_password) {
+      setShowProfile(true); setShowPassForm(true); setShowMore(false); setShowShopPicker(false); setShowThemeMenu(false); setShowNotifSheet(false);
+      return;
+    }
     setShowProfile(false); setShowMore(false); setShowShopPicker(false);
     setShowPassForm(false); setShowThemeMenu(false); setShowNotifSheet(false);
-  }, [pathname]);
+  }, [pathname, profile?.must_change_password]);
 
   const logout = () => {
     localStorage.removeItem("token"); localStorage.removeItem("sa_shop_id");
@@ -176,14 +178,16 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
     if (newPass.length < 6) { setPassMsg({ text: "Min 6 characters required", ok: false }); return; }
     setPassLoading(true);
     try {
-      await api.post("/admin/change-password", { old_password: oldPass, new_password: newPass });
+      const r = await api.post("/admin/change-password", { old_password: oldPass, new_password: newPass });
+      if (r.data?.access_token) localStorage.setItem("token", r.data.access_token);
       setPassMsg({ text: "Password changed!", ok: true });
+      setProfile(p => p ? { ...p, must_change_password: false } : p);
       setOldPass(""); setNewPass(""); setConfirmPass("");
     } catch (e: any) { setPassMsg({ text: e.response?.data?.detail || "Failed", ok: false }); }
     finally { setPassLoading(false); setTimeout(() => setPassMsg(null), 4000); }
   };
 
-  const isAdminSection = pathname === "/superadmin" || pathname === "/login-activity" || pathname === "/signup-requests" || pathname === "/weekly-report-log";
+  const isAdminSection = pathname === "/superadmin" || pathname === "/login-activity" || pathname === "/weekly-report-log";
 
   const overdueEntries  = allPending.filter(e => e.delivery_date && e.delivery_date < today);
   const dueTodayEntries = allPending.filter(e => e.delivery_date === today);
@@ -197,7 +201,6 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
   const navItems = isAdminSection && profile?.role === "superadmin"
     ? [
         { path: "/superadmin", label: "Clients", icon: Building2 },
-        { path: "/signup-requests", label: "Signup Requests", icon: UserPlus, badge: pendingRequests || undefined },
         { path: "/weekly-report-log", label: "Weekly Reports", icon: Mail },
         { path: "/login-activity", label: "Login Activity", icon: Activity },
       ]
@@ -286,9 +289,6 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
                 }}>
                 <item.icon size={15} />
                 <span style={{ flex: 1 }}>{item.label}</span>
-                {"badge" in item && !!item.badge && (
-                  <span style={{ background: "#d97706", color: "#fff", borderRadius: 8, padding: "1px 7px", fontSize: 10.5, fontWeight: 800 }}>{item.badge}</span>
-                )}
               </div>
             );
           })}
@@ -450,16 +450,18 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
       {/* ── Profile Modal ── */}
       {showProfile && profile && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
-          onClick={() => { setShowProfile(false); setShowThemeMenu(false); }}>
+          onClick={() => { if (!profile.must_change_password) { setShowProfile(false); setShowThemeMenu(false); } }}>
           <div style={{ background: "var(--bg-card)", borderRadius: 18, width: "100%", maxWidth: 360, boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}
             onClick={e => e.stopPropagation()}>
 
             {/* Modal header — accent band with avatar */}
             <div style={{ position: "relative", padding: "26px 20px 20px", borderRadius: "18px 18px 0 0", overflow: "hidden", background: "linear-gradient(135deg, var(--grade-b-bg), var(--bg-elevated))", borderBottom: "1px solid var(--border)" }}>
-              <button onClick={() => setShowProfile(false)}
-                style={{ position: "absolute", top: 14, right: 14, width: 28, height: 28, borderRadius: 8, background: "var(--bg-card)", border: "1px solid var(--border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <X size={14} color="var(--text-secondary)" />
-              </button>
+              {!profile.must_change_password && (
+                <button onClick={() => setShowProfile(false)}
+                  style={{ position: "absolute", top: 14, right: 14, width: 28, height: 28, borderRadius: 8, background: "var(--bg-card)", border: "1px solid var(--border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <X size={14} color="var(--text-secondary)" />
+                </button>
+              )}
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                 <div style={{
                   width: 56, height: 56, borderRadius: "50%", flexShrink: 0,
@@ -542,12 +544,19 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
               ) : (
                 <>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-                    <button onClick={() => { setShowPassForm(false); setPassMsg(null); setOldPass(""); setNewPass(""); setConfirmPass(""); }}
-                      style={{ background: "var(--bg-input)", border: "1px solid var(--border)", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontSize: 12, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 4 }}>
-                      ← Back
-                    </button>
+                    {!profile.must_change_password && (
+                      <button onClick={() => { setShowPassForm(false); setPassMsg(null); setOldPass(""); setNewPass(""); setConfirmPass(""); }}
+                        style={{ background: "var(--bg-input)", border: "1px solid var(--border)", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontSize: 12, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 4 }}>
+                        ← Back
+                      </button>
+                    )}
                     <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase" }}>Change Password</span>
                   </div>
+                  {profile.must_change_password && (
+                    <div style={{ padding: "9px 12px", borderRadius: 8, marginBottom: 12, fontSize: 12, fontWeight: 600, background: "rgba(245,158,11,0.12)", color: "#d97706", border: "1px solid rgba(245,158,11,0.28)" }}>
+                      Temporary password active. Set a new password to continue.
+                    </div>
+                  )}
 
                   {[
                     { label: "Current Password", val: oldPass, set: setOldPass, show: showOld, toggle: () => setShowOld(v => !v) },
@@ -607,7 +616,6 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
           ...(isSuperAdmin ? [
             { path: "/import",            label: "Bulk Import",     icon: FileSpreadsheet, sub: "Super Admin" },
             { path: "/superadmin",        label: "Clients",         icon: Building2, sub: "Super Admin" },
-            { path: "/signup-requests",   label: "Signup requests", icon: UserPlus,  sub: "Super Admin" },
             { path: "/weekly-report-log", label: "Weekly reports",  icon: Mail,      sub: "Super Admin" },
             { path: "/login-activity",    label: "Login activity",  icon: Activity,  sub: "Super Admin" },
           ] : []),

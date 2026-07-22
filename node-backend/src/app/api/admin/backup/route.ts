@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAuth, shopFilter, denyStaff } from "@/lib/auth";
+import { requireActiveAuth, shopFilter, denyStaff } from "@/lib/auth";
 import ExcelJS from "exceljs";
 
 export async function GET(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const staff = denyStaff(user); if (staff) return staff;
 
@@ -20,11 +20,11 @@ export async function GET(req: NextRequest) {
     );
   }
   const [customers, services, entries, labours] = await Promise.all([
-    prisma.customer.findMany({ where: scope, orderBy: { name: "asc" } }),
+    prisma.customer.findMany({ where: { ...scope, deleted_at: null } as any, orderBy: { name: "asc" } }),
     prisma.service.findMany({ where: scope }),
-    prisma.laundryEntry.findMany({ where: scope, include: { items: true, customer: true }, orderBy: { entry_date: "asc" } }),
-    prisma.labour.findMany({ where: scope, include: { works: true } }),
-  ]);
+    prisma.laundryEntry.findMany({ where: { ...scope, deleted_at: null } as any, include: { items: true, customer: true }, orderBy: { entry_date: "asc" } } as any),
+    prisma.labour.findMany({ where: scope, include: { works: { where: { deleted_at: null } } } } as any),
+  ]) as [any[], any[], any[], any[]];
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "LaundryMax";
@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
   let grandTotal = 0;
   entries.forEach(e => {
     grandTotal += Number(e.total_amount);
-    e.items.forEach(item => {
+    e.items.forEach((item: any) => {
       wsEntries.addRow({
         date:     e.entry_date,
         customer: e.customer?.name || "",
@@ -131,7 +131,7 @@ export async function GET(req: NextRequest) {
   styleHeader(wsLabour);
   let labourRows = 1;
   labours.forEach(l => {
-    l.works.forEach(w => {
+    l.works.forEach((w: any) => {
       const amt = w.press_count * Number(w.rate_per_piece);
       wsLabour.addRow({ labour: l.name, date: w.work_date, pieces: w.press_count, rate: Number(w.rate_per_piece), amount: amt });
       labourRows++;

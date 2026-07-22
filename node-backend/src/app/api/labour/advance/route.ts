@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma, { withRetry } from "@/lib/prisma";
-import { requireAuth, requireWrite, denyStaff } from "@/lib/auth";
+import { requireActiveAuth, requireWrite, denyStaff } from "@/lib/auth";
 import { monthRange } from "@/lib/dates";
 
 function labourFilter(user: { role: string; shop_id: string }, req: NextRequest) {
@@ -10,7 +10,7 @@ function labourFilter(user: { role: string; shop_id: string }, req: NextRequest)
 }
 
 export async function GET(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const staff = denyStaff(user); if (staff) return staff;
   const p = new URL(req.url).searchParams;
@@ -18,11 +18,11 @@ export async function GET(req: NextRequest) {
 
   // If labour_id given → return full history for that labour (no month filter)
   if (labourId) {
-    const advances = await withRetry(() => prisma.labourAdvance.findMany({
-      where: { labour_id: labourId, ...labourFilter(user, req) },
+    const advances: any[] = await withRetry(() => prisma.labourAdvance.findMany({
+      where: { labour_id: labourId, deleted_at: null, ...labourFilter(user, req) },
       include: { labour: true },
       orderBy: { advance_date: "desc" },
-    }));
+    } as any));
     return NextResponse.json(advances.map(a => ({
       id: a.id, labour_id: a.labour_id, labour_name: a.labour.name,
       advance_date: a.advance_date, amount: Number(a.amount), description: a.description,
@@ -32,11 +32,11 @@ export async function GET(req: NextRequest) {
   const month = parseInt(p.get("month") || "1");
   const year  = parseInt(p.get("year")  || String(new Date().getFullYear()));
   const { start, end } = monthRange(year, month);
-  const advances = await withRetry(() => prisma.labourAdvance.findMany({
-    where: { advance_date: { gte: start, lte: end }, ...labourFilter(user, req) },
+  const advances: any[] = await withRetry(() => prisma.labourAdvance.findMany({
+    where: { advance_date: { gte: start, lte: end }, deleted_at: null, ...labourFilter(user, req) },
     include: { labour: true },
     orderBy: { advance_date: "desc" },
-  }));
+  } as any));
   return NextResponse.json(advances.map(a => ({
     id:           a.id,
     labour_id:    a.labour_id,
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = requireAuth(req);
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const staff = denyStaff(user); if (staff) return staff;
   const ro = requireWrite(user); if (ro) return ro;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import prisma from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { requireActiveAuth } from "@/lib/auth";
 import ExcelJS from "exceljs";
 
 // Bulk Excel import — SUPERADMIN ONLY. Imports Customers or Garment (service) prices
@@ -11,8 +11,8 @@ import ExcelJS from "exceljs";
 const CUSTOMER_COLS = ["Name", "Phone", "Flat", "Society", "Address", "Email"];
 const PRICE_COLS = ["Service Type", "Item Name", "Price", "Category"];
 
-function guard(req: NextRequest) {
-  const user = requireAuth(req);
+async function guard(req: NextRequest) {
+  const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return { err: user };
   if (user.role !== "superadmin") return { err: NextResponse.json({ detail: "Only superadmin can bulk-import." }, { status: 403 }) };
   const shop_id = req.headers.get("x-selected-shop");
@@ -22,7 +22,7 @@ function guard(req: NextRequest) {
 
 // GET /api/import?type=customers|prices&sample=1 → download a sample .xlsx template.
 export async function GET(req: NextRequest) {
-  const g = guard(req);
+  const g = await guard(req);
   if (g.err) return g.err;
   const type = new URL(req.url).searchParams.get("type") === "prices" ? "prices" : "customers";
   const cols = type === "prices" ? PRICE_COLS : CUSTOMER_COLS;
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/import (multipart: type, file) → parse + insert.
 export async function POST(req: NextRequest) {
-  const g = guard(req);
+  const g = await guard(req);
   if (g.err) return g.err;
   const shop_id = g.shop_id!;
 

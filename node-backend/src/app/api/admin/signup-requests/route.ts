@@ -1,12 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { NextResponse } from "next/server";
 
-export async function GET(req: NextRequest) {
-  const user = requireAuth(req);
-  if (user instanceof NextResponse) return user;
-  if (user.role !== "superadmin") return NextResponse.json({ detail: "Forbidden" }, { status: 403 });
-
-  const requests = await prisma.signupRequest.findMany({ orderBy: { created_at: "desc" } });
-  return NextResponse.json(requests);
+export async function GET() {
+  return NextResponse.json(
+    { detail: "Signup requests are disabled. Create clients manually with a temporary password." },
+    { status: 410 }
+  );
 }
