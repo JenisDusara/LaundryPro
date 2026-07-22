@@ -37,6 +37,11 @@ export default function NewEntry() {
   const [success,          setSuccess]          = useState(false);
   const [expandedGroups,   setExpandedGroups]   = useState<Set<string>>(new Set());
   const [openServices,     setOpenServices]     = useState<Set<string>>(new Set());
+  // Quick "new service at billing time" — create a service on the fly and add it to the bill.
+  // parentId="" → standalone top-level service; otherwise it's created as a sub-item of that service.
+  const [showNewSvc,       setShowNewSvc]       = useState(false);
+  const [newSvc,           setNewSvc]           = useState({ name: "", price: "", parentId: "" });
+  const [creatingSvc,      setCreatingSvc]      = useState(false);
   const [pastEntries,      setPastEntries]      = useState<LaundryEntry[]>([]);
   const [pastLoading,      setPastLoading]      = useState(false);
   const [showDropdown,     setShowDropdown]     = useState(false);
@@ -105,6 +110,34 @@ export default function NewEntry() {
   };
 
   const addItem      = (svc:Service) => setItems(prev=>[...prev,{id:Math.random().toString(),service_id:svc.id,service_name:svc.name,item_name:"",price:Number(svc.price)||0,quantity:1}]);
+
+  // Create a brand-new service right here (saved to the catalogue) and drop it into the bill.
+  // If a parent is picked, it's created as a sub-item under that service instead of a standalone one.
+  const createAndAddService = async () => {
+    const name = newSvc.name.trim();
+    if (!name || creatingSvc) return;
+    setCreatingSvc(true);
+    try {
+      const price = newSvc.price ? Math.max(0, parseFloat(newSvc.price) || 0) : 0;
+      const body: any = { name, price, category: null };
+      if (newSvc.parentId) body.parent_id = newSvc.parentId;
+      const res = await api.post("/services", body);
+      const created = res.data as Service;
+      // Reflect it in the catalogue list immediately — nested under its parent if it's a sub-item.
+      if (created.parent_id) {
+        setServices(prev => prev.map(p => p.id === created.parent_id
+          ? { ...p, children: [...(p.children || []), created] }
+          : p));
+      } else {
+        setServices(prev => [...prev, created]);
+      }
+      addItem(created);                           // and add it to the current bill
+      setNewSvc({ name: "", price: "", parentId: "" });
+      setShowNewSvc(false);
+    } catch (e:any) {
+      alert(e?.response?.data?.detail || "Could not add service");
+    } finally { setCreatingSvc(false); }
+  };
   const updateItem   = (id:string,field:keyof ManualItem,value:string|number) => setItems(prev=>prev.map(item=>item.id===id?{...item,[field]:value}:item));
   const removeItem   = (id:string) => setItems(prev=>prev.filter(item=>item.id!==id));
   const toggleGroup  = (id:string) => { const s=new Set(expandedGroups); s.has(id)?s.delete(id):s.add(id); setExpandedGroups(s); };
@@ -338,6 +371,55 @@ export default function NewEntry() {
               <div style={label}>Add services</div>
               <span style={{fontSize:11,color:"var(--text-muted)"}}>Tap to add an item</span>
             </div>
+
+            {/* Quick add a new service (not in the list) right at billing time */}
+            {showNewSvc && (
+              <div style={{marginBottom:12,padding:"14px",borderRadius:12,border:"1px dashed var(--accent-primary)",background:"var(--grade-b-bg)"}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                  <div style={{...label,color:"var(--grade-b-text)"}}>New service</div>
+                  <button onClick={()=>{setShowNewSvc(false);setNewSvc({name:"",price:"",parentId:""});}}
+                    style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-muted)",display:"flex",padding:2}}><X size={16}/></button>
+                </div>
+                {/* Add under: standalone, or as a sub-item of an existing service */}
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+                  <span style={{fontSize:12.5,color:"var(--text-secondary)",fontWeight:600}}>Add under</span>
+                  <select value={newSvc.parentId} onChange={e=>setNewSvc(s=>({...s,parentId:e.target.value}))}
+                    style={{flex:"1 1 200px",minWidth:0,padding:"9px 12px",border:"1px solid var(--border-hard)",borderRadius:8,fontSize:13.5,fontWeight:600,outline:"none",background:"var(--bg-input)",color:"var(--text-primary)",cursor:"pointer"}}>
+                    <option value="">Standalone service (own tile)</option>
+                    {services.map(p=>(
+                      <option key={p.id} value={p.id}>Sub-item of “{p.name}”</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                  <input autoFocus value={newSvc.name} onChange={e=>setNewSvc(s=>({...s,name:e.target.value}))}
+                    onKeyDown={e=>{ if(e.key==="Enter") createAndAddService(); }}
+                    placeholder={newSvc.parentId ? "Sub-item name  e.g. Choli" : "Service name  e.g. Curtain wash"}
+                    style={{flex:"1 1 200px",minWidth:0,padding:"10px 12px",border:"1px solid var(--border-hard)",borderRadius:8,fontSize:13.5,outline:"none",background:"var(--bg-input)",color:"var(--text-primary)"}}/>
+                  <div style={{display:"flex",alignItems:"center",gap:3,background:"var(--bg-input)",border:"1px solid var(--border-hard)",borderRadius:8,padding:"0 10px",height:38,width:96,flexShrink:0}}>
+                    <span style={{fontSize:12,color:"var(--text-muted)"}}>₹</span>
+                    <input type="number" min={0} value={newSvc.price} onChange={e=>setNewSvc(s=>({...s,price:e.target.value}))}
+                      onKeyDown={e=>{ if(e.key==="Enter") createAndAddService(); }}
+                      placeholder="0"
+                      style={{flex:1,minWidth:0,width:"100%",border:"none",outline:"none",fontSize:13.5,fontWeight:600,background:"transparent",color:"var(--text-primary)"}}/>
+                  </div>
+                  <button onClick={createAndAddService} disabled={!newSvc.name.trim()||creatingSvc}
+                    style={{padding:"10px 18px",borderRadius:8,border:"none",fontSize:13.5,fontWeight:700,flexShrink:0,
+                      cursor:(!newSvc.name.trim()||creatingSvc)?"not-allowed":"pointer",
+                      background:(!newSvc.name.trim()||creatingSvc)?"var(--bg-input)":"var(--accent-primary)",
+                      color:(!newSvc.name.trim()||creatingSvc)?"var(--text-muted)":"#0b1830",
+                      opacity:(!newSvc.name.trim()||creatingSvc)?0.6:1}}>
+                    {creatingSvc?"Adding…":"Add to bill"}
+                  </button>
+                </div>
+                <div style={{fontSize:11.5,color:"var(--text-muted)",marginTop:8}}>
+                  {newSvc.parentId
+                    ? "Saved as a sub-item under the selected service, and added to this bill."
+                    : "Saved to your services catalogue and added to this bill."}
+                </div>
+              </div>
+            )}
+
             <div className="ne-svc-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))",gap:10}}>
               {topServices.map((svc)=>{
                 const children = svc.children || [];
@@ -370,6 +452,16 @@ export default function NewEntry() {
                   </div>
                 );
               })}
+
+              {/* + New service — add one that isn't in the list, right at billing time */}
+              <button className="svc-btn" onClick={()=>setShowNewSvc(v=>!v)}
+                style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:showNewSvc?"var(--grade-b-bg)":"transparent",border:`1px dashed ${showNewSvc?"var(--grade-b-border)":"var(--accent-primary)"}`,borderRadius:12,cursor:"pointer",transition:"border-color 0.15s",textAlign:"left"}}>
+                <span style={{width:28,height:28,borderRadius:8,flexShrink:0,background:"var(--accent-primary)",color:"#0b1830",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  <Plus size={15}/>
+                </span>
+                <span style={{flex:1,minWidth:0,fontSize:13.5,fontWeight:700,color:"var(--accent-primary)"}}>New service</span>
+                <span style={{fontSize:12,fontWeight:600,color:"var(--text-muted)",flexShrink:0}}>Create</span>
+              </button>
             </div>
           </div>
 

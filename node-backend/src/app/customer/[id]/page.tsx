@@ -229,6 +229,7 @@ export default function CustomerDetail({ params }: { params: { id: string } }) {
                       </td>
                       <td style={{ padding: "8px 16px", borderBottom: open ? "none" : "1px solid var(--border-subtle)" }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }} onClick={ev => ev.stopPropagation()}>
+                          <button onClick={() => openInvoice({ entry_id: e.id })} title="View / print invoice for this order" style={iconBtn}><FileText size={13} color="var(--grade-b-text)" /></button>
                           {customer?.phone && <button onClick={() => waOrder(e)} title="Send bill on WhatsApp" style={iconBtn}><svg width="14" height="14" viewBox="0 0 24 24" fill="#22c55e"><path d={WA_PATH} /></svg></button>}
                           <button onClick={() => openEdit(e)} title="Edit" style={iconBtn}><Pencil size={13} color="var(--text-secondary)" /></button>
                           <button onClick={() => delEntry(e.id)} title="Delete" style={iconBtn}><Trash2 size={13} color="#ef4444" /></button>

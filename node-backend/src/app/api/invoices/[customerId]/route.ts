@@ -64,6 +64,19 @@ export async function GET(req: NextRequest, { params }: { params: { customerId: 
   const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
   const invNum = 1000 + (params.customerId.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 9000);
 
+  // Per-order invoice (entry_id): show that order's REAL invoice number and use its
+  // date as the period, instead of the customer-derived number / "All entries".
+  let singleInvoiceNo: number | null = null;
+  const singleEntryDate: string | null = p.get("entry_id") && entries.length > 0 ? entries[0].entry_date : null;
+  if (p.get("entry_id") && entries.length > 0) {
+    try {
+      const rows: { invoice_no: number | null }[] = await prisma.$queryRawUnsafe(
+        `SELECT invoice_no FROM laundry_entries WHERE id::text = $1`, entries[0].id);
+      singleInvoiceNo = rows[0]?.invoice_no ?? null;
+    } catch { /* column missing → fall back to derived number */ }
+  }
+  const invoiceLabel = singleInvoiceNo != null ? `INV-${String(singleInvoiceNo).padStart(4, "0")}` : `INV-${invNum}`;
+
   // Stats + rows
   let grandTotal = 0, totalQty = 0;
   const rows: string[] = [];
@@ -96,9 +109,9 @@ export async function GET(req: NextRequest, { params }: { params: { customerId: 
   const discountAmt = discount + storedDiscount;
   const extraAmt = storedExtra;
   const total = Math.max(0, subtotal - discountAmt + extraAmt);
-  const period = entry_date ? fmtDate(entry_date) : (month && year ? new Date(year, month - 1, 1).toLocaleString("en-IN", { month: "long", year: "numeric" }) : "All entries");
+  const period = entry_date ? fmtDate(entry_date) : (singleEntryDate ? fmtDate(singleEntryDate) : (month && year ? new Date(year, month - 1, 1).toLocaleString("en-IN", { month: "long", year: "numeric" }) : "All entries"));
 
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Invoice ${invNum}</title>
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${invoiceLabel}</title>
 <style>
   *{box-sizing:border-box}
   body{font-family:Arial,Helvetica,sans-serif;color:#000;background:#fff;margin:0;padding:24px;font-size:12px;line-height:1.35}
@@ -135,7 +148,7 @@ export async function GET(req: NextRequest, { params }: { params: { customerId: 
       </div>
       <div>
         <h2>Invoice</h2>
-        <div><strong>No:</strong> INV-${invNum}</div>
+        <div><strong>No:</strong> ${invoiceLabel}</div>
         <div><strong>Date:</strong> ${today}</div>
         <div><strong>Period:</strong> ${esc(period)}</div>
       </div>

@@ -57,8 +57,8 @@ export default function Reports() {
   const exportCombined = () => { downloadAuthedFile("/exports/combined",`LaundryMax-Report-${from}_${to}.xlsx`,{from,to}).catch(()=>alert("Failed to export report")); };
 
   const totalRevenue=entries.reduce((s,e)=>s+Number(e.total_amount),0);
-  const uniqueCustomers=new Set(entries.map(e=>e.customer_id)).size;
-  const avgPerEntry=entries.length>0?Math.round(totalRevenue/entries.length):0;
+  const totalExpense=expenses.reduce((s,e)=>s+Number(e.amount),0);
+  const netAfterExpense=totalRevenue-totalExpense; // revenue minus this month's expenses
 
   const dailyMap=new Map<string,number>();
   entries.forEach(e=>dailyMap.set(e.entry_date,(dailyMap.get(e.entry_date)||0)+Number(e.total_amount)));
@@ -123,25 +123,26 @@ export default function Reports() {
         initial={{ from, to }}
         onApply={(v)=>{ setFrom(v.from || mStart()); setTo(v.to || mEnd()); }}
       />
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:14,marginBottom:24}}>
+      {/* Compact KPI strip — slim single-line cards, 2×2 on phone, 4-across on desktop */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginBottom:18}}>
         {[
-          {label:"Total revenue", value:`₹${totalRevenue.toLocaleString()}`, icon:<IndianRupee size={18}/>, iconBg:"var(--grade-a-bg)", iconColor:"var(--grade-a-text)"},
-          {label:"Total entries",  value:entries.length,                     icon:<ShoppingBag size={18}/>, iconBg:"var(--grade-b-bg)", iconColor:"var(--grade-b-text)"},
-          {label:"Avg per entry",  value:`₹${avgPerEntry}`,                  icon:<TrendingUp size={18}/>,  iconBg:"var(--grade-b-bg)", iconColor:"var(--grade-b-text)"},
-          {label:"Customers",      value:uniqueCustomers,                     icon:<Users size={18}/>,       iconBg:"var(--grade-c-bg)", iconColor:"var(--grade-c-text)"},
+          {label:"Total revenue", value:`₹${totalRevenue.toLocaleString()}`,                     icon:<IndianRupee size={16}/>, iconBg:"var(--grade-b-bg)", iconColor:"var(--grade-b-text)"},
+          {label:"Expenses",      value:`₹${totalExpense.toLocaleString()}`,                     icon:<ShoppingBag size={16}/>, iconBg:"var(--grade-f-bg)", iconColor:"var(--grade-f-text)"},
+          {label:"Net (after expense)", value:`₹${netAfterExpense.toLocaleString()}`,            icon:<TrendingUp size={16}/>,  iconBg: netAfterExpense>=0?"var(--grade-a-bg)":"var(--grade-f-bg)", iconColor: netAfterExpense>=0?"var(--grade-a-text)":"var(--grade-f-text)"},
         ].map((stat,i)=>(
-          <div key={i} style={{background:"var(--bg-card)",borderRadius:14,padding:"16px 18px",border:"1px solid var(--border-hard)",boxShadow:"0 2px 8px rgba(0,0,0,0.05)"}}>
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-              <div style={{width:36,height:36,borderRadius:10,background:stat.iconBg,display:"flex",alignItems:"center",justifyContent:"center",color:stat.iconColor,flexShrink:0}}>{stat.icon}</div>
-              <span style={{fontSize:12,fontWeight:600,color:"var(--text-secondary)"}}>{stat.label}</span>
+          <div key={i} style={{background:"var(--bg-card)",borderRadius:12,padding:"11px 13px",border:"1px solid var(--border-hard)",display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:32,height:32,borderRadius:9,background:stat.iconBg,display:"flex",alignItems:"center",justifyContent:"center",color:stat.iconColor,flexShrink:0}}>{stat.icon}</div>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:10.5,fontWeight:600,color:"var(--text-secondary)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{stat.label}</div>
+              <div style={{fontSize:18,fontWeight:800,color:stat.iconColor,lineHeight:1.2}}>{stat.value}</div>
             </div>
-            <div style={{fontSize:24,fontWeight:900,color:stat.iconColor}}>{stat.value}</div>
           </div>
         ))}
       </div>
-      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+      {/* Tabs — single scrollable row on mobile (no wrapping to 3 lines) */}
+      <div style={{display:"flex",gap:8,marginBottom:16,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch",scrollbarWidth:"none"}}>
         {([["daily","Daily"],["orders","Orders"],["collection","Collection"],["balance","Balance"],["expense","Expense"],["services","Services"],["society","Society"],["customers","Customers"]] as [typeof activeTab,string][]).map(([tab,lbl])=>(
-          <button key={tab} onClick={()=>setActiveTab(tab)} style={{padding:"8px 18px",border:"none",borderRadius:20,cursor:"pointer",fontSize:13,fontWeight:700,
+          <button key={tab} onClick={()=>setActiveTab(tab)} style={{padding:"8px 18px",border:"none",borderRadius:20,cursor:"pointer",fontSize:13,fontWeight:700,flexShrink:0,whiteSpace:"nowrap",
             background:activeTab===tab?"#2563eb":"var(--bg-input)",
             color:activeTab===tab?"#fff":"var(--text-secondary)",
             transition:"all 0.15s"}}>

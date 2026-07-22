@@ -19,12 +19,14 @@ export async function GET(req: NextRequest) {
       { status: 400 }
     );
   }
-  const [customers, services, entries, labours] = await Promise.all([
+  const [customers, services, entries, labours, payments, expenses] = await Promise.all([
     prisma.customer.findMany({ where: { ...scope, deleted_at: null } as any, orderBy: { name: "asc" } }),
     prisma.service.findMany({ where: scope }),
     prisma.laundryEntry.findMany({ where: { ...scope, deleted_at: null } as any, include: { items: true, customer: true }, orderBy: { entry_date: "asc" } } as any),
     prisma.labour.findMany({ where: scope, include: { works: { where: { deleted_at: null } } } } as any),
-  ]) as [any[], any[], any[], any[]];
+    prisma.payment.findMany({ where: { ...scope, deleted_at: null } as any, include: { customer: true }, orderBy: { date: "asc" } } as any),
+    prisma.expense.findMany({ where: { ...scope, deleted_at: null } as any, orderBy: { date: "asc" } } as any),
+  ]) as [any[], any[], any[], any[], any[], any[]];
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "LaundryMax";
@@ -138,6 +140,60 @@ export async function GET(req: NextRequest) {
     });
   });
   stripeRows(wsLabour, labourRows);
+
+  // ── Sheet 5: Payments received ──
+  const wsPayments = wb.addWorksheet("💰 Payments");
+  wsPayments.columns = [
+    { header: "Date",       key: "date",     width: 13 },
+    { header: "Customer",   key: "customer", width: 22 },
+    { header: "Phone",      key: "phone",    width: 14 },
+    { header: "Amount (₹)", key: "amount",   width: 13 },
+    { header: "Method",     key: "method",   width: 12 },
+    { header: "Note",       key: "note",     width: 26 },
+  ];
+  styleHeader(wsPayments);
+  let paymentTotal = 0;
+  payments.forEach(p => {
+    paymentTotal += Number(p.amount);
+    wsPayments.addRow({
+      date:     p.date,
+      customer: p.customer?.name || "",
+      phone:    p.customer?.phone || "",
+      amount:   Number(p.amount),
+      method:   p.method || "",
+      note:     p.note || "",
+    });
+  });
+  stripeRows(wsPayments, payments.length + 1);
+  const payTotalRow = wsPayments.addRow({ phone: "TOTAL", amount: paymentTotal });
+  payTotalRow.getCell(3).font = { bold: true };
+  payTotalRow.getCell(4).font = { bold: true, color: { argb: "FF1E40AF" }, size: 12 };
+  payTotalRow.getCell(4).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDBEAFE" } };
+
+  // ── Sheet 6: Expenses ──
+  const wsExpenses = wb.addWorksheet("🧾 Expenses");
+  wsExpenses.columns = [
+    { header: "Date",        key: "date",        width: 13 },
+    { header: "Category",    key: "category",    width: 18 },
+    { header: "Description", key: "description", width: 32 },
+    { header: "Amount (₹)",  key: "amount",      width: 13 },
+  ];
+  styleHeader(wsExpenses);
+  let expenseTotal = 0;
+  expenses.forEach(x => {
+    expenseTotal += Number(x.amount);
+    wsExpenses.addRow({
+      date:        x.date,
+      category:    x.category || "",
+      description: x.description || "",
+      amount:      Number(x.amount),
+    });
+  });
+  stripeRows(wsExpenses, expenses.length + 1);
+  const expTotalRow = wsExpenses.addRow({ description: "TOTAL", amount: expenseTotal });
+  expTotalRow.getCell(3).font = { bold: true };
+  expTotalRow.getCell(4).font = { bold: true, color: { argb: "FF1E40AF" }, size: 12 };
+  expTotalRow.getCell(4).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDBEAFE" } };
 
   const buffer = await wb.xlsx.writeBuffer();
   const date = new Date().toISOString().slice(0, 10);
