@@ -6,6 +6,7 @@ import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import EmptyState from "@/components/EmptyState";
 import ItemDeliver from "@/components/ItemDeliver";
+import QrTagModal from "@/components/QrTagModal";
 import { isEntryDelivered } from "@/lib/entry-status";
 import type { LaundryEntry, Service, Customer } from "@/types";
 
@@ -48,6 +49,7 @@ export default function CustomerDetail({ params }: { params: { id: string } }) {
   const [payMethod, setPayMethod] = useState("cash");
   const [payNote, setPayNote] = useState("");
   const [invoiceHtml, setInvoiceHtml] = useState<string | null>(null);
+  const [qrEntryId, setQrEntryId] = useState<string | null>(null);
 
   const [editEntry, setEditEntry] = useState<LaundryEntry | null>(null);
   const [editItems, setEditItems] = useState<EditItem[]>([]);
@@ -244,7 +246,7 @@ export default function CustomerDetail({ params }: { params: { id: string } }) {
                       <td style={{ padding: "8px 16px", borderBottom: open ? "none" : "1px solid var(--border-subtle)" }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }} onClick={ev => ev.stopPropagation()}>
                           <button onClick={() => openInvoice({ entry_id: e.id })} title="View / print invoice for this order" style={iconBtn}><FileText size={13} color="var(--grade-b-text)" /></button>
-                          <button onClick={() => window.open(`/entries/${e.id}/tag?mode=stickers&count=${e.items.reduce((s, i) => s + Number(i.quantity), 0)}`, "_blank")} title="Print QR tag" style={iconBtn}><QrCode size={13} color="var(--text-secondary)" /></button>
+                          <button onClick={() => setQrEntryId(e.id)} title="Show QR tag" style={iconBtn}><QrCode size={13} color="var(--text-secondary)" /></button>
                           {customer?.phone && <button onClick={() => waOrder(e)} title="Send bill on WhatsApp" style={iconBtn}><svg width="14" height="14" viewBox="0 0 24 24" fill="#22c55e"><path d={WA_PATH} /></svg></button>}
                           <button onClick={() => openEdit(e)} title="Edit" style={iconBtn}><Pencil size={13} color="var(--text-secondary)" /></button>
                           <button onClick={() => delEntry(e.id)} title="Delete" style={iconBtn}><Trash2 size={13} color="#ef4444" /></button>
@@ -444,6 +446,9 @@ export default function CustomerDetail({ params }: { params: { id: string } }) {
           </div>
         </div>
       )}
+
+      {/* QR tag preview (in-app, no new tab) */}
+      {qrEntryId && <QrTagModal entryId={qrEntryId} mode="order" onClose={() => setQrEntryId(null)} />}
     </ProtectedLayout>
   );
 }

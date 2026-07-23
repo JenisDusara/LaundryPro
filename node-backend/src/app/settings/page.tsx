@@ -147,7 +147,7 @@ export default function Settings() {
     }
   };
   const disconnectWa = async () => {
-    if (!confirm("Is shop ka WhatsApp disconnect karein?")) return;
+    if (!confirm("Disconnect WhatsApp for this shop?")) return;
     setWaBusy(true);
     try { await api.post("/whatsapp/disconnect"); await loadWaStatus(); }
     finally { setWaBusy(false); }
@@ -272,7 +272,7 @@ export default function Settings() {
                   )}
                 </div>
                 <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8 }}>
-                  PNG/JPG, 150 KB se chhoti. Simple black-and-white invoice me logo use nahi hota.
+                  PNG/JPG, under 150 KB. Logo is not used on the simplified black-and-white invoice.
                 </div>
               </div>
             </div>
@@ -365,7 +365,7 @@ export default function Settings() {
               <span style={{ fontWeight: 700, fontSize: 14 }}>Data &amp; backup</span>
             </div>
             <p style={{ fontSize: 12.5, color: "var(--text-muted)", margin: "0 0 14px" }}>
-              Apne shop ka pura data (customers, entries, services, labour) ek Excel file me download karein — alag-alag sheets me, aasani se dekhne ke liye. Safe jagah rakhein.
+              Download all your shop data (customers, entries, services, labour) as an Excel file — organized across separate sheets for easy reference. Keep it in a safe place.
             </p>
             <button onClick={downloadBackup} disabled={backupBusy}
               style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 18px", border: "1px solid var(--border-hard)", borderRadius: 10, background: "var(--bg-input)", color: "var(--text-primary)", fontSize: 13.5, fontWeight: 700, cursor: backupBusy ? "not-allowed" : "pointer", opacity: backupBusy ? 0.6 : 1 }}>
@@ -380,7 +380,7 @@ export default function Settings() {
               <span style={{ fontWeight: 700, fontSize: 14 }}>QR tag privacy &amp; security</span>
             </div>
             <p style={{ fontSize: 12.5, color: "var(--text-muted)", margin: "0 0 14px" }}>
-              Scan page aur printed tag me customer data kitna dikhana hai. Default safe mode me phone/address masked rehta hai.
+              Control how much customer data is shown on the scan page and printed tag. In default safe mode, phone and address are masked.
             </p>
             <div style={{ display: "grid", gap: 12 }}>
               {[
@@ -418,7 +418,7 @@ export default function Settings() {
               <span style={{ fontWeight: 700, fontSize: 14 }}>Weekly report email</span>
             </div>
             <p style={{ fontSize: 12.5, color: "var(--text-muted)", margin: "0 0 14px" }}>
-              Har Sunday subah 8 baje, is shop ke earnings/entries/udhaar ka poora report is email pe automatically chala jayega: <b style={{ color: "var(--text-secondary)" }}>{form.email || "(set an email above first)"}</b>
+              Every Sunday at 8 AM, a full report of this shop's earnings, entries, and outstanding balance will be automatically sent to: <b style={{ color: "var(--text-secondary)" }}>{form.email || "(set an email above first)"}</b>
             </p>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -432,13 +432,13 @@ export default function Settings() {
                 </span>
               </div>
               <button onClick={sendReportNow} disabled={reportBusy || !form.email}
-                title={!form.email ? "Pehle upar email address set karo" : undefined}
+                title={!form.email ? "Set an email address above first" : undefined}
                 style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 18px", border: "1px solid var(--border-hard)", borderRadius: 10, background: "var(--bg-input)", color: "var(--text-primary)", fontSize: 13.5, fontWeight: 700, cursor: (reportBusy || !form.email) ? "not-allowed" : "pointer", opacity: (reportBusy || !form.email) ? 0.6 : 1 }}>
                 <Send size={15} /> {reportBusy ? "Sending…" : "Send now"}
               </button>
             </div>
             <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 10 }}>
-              Toggle turant save hota hai. "Send now" abhi bhejta hai, toggle se independent.
+              Toggle saves instantly. "Send now" sends immediately, independent of the toggle.
             </div>
           </div>
           )}
@@ -450,7 +450,7 @@ export default function Settings() {
               <span style={{ fontWeight: 700, fontSize: 14 }}>Bill prices in WhatsApp</span>
             </div>
             <p style={{ fontSize: 12.5, color: "var(--text-muted)", margin: "0 0 14px" }}>
-              WhatsApp bills (auto-send + manual) me price dikhani hai ya nahi. Kuch shops sirf items dikhana chahte hain, price/total nahi.
+              Choose whether to show prices in WhatsApp bills (auto-send + manual). Some shops prefer to show only items without price or total.
             </p>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div onClick={toggleShowPrices} style={{ cursor: "pointer", flexShrink: 0 }}>
@@ -460,10 +460,10 @@ export default function Settings() {
               </div>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
-                  Show prices in WhatsApp {form.wa_show_prices ? "ON" : "OFF"} <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>(turant save)</span>
+                  Show prices in WhatsApp {form.wa_show_prices ? "ON" : "OFF"} <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>(saves instantly)</span>
                 </div>
                 <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>
-                  {form.wa_show_prices ? "Bill me items + price/total dono jaate hain." : "Sirf items + quantity jaate hain — price/total nahi."}
+                  {form.wa_show_prices ? "Bills include items + price/total." : "Bills include only items + quantity — no price or total."}
                 </div>
               </div>
             </div>
@@ -476,12 +476,12 @@ export default function Settings() {
               <span style={{ fontWeight: 700, fontSize: 14 }}>WhatsApp auto-send</span>
             </div>
             <p style={{ fontSize: 12.5, color: "var(--text-muted)", margin: "0 0 14px" }}>
-              Naye pickup aur delivery complete hone par customer ko automatically WhatsApp message bhejo. Iske liye pehle apna WhatsApp number connect karein.
+              Automatically send WhatsApp messages to customers on new pickup and delivery completion. Connect your WhatsApp number first to enable this.
             </p>
 
             {wa.state === "not_configured" || wa.state === "unavailable" ? (
               <div style={{ fontSize: 13, color: "var(--text-muted)", background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", borderRadius: 10, padding: "12px 14px" }}>
-                ⚠️ WhatsApp connect nahi hai. Auto-send ka toggle connect karne ke baad dikhega. (Admin: <b style={{ color: "var(--text-secondary)" }}>WA_SERVICE_URL</b> set karein.)
+                ⚠️ WhatsApp is not connected. The auto-send toggle will appear after connecting. (Admin: set <b style={{ color: "var(--text-secondary)" }}>WA_SERVICE_URL</b>.)
               </div>
             ) : wa.state === "open" ? (
               <>
@@ -496,7 +496,7 @@ export default function Settings() {
                     </div>
                   </div>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
-                    Auto-send on pickup &amp; delivery {form.wa_auto_enabled ? "ON" : "OFF"} <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>(turant save)</span>
+                    Auto-send on pickup &amp; delivery {form.wa_auto_enabled ? "ON" : "OFF"} <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>(saves instantly)</span>
                   </span>
                 </div>
                 <button onClick={disconnectWa} disabled={waBusy}
@@ -507,26 +507,26 @@ export default function Settings() {
             ) : wa.state === "pairing" && wa.pairingCode ? (
               <div>
                 <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 8 }}>
-                  Phone pe: <b>WhatsApp → Linked Devices → "Link with phone number"</b> → yeh code daalo:
+                  On your phone: <b>WhatsApp → Linked Devices → "Link with phone number"</b> → enter this code:
                 </div>
                 <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: 4, color: "var(--text-primary)", background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", borderRadius: 10, padding: "12px 16px", textAlign: "center", fontFamily: "monospace" }}>
                   {wa.pairingCode}
                 </div>
-                <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8 }}>Code daalte hi apne aap connect ho jayega…</div>
-                <button onClick={resetWaChoice} style={{ marginTop: 12, background: "none", border: "none", color: "var(--accent-primary)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", padding: 0 }}>← Dusra tareeka (QR / number badlo)</button>
+                <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8 }}>Will connect automatically once the code is entered…</div>
+                <button onClick={resetWaChoice} style={{ marginTop: 12, background: "none", border: "none", color: "var(--accent-primary)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", padding: 0 }}>← Use a different method (QR / change number)</button>
               </div>
             ) : wa.state === "qr" && wa.qr ? (
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 10 }}>Doosri screen pe QR dikhaakar phone se: WhatsApp → Linked Devices → scan:</div>
+                <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 10 }}>Show this QR on another screen and scan it from your phone: WhatsApp → Linked Devices → scan:</div>
                 <img src={wa.qr} alt="WhatsApp QR" style={{ width: 220, height: 220, borderRadius: 12, border: "1px solid var(--border-hard)", background: "#fff", padding: 8 }} />
-                <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8 }}>Scan hote hi apne aap connect ho jayega…</div>
-                <div><button onClick={resetWaChoice} style={{ marginTop: 12, background: "none", border: "none", color: "var(--accent-primary)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", padding: 0 }}>← Dusra tareeka (phone number se link karo)</button></div>
+                <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8 }}>Will connect automatically once scanned…</div>
+                <div><button onClick={resetWaChoice} style={{ marginTop: 12, background: "none", border: "none", color: "var(--accent-primary)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", padding: 0 }}>← Use a different method (link with phone number)</button></div>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                {/* Option 1 — pairing code (ek hi phone pe kaam karta hai) */}
+                {/* Option 1 — pairing code */}
                 <div>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-primary)", marginBottom: 6 }}>Phone number se link karo <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>(ek hi phone pe)</span></div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-primary)", marginBottom: 6 }}>Link with phone number <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>(same phone only)</span></div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <input value={waPhone} onChange={e => setWaPhone(e.target.value)} placeholder="WhatsApp number (10 digit)" inputMode="numeric"
                       style={{ ...inp, flex: 1, minWidth: 160 }} />

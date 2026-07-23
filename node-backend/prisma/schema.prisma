@@ -123,8 +123,9 @@ model Service {
   parent_id  String?
   parent     Service?    @relation("ServiceChildren", fields: [parent_id], references: [id])
   children   Service[]   @relation("ServiceChildren")
-  price      Decimal?    @db.Decimal(10, 2)
-  category   String?     // POS catalog filter: MEN | WOMEN | KIDS | HOUSEHOLD | INSTITUTIONAL | OTHERS
+  price       Decimal?   @db.Decimal(10, 2)
+  category    String?    // POS catalog filter: MEN | WOMEN | KIDS | HOUSEHOLD | INSTITUTIONAL | OTHERS
+  description String?    // optional free-text note, useful for "OTHERS" category items
   is_active  Boolean     @default(true)
   shop_id    String      @default("shop1")
   created_at DateTime    @default(now())

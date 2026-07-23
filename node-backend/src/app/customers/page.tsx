@@ -493,7 +493,7 @@ export default function Customers() {
                 );
               };
 
-              const isFormValid = !!form.name && !!form.phone;
+              const isFormValid = !!form.name && form.phone.length === 10;
 
               return (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -536,12 +536,12 @@ export default function Customers() {
               </button>
               <button
                 onClick={save}
-                disabled={loading || !form.name || !form.phone}
+                disabled={loading || !form.name || form.phone.length !== 10}
                 style={{
                   padding: "10px 28px", borderRadius: 9, fontSize: 14, fontWeight: 700,
-                  cursor: !form.name || !form.phone ? "not-allowed" : "pointer",
+                  cursor: !form.name || form.phone.length !== 10 ? "not-allowed" : "pointer",
                   transition: "all 0.15s",
-                  ...(!form.name || !form.phone
+                  ...(!form.name || form.phone.length !== 10
                     ? { background: "var(--bg-input)", color: "var(--text-secondary)", border: "1.5px solid var(--border)", opacity: 0.55 }
                     : { background: "var(--accent-primary)", color: "#0b1830", border: "none", boxShadow: "var(--shadow-glow-blue)" }
                   ),
@@ -591,11 +591,11 @@ export default function Customers() {
                   </div>
 
                   <div style={{ padding: "12px 14px", borderRadius: 10, marginBottom: 16, background: "var(--bg-elevated)", border: "1px solid var(--border-hard)", fontSize: 13.5, color: "var(--text-primary)", fontWeight: 600 }}>
-                    <b style={{ color: "var(--accent-primary)" }}>{activeCount}</b> monthly customer{activeCount === 1 ? "" : "s"} ki is mahine entries hain — sirf monthly billing wale customers ko {MONTHS[month - 1]} ka bill jayega.
+                    <b style={{ color: "var(--accent-primary)" }}>{activeCount}</b> monthly customer{activeCount === 1 ? "" : "s"} with entries this month — only monthly billing customers will receive the {MONTHS[month - 1]} invoice.
                     {perOrderSkipped > 0 && <div style={{marginTop:6,fontSize:12,color:"var(--text-muted)",fontWeight:600}}>{perOrderSkipped} active per-order customer{perOrderSkipped === 1 ? "" : "s"} skipped rahenge.</div>}
                   </div>
 
-                  <label style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", display: "block", marginBottom: 6 }}>Kaha bhejein?</label>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", display: "block", marginBottom: 6 }}>Send via</label>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 18 }}>
                     {CH.map(c => {
                       const active = bulkChannel === c.key;
@@ -622,10 +622,10 @@ export default function Customers() {
                         background: activeCount === 0 ? "var(--bg-input)" : "var(--accent-primary)",
                         color: activeCount === 0 ? "var(--text-secondary)" : "#0b1830",
                         opacity: (bulkSending || activeCount === 0) ? 0.6 : 1 }}>
-                      <Send size={14} /> {bulkSending ? "Bhej rahe hain…" : `Send to ${activeCount}`}
+                      <Send size={14} /> {bulkSending ? "Sending…" : `Send to ${activeCount}`}
                     </button>
                   </div>
-                  {bulkSending && <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 10, textAlign: "center" }}>WhatsApp ek-ek karke ja rahe hain, thoda ruko — band mat karo.</div>}
+                  {bulkSending && <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 10, textAlign: "center" }}>Sending WhatsApp messages one by one — please wait, do not close.</div>}
                 </>
               ) : (
                 <>
@@ -639,7 +639,7 @@ export default function Customers() {
                     </div>
                   </div>
                   {bulkResult.waSent === 0 && (bulkChannel === "both" || bulkChannel === "whatsapp") && (
-                    <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 14 }}>WhatsApp 0 gaye — shayad WhatsApp connect nahi hai (Settings me connect karo).</div>
+                    <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 14 }}>0 WhatsApp messages sent — WhatsApp may not be connected (connect it in Settings).</div>
                   )}
                   <div style={{ display: "flex", justifyContent: "flex-end" }}>
                     <button onClick={() => setShowBulk(false)}

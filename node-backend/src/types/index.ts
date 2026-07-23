@@ -22,6 +22,7 @@ export interface Service {
   parent_id: string | null;
   price: number | null;
   category?: string | null;
+  description?: string | null;
   is_active: boolean;
   children: Service[];
 }

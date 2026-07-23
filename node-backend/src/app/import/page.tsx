@@ -38,7 +38,7 @@ export default function ImportPage() {
 
       {!shop && (
         <div style={{ background: "var(--grade-c-bg)", border: "1px solid var(--grade-c-border)", borderRadius: 10, padding: "11px 16px", marginBottom: 16, fontSize: 13, fontWeight: 600, color: "var(--grade-c-text)", display: "flex", alignItems: "center", gap: 8 }}>
-          <AlertTriangle size={16} /> Pehle top-left se ek shop select karo — import usi shop mein jayega.
+          <AlertTriangle size={16} /> Please select a shop from the top-left first — data will be imported into that shop.
         </div>
       )}
 
@@ -48,8 +48,8 @@ export default function ImportPage() {
       </div>
 
       <div style={{ marginTop: 18, background: "var(--grade-b-bg)", border: "1px solid var(--grade-b-border)", borderRadius: 10, padding: "12px 16px", fontSize: 12.5, color: "var(--grade-b-text)", lineHeight: 1.6 }}>
-        <b>Kaise use karein:</b> 1) Sample Excel download karo → 2) apna data bharo (headers mat badlo) → 3) upload karo.
-        Duplicate/incomplete rows skip ho jaati hain (purana data overwrite nahi hota).
+        <b>How to use:</b> 1) Download the sample Excel → 2) fill in your data (do not change headers) → 3) upload.
+        Duplicate or incomplete rows are skipped (existing data is not overwritten).
       </div>
     </ProtectedLayout>
   );

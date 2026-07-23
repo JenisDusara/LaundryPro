@@ -6,15 +6,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const user = await requireActiveAuth(req);
   if (user instanceof NextResponse) return user;
   const ro = requireWrite(user); if (ro) return ro;
-  const { name, price, parent_id, category } = await req.json();
+  const { name, price, parent_id, category, description } = await req.json();
   const sf = shopFilter(user, req);
   const service = await withRetry(() => prisma.service.updateMany({
     where: { id: params.id, ...sf },
     data: { name, price: price ?? null, parent_id: parent_id || null },
   }));
-  if (category !== undefined) {
-    if (sf.shop_id) await prisma.$executeRawUnsafe(`UPDATE services SET category = $1 WHERE id::text = $2 AND shop_id = $3`, category || null, params.id, sf.shop_id);
-    else await prisma.$executeRawUnsafe(`UPDATE services SET category = $1 WHERE id::text = $2`, category || null, params.id);
+  if (category !== undefined || description !== undefined) {
+    if (sf.shop_id) await prisma.$executeRawUnsafe(`UPDATE services SET category = $1, description = $2 WHERE id::text = $3 AND shop_id = $4`, category || null, description || null, params.id, sf.shop_id);
+    else await prisma.$executeRawUnsafe(`UPDATE services SET category = $1, description = $2 WHERE id::text = $3`, category || null, description || null, params.id);
   }
   return NextResponse.json(service);
 }

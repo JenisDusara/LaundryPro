@@ -5,9 +5,12 @@ import { Search, Trash2, Check, ChevronDown, ChevronUp, Clock, CheckCircle2, Tru
 import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import ItemDeliver from "@/components/ItemDeliver";
+import QrTagModal from "@/components/QrTagModal";
 import type { Customer, Service, LaundryEntry } from "@/types";
 
 interface ManualItem { id:string; service_id:string; service_name:string; item_name:string; price:number; quantity:number; }
+// Categories match the Services catalogue page (POS filter buckets).
+const CATEGORIES = ["", "MEN", "WOMEN", "KIDS", "HOUSEHOLD", "INSTITUTIONAL", "OTHERS"];
 const COLORS=[
   {bg:"var(--grade-b-bg)",border:"var(--grade-b-border)",text:"var(--grade-b-text)"},
   {bg:"var(--grade-a-bg)",border:"var(--grade-a-border)",text:"var(--grade-a-text)"},
@@ -40,7 +43,7 @@ export default function NewEntry() {
   // Quick "new service at billing time" — create a service on the fly and add it to the bill.
   // parentId="" → standalone top-level service; otherwise it's created as a sub-item of that service.
   const [showNewSvc,       setShowNewSvc]       = useState(false);
-  const [newSvc,           setNewSvc]           = useState({ name: "", price: "", parentId: "" });
+  const [newSvc,           setNewSvc]           = useState({ name: "", price: "", parentId: "", category: "", description: "" });
   const [creatingSvc,      setCreatingSvc]      = useState(false);
   const [pastEntries,      setPastEntries]      = useState<LaundryEntry[]>([]);
   const [pastLoading,      setPastLoading]      = useState(false);
@@ -48,6 +51,7 @@ export default function NewEntry() {
   const [updatingId,       setUpdatingId]       = useState<string|null>(null);
   const [justDelivered,    setJustDelivered]    = useState<{service_name:string;quantity:number;pickup_date:string}[]>([]);
   const [lastEntry,        setLastEntry]        = useState<{id:string; qty:number}|null>(null);
+  const [qrTag,            setQrTag]            = useState<{id:string; mode:string}|null>(null);
   // Entries marked delivered "silently" on this page but not yet folded into a combined
   // pickup message. Kept in a ref so an unmount flush can still notify the customer if the
   // user navigates away without saving a new entry (otherwise the delivery note is lost).
@@ -120,7 +124,9 @@ export default function NewEntry() {
     setCreatingSvc(true);
     try {
       const price = newSvc.price ? Math.max(0, parseFloat(newSvc.price) || 0) : 0;
-      const body: any = { name, price, category: null };
+      // Category/description only apply to standalone services (their own tile); sub-items
+      // live under a parent tile so they don't carry a category of their own.
+      const body: any = { name, price, category: newSvc.parentId ? null : (newSvc.category || null), description: newSvc.parentId ? null : (newSvc.description || null) };
       if (newSvc.parentId) body.parent_id = newSvc.parentId;
       const res = await api.post("/services", body);
       const created = res.data as Service;
@@ -133,7 +139,7 @@ export default function NewEntry() {
         setServices(prev => [...prev, created]);
       }
       addItem(created);                           // and add it to the current bill
-      setNewSvc({ name: "", price: "", parentId: "" });
+      setNewSvc({ name: "", price: "", parentId: "", category: "", description: "" });
       setShowNewSvc(false);
     } catch (e:any) {
       alert(e?.response?.data?.detail || "Could not add service");
@@ -258,9 +264,9 @@ export default function NewEntry() {
       {lastEntry && (
         <div style={{background:"var(--bg-card-solid)",padding:"10px 16px",borderRadius:10,marginBottom:16,border:"1px solid var(--border-hard)",display:"flex",flexWrap:"wrap",gap:8,alignItems:"center"}}>
           <span style={{fontSize:12,fontWeight:700,color:"var(--text-secondary)",display:"flex",alignItems:"center",gap:4}}><QrCode size={14}/> Print Tag:</span>
-          <button style={printTagBtn} onClick={()=>window.open(`/entries/${lastEntry.id}/tag?mode=order`,"_blank")}>Per order</button>
-          <button style={printTagBtn} onClick={()=>window.open(`/entries/${lastEntry.id}/tag?mode=stickers&count=${lastEntry.qty}`,"_blank")}>{lastEntry.qty} stickers</button>
-          <button style={printTagBtn} onClick={()=>window.open(`/entries/${lastEntry.id}/tag?mode=item`,"_blank")}>Per item</button>
+          <button style={printTagBtn} onClick={()=>setQrTag({id:lastEntry.id,mode:"order"})}>Per order</button>
+          <button style={printTagBtn} onClick={()=>setQrTag({id:lastEntry.id,mode:"stickers"})}>{lastEntry.qty} stickers</button>
+          <button style={printTagBtn} onClick={()=>setQrTag({id:lastEntry.id,mode:"item"})}>Per item</button>
         </div>
       )}
 
@@ -385,54 +391,6 @@ export default function NewEntry() {
               <span style={{fontSize:11,color:"var(--text-muted)"}}>Tap to add an item</span>
             </div>
 
-            {/* Quick add a new service (not in the list) right at billing time */}
-            {showNewSvc && (
-              <div style={{marginBottom:12,padding:"14px",borderRadius:12,border:"1px dashed var(--accent-primary)",background:"var(--grade-b-bg)"}}>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                  <div style={{...label,color:"var(--grade-b-text)"}}>New service</div>
-                  <button onClick={()=>{setShowNewSvc(false);setNewSvc({name:"",price:"",parentId:""});}}
-                    style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-muted)",display:"flex",padding:2}}><X size={16}/></button>
-                </div>
-                {/* Add under: standalone, or as a sub-item of an existing service */}
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
-                  <span style={{fontSize:12.5,color:"var(--text-secondary)",fontWeight:600}}>Add under</span>
-                  <select value={newSvc.parentId} onChange={e=>setNewSvc(s=>({...s,parentId:e.target.value}))}
-                    style={{flex:"1 1 200px",minWidth:0,padding:"9px 12px",border:"1px solid var(--border-hard)",borderRadius:8,fontSize:13.5,fontWeight:600,outline:"none",background:"var(--bg-input)",color:"var(--text-primary)",cursor:"pointer"}}>
-                    <option value="">Standalone service (own tile)</option>
-                    {services.map(p=>(
-                      <option key={p.id} value={p.id}>Sub-item of “{p.name}”</option>
-                    ))}
-                  </select>
-                </div>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-                  <input autoFocus value={newSvc.name} onChange={e=>setNewSvc(s=>({...s,name:e.target.value}))}
-                    onKeyDown={e=>{ if(e.key==="Enter") createAndAddService(); }}
-                    placeholder={newSvc.parentId ? "Sub-item name  e.g. Choli" : "Service name  e.g. Curtain wash"}
-                    style={{flex:"1 1 200px",minWidth:0,padding:"10px 12px",border:"1px solid var(--border-hard)",borderRadius:8,fontSize:13.5,outline:"none",background:"var(--bg-input)",color:"var(--text-primary)"}}/>
-                  <div style={{display:"flex",alignItems:"center",gap:3,background:"var(--bg-input)",border:"1px solid var(--border-hard)",borderRadius:8,padding:"0 10px",height:38,width:96,flexShrink:0}}>
-                    <span style={{fontSize:12,color:"var(--text-muted)"}}>₹</span>
-                    <input type="number" min={0} value={newSvc.price} onChange={e=>setNewSvc(s=>({...s,price:e.target.value}))}
-                      onKeyDown={e=>{ if(e.key==="Enter") createAndAddService(); }}
-                      placeholder="0"
-                      style={{flex:1,minWidth:0,width:"100%",border:"none",outline:"none",fontSize:13.5,fontWeight:600,background:"transparent",color:"var(--text-primary)"}}/>
-                  </div>
-                  <button onClick={createAndAddService} disabled={!newSvc.name.trim()||creatingSvc}
-                    style={{padding:"10px 18px",borderRadius:8,border:"none",fontSize:13.5,fontWeight:700,flexShrink:0,
-                      cursor:(!newSvc.name.trim()||creatingSvc)?"not-allowed":"pointer",
-                      background:(!newSvc.name.trim()||creatingSvc)?"var(--bg-input)":"var(--accent-primary)",
-                      color:(!newSvc.name.trim()||creatingSvc)?"var(--text-muted)":"#0b1830",
-                      opacity:(!newSvc.name.trim()||creatingSvc)?0.6:1}}>
-                    {creatingSvc?"Adding…":"Add to bill"}
-                  </button>
-                </div>
-                <div style={{fontSize:11.5,color:"var(--text-muted)",marginTop:8}}>
-                  {newSvc.parentId
-                    ? "Saved as a sub-item under the selected service, and added to this bill."
-                    : "Saved to your services catalogue and added to this bill."}
-                </div>
-              </div>
-            )}
-
             <div className="ne-svc-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))",gap:10}}>
               {topServices.map((svc)=>{
                 const children = svc.children || [];
@@ -467,7 +425,7 @@ export default function NewEntry() {
               })}
 
               {/* + New service — add one that isn't in the list, right at billing time */}
-              <button className="svc-btn" onClick={()=>setShowNewSvc(v=>!v)}
+              <button className="svc-btn" onClick={()=>{setNewSvc({name:"",price:"",parentId:"",category:"",description:""});setShowNewSvc(true);}}
                 style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:showNewSvc?"var(--grade-b-bg)":"transparent",border:`1px dashed ${showNewSvc?"var(--grade-b-border)":"var(--accent-primary)"}`,borderRadius:12,cursor:"pointer",transition:"border-color 0.15s",textAlign:"left"}}>
                 <span style={{width:28,height:28,borderRadius:8,flexShrink:0,background:"var(--accent-primary)",color:"#0b1830",display:"flex",alignItems:"center",justifyContent:"center"}}>
                   <Plus size={15}/>
@@ -633,6 +591,93 @@ export default function NewEntry() {
               so the old manual "Save & send on WhatsApp" button was removed. */}
         </aside>
       </div>
+
+      {/* New service — proper popup (matches the Services page Add-service modal) */}
+      {showNewSvc && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400,padding:16}} onClick={()=>setShowNewSvc(false)}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:"var(--bg-card)",borderRadius:16,padding:24,width:"100%",maxWidth:420,border:"1px solid var(--border-hard)",boxShadow:"0 24px 60px rgba(0,0,0,0.35)",maxHeight:"92vh",overflow:"auto"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <h3 style={{margin:0,color:"var(--text-primary)",fontSize:17,fontWeight:800}}>New service</h3>
+              <X size={20} style={{cursor:"pointer",color:"var(--text-secondary)"}} onClick={()=>setShowNewSvc(false)}/>
+            </div>
+
+            {/* Add under: brand-new standalone tile, or a sub-item of an existing service */}
+            <div style={{marginBottom:16}}>
+              <label style={{display:"block",fontSize:13,fontWeight:600,color:"var(--text-secondary)",marginBottom:6}}>Add under</label>
+              <select value={newSvc.parentId} onChange={e=>setNewSvc(s=>({...s,parentId:e.target.value}))}
+                style={{width:"100%",padding:"10px 14px",border:"1px solid var(--border-hard)",borderRadius:8,fontSize:14,outline:"none",boxSizing:"border-box",background:"var(--bg-input)",color:"var(--text-primary)",cursor:"pointer"}}>
+                <option value="">New service (its own tile)</option>
+                {services.map(p=>(<option key={p.id} value={p.id}>Sub-item of “{p.name}”</option>))}
+              </select>
+            </div>
+
+            {/* Name + Price */}
+            <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:12,marginBottom:16}}>
+              <div>
+                <label style={{display:"block",fontSize:13,fontWeight:600,color:"var(--text-secondary)",marginBottom:6}}>Service Name <span style={{color:"#ef4444"}}>*</span></label>
+                <input autoFocus value={newSvc.name} onChange={e=>setNewSvc(s=>({...s,name:e.target.value}))}
+                  onKeyDown={e=>{ if(e.key==="Enter") createAndAddService(); }}
+                  placeholder={newSvc.parentId ? "e.g. Choli" : "e.g. Curtain wash"}
+                  style={{width:"100%",padding:"10px 14px",border:"1px solid var(--border-hard)",borderRadius:8,fontSize:14,outline:"none",boxSizing:"border-box",background:"var(--bg-input)",color:"var(--text-primary)"}}/>
+              </div>
+              <div>
+                <label style={{display:"block",fontSize:13,fontWeight:600,color:"var(--text-secondary)",marginBottom:6}}>Price (₹)</label>
+                <input type="number" min={0} value={newSvc.price} onChange={e=>setNewSvc(s=>({...s,price:e.target.value}))}
+                  onKeyDown={e=>{ if(e.key==="Enter") createAndAddService(); }}
+                  placeholder="0"
+                  style={{width:"100%",padding:"10px 14px",border:"1px solid var(--border-hard)",borderRadius:8,fontSize:14,outline:"none",boxSizing:"border-box",background:"var(--bg-input)",color:"var(--text-primary)"}}/>
+              </div>
+            </div>
+
+            {/* Category — only for a brand-new standalone service (its own tile) */}
+            {!newSvc.parentId && (
+              <div style={{marginBottom:16}}>
+                <label style={{display:"block",fontSize:13,fontWeight:600,color:"var(--text-secondary)",marginBottom:6}}>Category <span style={{fontSize:11,fontWeight:400,color:"var(--text-muted)"}}>(optional — for POS filter)</span></label>
+                <select value={newSvc.category} onChange={e=>setNewSvc(s=>({...s,category:e.target.value}))}
+                  style={{width:"100%",padding:"10px 14px",border:"1px solid var(--border-hard)",borderRadius:8,fontSize:14,outline:"none",boxSizing:"border-box",background:"var(--bg-input)",color:"var(--text-primary)",cursor:"pointer"}}>
+                  {CATEGORIES.map(c=>(<option key={c} value={c}>{c || "— None —"}</option>))}
+                </select>
+              </div>
+            )}
+
+            {/* Description — appears for OTHERS so staff can explain what the service is */}
+            {!newSvc.parentId && newSvc.category==="OTHERS" && (
+              <div style={{marginBottom:16}}>
+                <label style={{display:"block",fontSize:13,fontWeight:600,color:"var(--text-secondary)",marginBottom:6}}>Description <span style={{fontSize:11,fontWeight:400,color:"var(--text-muted)"}}>(optional)</span></label>
+                <textarea rows={2} value={newSvc.description} onChange={e=>setNewSvc(s=>({...s,description:e.target.value}))}
+                  placeholder="e.g. Special handling / custom item"
+                  style={{width:"100%",padding:"10px 14px",border:"1px solid var(--border-hard)",borderRadius:8,fontSize:14,outline:"none",boxSizing:"border-box",background:"var(--bg-input)",color:"var(--text-primary)",resize:"vertical"}}/>
+              </div>
+            )}
+
+            <div style={{fontSize:11.5,color:"var(--text-muted)",marginBottom:16}}>
+              {newSvc.parentId
+                ? "Saved as a sub-item under the selected service, and added to this bill."
+                : "Saved to your services catalogue as a new tile, and added to this bill."}
+            </div>
+
+            <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
+              <button onClick={()=>setShowNewSvc(false)}
+                style={{padding:"10px 22px",border:"1px solid var(--border-hard)",borderRadius:9,background:"transparent",fontSize:14,fontWeight:600,cursor:"pointer",color:"var(--text-secondary)"}}>
+                Cancel
+              </button>
+              <button onClick={createAndAddService} disabled={!newSvc.name.trim()||creatingSvc}
+                style={{padding:"10px 28px",border:"none",borderRadius:9,fontSize:14,fontWeight:700,
+                  cursor:(!newSvc.name.trim()||creatingSvc)?"not-allowed":"pointer",
+                  background:(!newSvc.name.trim()||creatingSvc)?"var(--bg-input)":"var(--accent-primary)",
+                  color:(!newSvc.name.trim()||creatingSvc)?"var(--text-muted)":"#0b1830",
+                  boxShadow:(!newSvc.name.trim()||creatingSvc)?"none":"var(--shadow-glow-blue)",
+                  opacity:(!newSvc.name.trim()||creatingSvc)?0.6:1}}>
+                {creatingSvc?"Adding…":"Add to bill"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* QR tag preview (in-app, no new tab) */}
+      {qrTag && <QrTagModal entryId={qrTag.id} mode={qrTag.mode} onClose={() => setQrTag(null)} />}
     </ProtectedLayout>
   );
 }

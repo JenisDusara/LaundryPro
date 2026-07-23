@@ -228,7 +228,7 @@ export default function Dashboard() {
         ) : (
           <div onClick={() => setShowCollections(true)}
             style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "22px 12px", marginTop: 10, borderRadius: 12, border: "1px dashed var(--border-hard)", cursor: "pointer", color: "var(--text-muted)", fontSize: 13 }}>
-            <Eye size={16} /> Collections dekhne ke liye click karein
+            <Eye size={16} /> Click to view collections
           </div>
         )}
       </div>
