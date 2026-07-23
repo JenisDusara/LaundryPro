@@ -34,10 +34,11 @@ export async function GET(req: NextRequest) {
 
   const rows = await withRetry(() => prisma.$queryRaw<{
     id: string; customer_id: string; customer_name: string;
-    amount: number; method: string; date: string; note: string; created_at: Date;
+    amount: number; method: string; date: string; note: string; created_at: Date; received_by_username: string;
   }[]>`
     SELECT p.id::text, p.customer_id::text, c.name AS customer_name,
-           p.amount::float8 AS amount, p.method, p.date, p.note, p.created_at
+           p.amount::float8 AS amount, p.method, p.date, p.note, p.created_at,
+           p.received_by_username
     FROM payments p
     JOIN customers c ON c.id = p.customer_id AND c.deleted_at IS NULL
     ${where}
@@ -81,11 +82,11 @@ export async function POST(req: NextRequest) {
   if (!customer) return NextResponse.json({ detail: "Customer not found" }, { status: 404 });
 
   const rows = await withRetry(() => prisma.$queryRaw<{
-    id: string; customer_id: string; amount: number; method: string; date: string; note: string; created_at: Date;
+    id: string; customer_id: string; amount: number; method: string; date: string; note: string; created_at: Date; received_by_username: string;
   }[]>`
-    INSERT INTO payments (id, customer_id, amount, method, date, note, shop_id, created_at)
-    VALUES (gen_random_uuid(), ${customer_id}, ${amt}::numeric, ${pmethod}, ${pdate}, ${note || ""}, ${customer.shop_id}, now())
-    RETURNING id::text, customer_id::text, amount::float8 AS amount, method, date, note, created_at
+    INSERT INTO payments (id, customer_id, amount, method, date, note, shop_id, received_by, received_by_username, created_at)
+    VALUES (gen_random_uuid(), ${customer_id}, ${amt}::numeric, ${pmethod}, ${pdate}, ${note || ""}, ${customer.shop_id}, ${user.sub || ""}, ${user.username || ""}, now())
+    RETURNING id::text, customer_id::text, amount::float8 AS amount, method, date, note, created_at, received_by_username
   `);
 
   return NextResponse.json({ ...rows[0], customer_name: customer.name }, { status: 201 });

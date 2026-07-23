@@ -29,11 +29,14 @@ export async function GET(req: NextRequest) {
     })));
   }
 
-  const month = parseInt(p.get("month") || "1");
-  const year  = parseInt(p.get("year")  || String(new Date().getFullYear()));
-  const { start, end } = monthRange(year, month);
+  // Date-range (from/to) takes precedence — used by the Payments page money-out ledger; otherwise
+  // fall back to a month/year window.
+  const from = p.get("from"); const to = p.get("to");
+  const range = from && to
+    ? { start: from, end: to }
+    : monthRange(parseInt(p.get("year") || String(new Date().getFullYear())), parseInt(p.get("month") || "1"));
   const advances: any[] = await withRetry(() => prisma.labourAdvance.findMany({
-    where: { advance_date: { gte: start, lte: end }, deleted_at: null, ...labourFilter(user, req) },
+    where: { advance_date: { gte: range.start, lte: range.end }, deleted_at: null, ...labourFilter(user, req) },
     include: { labour: true },
     orderBy: { advance_date: "desc" },
   } as any));
@@ -63,13 +66,23 @@ export async function POST(req: NextRequest) {
   // Verify the labour belongs to the caller's shop before writing an advance against it.
   const labour = await prisma.labour.findFirst({
     where: { id: labour_id, ...(user.role === "superadmin" ? {} : { shop_id: user.shop_id }) },
-    select: { id: true },
+    select: { id: true, shop_id: true, name: true },
   });
   if (!labour) return NextResponse.json({ detail: "Labour not found" }, { status: 404 });
   const advance = await withRetry(() => prisma.labourAdvance.create({
     data: { labour_id, advance_date, amount: amt, description: description || "" },
     include: { labour: true },
   }));
+  // An advance is cash paid to the worker → mirror it into the expenses ledger (category "Labour")
+  // so accounting/reports capture it. Linked via expense_id for clean deletion.
+  const expense = await prisma.expense.create({
+    data: {
+      date: advance_date, category: "Labour",
+      description: `Labour advance — ${labour.name}${description ? ` · ${description}` : ""}`,
+      amount: amt, shop_id: labour.shop_id,
+    },
+  });
+  await withRetry(() => prisma.$executeRaw`UPDATE labour_advances SET expense_id = ${expense.id} WHERE id::text = ${advance.id}`);
   return NextResponse.json({
     id:           advance.id,
     labour_id:    advance.labour_id,

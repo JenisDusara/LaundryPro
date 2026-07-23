@@ -66,6 +66,7 @@ export interface Payment {
   method: PaymentMethod;
   date: string;
   note: string;
+  received_by_username?: string; // staff/admin who recorded the payment
   created_at: string;
 }
 

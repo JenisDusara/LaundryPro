@@ -6,9 +6,12 @@ import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import EmptyState from "@/components/EmptyState";
 import CollectionsChart from "@/components/CollectionsChart";
+import { useBlockStaff } from "@/lib/useRoleGuard";
 import type { Payment } from "@/types";
 
 interface Summary { total: number; cash: number; upi: number; card: number; other: number; count: number; }
+// Unified "money paid out to labour" row — covers both settlement payouts and advances.
+interface LabourMoneyOut { id: string; labour_name: string; date: string; amount: number; method: string; note: string; paid_by_username: string; kind: "Payment" | "Advance"; }
 
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 const monthStartStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; };
@@ -17,11 +20,13 @@ const fmtDate = (d?: string | null) => { if (!d) return "—"; try { return new 
 const inr = (n: number) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 
 export default function PaymentsHistory() {
+  const allowed = useBlockStaff();
   const router = useRouter();
   const [from, setFrom] = useState(todayStr);
   const [to, setTo] = useState(todayStr);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [summary, setSummary] = useState<Summary>({ total: 0, cash: 0, upi: 0, card: 0, other: 0, count: 0 });
+  const [labourPays, setLabourPays] = useState<LabourMoneyOut[]>([]);
   const [loading, setLoading] = useState(false);
   const [editPay, setEditPay] = useState<Payment | null>(null);
   const [eAmt, setEAmt] = useState("");
@@ -34,10 +39,24 @@ export default function PaymentsHistory() {
     if (!from || !to) return;
     setLoading(true);
     try {
-      const r = await api.get("/payments", { params: { from, to } });
+      const [r, lp, la] = await Promise.all([
+        api.get("/payments", { params: { from, to } }),
+        api.get("/labour/payment", { params: { from, to } }).catch(() => ({ data: [] })),
+        api.get("/labour/advance", { params: { from, to } }).catch(() => ({ data: [] })),
+      ]);
       setPayments(r.data.payments || []);
       setSummary(r.data.summary || { total: 0, cash: 0, upi: 0, card: 0, other: 0, count: 0 });
-    } catch { setPayments([]); }
+      // Merge settlement payouts + advances into one money-out-to-labour ledger, newest first.
+      const pays: LabourMoneyOut[] = (lp.data || []).map((p: any) => ({
+        id: p.id, labour_name: p.labour_name, date: p.pay_date, amount: Number(p.amount),
+        method: p.method, note: p.note || "", paid_by_username: p.paid_by_username || "", kind: "Payment",
+      }));
+      const advs: LabourMoneyOut[] = (la.data || []).map((a: any) => ({
+        id: a.id, labour_name: a.labour_name, date: a.advance_date, amount: Number(a.amount),
+        method: "", note: a.description || "", paid_by_username: "", kind: "Advance",
+      }));
+      setLabourPays([...pays, ...advs].sort((x, y) => (x.date < y.date ? 1 : x.date > y.date ? -1 : 0)));
+    } catch { setPayments([]); setLabourPays([]); }
     finally { setLoading(false); }
   }, [from, to]);
   useEffect(() => { load(); }, [load]);
@@ -73,6 +92,8 @@ export default function PaymentsHistory() {
     { k: "Last 7 days", f: daysAgoStr(6), t: todayStr() },
     { k: "This month", f: monthStartStr(), t: todayStr() },
   ];
+
+  if (!allowed) return null;
 
   return (
     <ProtectedLayout>
@@ -117,8 +138,8 @@ export default function PaymentsHistory() {
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 480 }}>
                     <thead>
-                      <tr>{["Date", "Customer", "Method", "Note", "Amount", ""].map((h, i) => (
-                        <th key={i} style={{ textAlign: i === 4 ? "right" : i === 5 ? "center" : "left", padding: "10px 18px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid var(--border-hard)", whiteSpace: "nowrap" }}>{h}</th>
+                      <tr>{["Date", "Customer", "Method", "Received by", "Note", "Amount", ""].map((h, i) => (
+                        <th key={i} style={{ textAlign: i === 5 ? "right" : i === 6 ? "center" : "left", padding: "10px 18px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid var(--border-hard)", whiteSpace: "nowrap" }}>{h}</th>
                       ))}</tr>
                     </thead>
                     <tbody>
@@ -130,6 +151,7 @@ export default function PaymentsHistory() {
                             <td style={{ padding: "11px 18px", fontSize: 13, color: "var(--text-secondary)", borderBottom: bb, whiteSpace: "nowrap" }}>{fmtDate(p.date)}</td>
                             <td style={{ padding: "11px 18px", fontSize: 13, fontWeight: 700, color: "var(--text-primary)", borderBottom: bb }}>{p.customer_name}</td>
                             <td style={{ padding: "11px 18px", borderBottom: bb }}><span style={{ fontSize: 11, fontWeight: 700, padding: "2px 9px", borderRadius: 20, textTransform: "capitalize", background: "var(--grade-b-bg)", color: "var(--grade-b-text)", border: "1px solid var(--grade-b-border)" }}>{p.method}</span></td>
+                            <td style={{ padding: "11px 18px", fontSize: 12.5, color: "var(--text-secondary)", borderBottom: bb, whiteSpace: "nowrap" }}>{p.received_by_username ? `@${p.received_by_username}` : "—"}</td>
                             <td style={{ padding: "11px 18px", fontSize: 12, color: "var(--text-muted)", borderBottom: bb, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.note || "—"}</td>
                             <td style={{ padding: "11px 18px", fontSize: 14, fontWeight: 800, color: "var(--grade-a-text)", textAlign: "right", borderBottom: bb, whiteSpace: "nowrap" }}>{inr(Number(p.amount))}</td>
                             <td style={{ padding: "8px 14px", borderBottom: bb }} onClick={ev => ev.stopPropagation()}>
@@ -155,6 +177,45 @@ export default function PaymentsHistory() {
           {summary.total > 0 ? <CollectionsChart cash={summary.cash} upi={summary.upi} card={summary.card} size={150} />
             : <div style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", padding: "20px 0" }}>No collections yet</div>}
         </aside>
+      </div>
+
+      {/* ── Labour payments (money paid out to workers) ── */}
+      <div style={{ ...card, padding: 0, overflow: "hidden", marginTop: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px 4px" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Labour payments</div>
+          {labourPays.length > 0 && <div style={{ fontSize: 12, fontWeight: 700, color: "var(--grade-c-text)" }}>Paid out: {inr(labourPays.reduce((s, p) => s + Number(p.amount), 0))}</div>}
+        </div>
+        {loading ? <div style={{ textAlign: "center", padding: 30, color: "var(--text-muted)" }}>Loading…</div>
+          : labourPays.length === 0 ? <div style={{ padding: "10px 0 24px" }}><EmptyState title="No labour payments in this range" subtitle="Pay a worker from the Labour page to see it here." compact /></div>
+            : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 520 }}>
+                  <thead>
+                    <tr>{["Date", "Labour", "Type", "Method", "Paid by", "Note", "Amount"].map((h, i) => (
+                      <th key={i} style={{ textAlign: i === 6 ? "right" : "left", padding: "10px 18px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid var(--border-hard)", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}</tr>
+                  </thead>
+                  <tbody>
+                    {labourPays.map((p, idx) => {
+                      const last = idx === labourPays.length - 1;
+                      const bb = last ? "none" : "1px solid var(--border-subtle)";
+                      const isAdv = p.kind === "Advance";
+                      return (
+                        <tr key={p.id}>
+                          <td style={{ padding: "11px 18px", fontSize: 13, color: "var(--text-secondary)", borderBottom: bb, whiteSpace: "nowrap" }}>{fmtDate(p.date)}</td>
+                          <td style={{ padding: "11px 18px", fontSize: 13, fontWeight: 700, color: "var(--text-primary)", borderBottom: bb }}>{p.labour_name}</td>
+                          <td style={{ padding: "11px 18px", borderBottom: bb }}><span style={{ fontSize: 11, fontWeight: 700, padding: "2px 9px", borderRadius: 20, background: isAdv ? "var(--grade-c-bg)" : "var(--grade-a-bg)", color: isAdv ? "var(--grade-c-text)" : "var(--grade-a-text)", border: `1px solid ${isAdv ? "var(--grade-c-border)" : "var(--grade-a-border)"}` }}>{p.kind}</span></td>
+                          <td style={{ padding: "11px 18px", borderBottom: bb }}>{p.method ? <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 9px", borderRadius: 20, textTransform: "capitalize", background: "var(--grade-b-bg)", color: "var(--grade-b-text)", border: "1px solid var(--grade-b-border)" }}>{p.method}</span> : <span style={{ color: "var(--text-muted)" }}>—</span>}</td>
+                          <td style={{ padding: "11px 18px", fontSize: 12.5, color: "var(--text-secondary)", borderBottom: bb, whiteSpace: "nowrap" }}>{p.paid_by_username ? `@${p.paid_by_username}` : "—"}</td>
+                          <td style={{ padding: "11px 18px", fontSize: 12, color: "var(--text-muted)", borderBottom: bb, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.note || "—"}</td>
+                          <td style={{ padding: "11px 18px", fontSize: 14, fontWeight: 800, color: "var(--grade-c-text)", textAlign: "right", borderBottom: bb, whiteSpace: "nowrap" }}>{inr(Number(p.amount))}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
       </div>
 
       {/* Edit payment modal */}

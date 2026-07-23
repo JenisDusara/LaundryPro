@@ -104,6 +104,8 @@ model Payment {
   date        String   // YYYY-MM-DD (payment received date, IST)
   note        String   @default("")
   shop_id     String   @default("shop1")
+  received_by String   @default("")   // user id who recorded the payment
+  received_by_username String @default("") // their username, shown in payment history
   deleted_at  DateTime?
   deleted_by  String   @default("")
   deleted_by_username String @default("")
@@ -280,6 +282,7 @@ model Labour {
   created_at DateTime        @default(now())
   works      LabourWork[]
   advances   LabourAdvance[]
+  payments   LabourPayment[]
 
   @@index([shop_id])
   @@map("labours")
@@ -312,6 +315,7 @@ model LabourAdvance {
   advance_date String
   amount       Decimal  @db.Decimal(10, 2)
   description  String   @default("")
+  expense_id   String   @default("") // linked expense row, so deletion stays reconciled
   deleted_at   DateTime?
   deleted_by   String   @default("")
   deleted_by_username String @default("")
@@ -320,6 +324,28 @@ model LabourAdvance {
 
   @@index([deleted_at])
   @@map("labour_advances")
+}
+
+model LabourPayment {
+  id           String   @id @default(uuid())
+  labour_id    String
+  labour       Labour   @relation(fields: [labour_id], references: [id])
+  period       String   @default("") // YYYY-MM the payout settles
+  pay_date     String
+  amount       Decimal  @db.Decimal(10, 2)
+  method       String   @default("cash") // cash | upi | card | other
+  note         String   @default("")
+  shop_id      String   @default("shop1")
+  paid_by      String   @default("")
+  paid_by_username String @default("")
+  expense_id   String   @default("") // linked expense row, so deletion stays reconciled
+  deleted_at   DateTime?
+  created_at   DateTime @default(now())
+
+  @@index([shop_id])
+  @@index([labour_id])
+  @@index([pay_date])
+  @@map("labour_payments")
 }
 
 model LoginLog {

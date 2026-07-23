@@ -4,10 +4,12 @@ import { Plus, Edit2, Trash2, X, Wallet, ChevronDown, ChevronUp, ArrowLeft, Hist
 import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import EmptyState from "@/components/EmptyState";
+import { useBlockStaff } from "@/lib/useRoleGuard";
 
 interface LabourType   { id:string; name:string; }
 interface WorkEntry    { id:string; labour_id:string; work_date:string; press_count:number; rate_per_piece:number; total:number; }
 interface AdvanceEntry { id:string; labour_id:string; advance_date:string; amount:number; description:string; }
+interface PayEntry     { id:string; labour_id:string; labour_name:string; period:string; pay_date:string; amount:number; method:string; note:string; paid_by_username:string; }
 interface MonthData    { key:string; label:string; earned:number; advance:number; netPayable:number; press:number; works:WorkEntry[]; advances:AdvanceEntry[]; }
 
 const GRADIENTS = ["linear-gradient(135deg,#1e40af,#3b82f6)","linear-gradient(135deg,#059669,#10b981)","linear-gradient(135deg,#7c3aed,#a78bfa)","linear-gradient(135deg,#d97706,#fbbf24)","linear-gradient(135deg,#dc2626,#f87171)","linear-gradient(135deg,#0891b2,#22d3ee)"];
@@ -32,6 +34,7 @@ function groupByMonth(works: WorkEntry[], advances: AdvanceEntry[]): MonthData[]
 }
 
 export default function Labour() {
+  const allowed = useBlockStaff();
   const [labours,        setLabours]        = useState<LabourType[]>([]);
   const [works,          setWorks]          = useState<WorkEntry[]>([]);
   const [advances,       setAdvances]       = useState<AdvanceEntry[]>([]);
@@ -43,7 +46,11 @@ export default function Labour() {
   const [selectedLabour, setSelectedLabour] = useState<LabourType|null>(null);
   const [historyWorks,   setHistoryWorks]   = useState<WorkEntry[]>([]);
   const [historyAdv,     setHistoryAdv]     = useState<AdvanceEntry[]>([]);
+  const [historyPays,    setHistoryPays]    = useState<PayEntry[]>([]);
   const [histLoading,    setHistLoading]    = useState(false);
+  // "Pay labour" modal (records a payout that flips a month's Due → Paid).
+  const [payModal,       setPayModal]       = useState<{labour_id:string; labour_name:string; period:string; amount:string; method:string; date:string; note:string}|null>(null);
+  const [paySaving,      setPaySaving]      = useState(false);
   const [expandedMonth,  setExpandedMonth]  = useState<string|null>(null);
   const [workForm,       setWorkForm]       = useState({labour_id:"",work_date:new Date().toISOString().split("T")[0],press_count:"",rate_per_piece:""});
   const [advForm,        setAdvForm]        = useState({labour_id:"",advance_date:new Date().toISOString().split("T")[0],amount:"",description:""});
@@ -77,11 +84,12 @@ export default function Labour() {
   const openHistory = async (l: LabourType) => {
     setSelectedLabour(l); setHistLoading(true); setExpandedMonth(null);
     try {
-      const [rw, ra] = await Promise.all([
+      const [rw, ra, rp] = await Promise.all([
         api.get("/labour/work",    { params: { labour_id: l.id } }),
         api.get("/labour/advance", { params: { labour_id: l.id } }),
+        api.get("/labour/payment", { params: { labour_id: l.id } }),
       ]);
-      setHistoryWorks(rw.data); setHistoryAdv(ra.data);
+      setHistoryWorks(rw.data); setHistoryAdv(ra.data); setHistoryPays(rp.data);
       // auto-expand current month
       const cur = new Date().toISOString().slice(0,7);
       setExpandedMonth(cur);
@@ -90,11 +98,12 @@ export default function Labour() {
 
   const refreshHistory = async () => {
     if (!selectedLabour) return;
-    const [rw, ra] = await Promise.all([
+    const [rw, ra, rp] = await Promise.all([
       api.get("/labour/work",    { params: { labour_id: selectedLabour.id } }),
       api.get("/labour/advance", { params: { labour_id: selectedLabour.id } }),
+      api.get("/labour/payment", { params: { labour_id: selectedLabour.id } }),
     ]);
-    setHistoryWorks(rw.data); setHistoryAdv(ra.data);
+    setHistoryWorks(rw.data); setHistoryAdv(ra.data); setHistoryPays(rp.data);
   };
 
   const saveLabour = async () => {
@@ -106,6 +115,34 @@ export default function Labour() {
   const deleteLabour  = async (id:string) => { if(!confirm("Remove?"))return; await api.delete(`/labour/${id}`); loadLabours(); if(selectedLabour?.id===id) setSelectedLabour(null); };
   const deleteWork    = async (id:string) => { await api.delete(`/labour/work/${id}`);    loadWork(); refreshHistory(); };
   const deleteAdvance = async (id:string) => { await api.delete(`/labour/advance/${id}`); loadAdvances(); refreshHistory(); };
+  const deletePayment = async (id:string) => { if(!confirm("Remove this payment?"))return; await api.delete(`/labour/payment/${id}`); refreshHistory(); };
+
+  // Open the "pay labour" modal for a month, prefilled with the net payable.
+  const openPay = (month: MonthData) => {
+    if (!selectedLabour) return;
+    setPayModal({
+      labour_id: selectedLabour.id,
+      labour_name: selectedLabour.name,
+      period: month.key,
+      amount: String(Math.max(0, Math.round(month.netPayable))),
+      method: "cash",
+      date: monthDate(month.key),
+      note: "",
+    });
+  };
+  const savePayment = async () => {
+    if (!payModal || !(Number(payModal.amount) > 0) || paySaving) return;
+    setPaySaving(true);
+    try {
+      await api.post("/labour/payment", {
+        labour_id: payModal.labour_id, period: payModal.period, pay_date: payModal.date,
+        amount: parseFloat(payModal.amount), method: payModal.method, note: payModal.note,
+      });
+      setPayModal(null);
+      await refreshHistory();
+    } catch (e:any) { alert(e?.response?.data?.detail || "Could not save payment"); }
+    finally { setPaySaving(false); }
+  };
 
   const saveWork = async () => {
     if(!workForm.labour_id||!workForm.press_count||!workForm.rate_per_piece) return;
@@ -192,7 +229,11 @@ export default function Labour() {
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           {monthHistory.map(month=>{
             const isOpen = expandedMonth===month.key;
-            const isPaid = month.netPayable<=0;
+            const monthPays = historyPays.filter(p=>p.period===month.key);
+            const paidAmt   = monthPays.reduce((s,p)=>s+p.amount,0);
+            // Paid if there's nothing to pay (net ≤ 0) or a payout has been recorded for the month.
+            const isPaid    = month.netPayable<=0 || paidAmt>0;
+            const canPay    = month.netPayable>0 && paidAmt<=0;
             return (
               <div key={month.key} style={{background:"var(--bg-card)",borderRadius:14,overflow:"hidden",border:"1px solid var(--border-hard)"}}>
 
@@ -220,6 +261,12 @@ export default function Labour() {
                     <div style={{padding:"4px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:isPaid?"#dcfce7":"#fef9c3",color:isPaid?"#16a34a":"#92400e",flexShrink:0}}>
                       {isPaid?"Paid":"Due"}
                     </div>
+                    {canPay&&(
+                      <button onClick={(ev)=>{ev.stopPropagation();openPay(month);}}
+                        style={{display:"flex",alignItems:"center",gap:5,padding:"6px 14px",borderRadius:9,border:"none",cursor:"pointer",fontSize:12.5,fontWeight:700,background:"#16a34a",color:"#fff",flexShrink:0,boxShadow:"0 2px 8px rgba(22,163,74,0.3)"}}>
+                        <Wallet size={13}/> Pay ₹{Math.round(month.netPayable)}
+                      </button>
+                    )}
                     {isOpen?<ChevronUp size={16} color="#94a3b8"/>:<ChevronDown size={16} color="#94a3b8"/>}
                   </div>
                 </div>
@@ -293,7 +340,30 @@ export default function Labour() {
                       </div>
                     )}
 
-                    {month.works.length===0&&month.advances.length===0&&(
+                    {/* Payments made — actual payouts settling this month */}
+                    {monthPays.length>0&&(
+                      <div style={{marginTop:14}}>
+                        <div style={{fontSize:11,fontWeight:700,color:"#16a34a",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>✅ Payments Made</div>
+                        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                          {[...monthPays].sort((a,b)=>a.pay_date.localeCompare(b.pay_date)).map(pm=>(
+                            <div key={pm.id} className="arow" style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:"rgba(22,163,74,0.08)",border:"1px solid rgba(22,163,74,0.2)"}}>
+                              <div style={{flex:1}}>
+                                <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                                  <span style={{fontSize:13,color:"#16a34a",fontWeight:700}}>{new Date(pm.pay_date+"T00:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}</span>
+                                  <span style={{fontWeight:800,color:"#16a34a",fontSize:15}}>₹{pm.amount.toFixed(0)}</span>
+                                  <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:20,textTransform:"capitalize",background:"var(--grade-b-bg)",color:"var(--grade-b-text)",border:"1px solid var(--grade-b-border)"}}>{pm.method}</span>
+                                  {pm.paid_by_username&&<span style={{fontSize:11,color:"var(--text-muted)"}}>by @{pm.paid_by_username}</span>}
+                                </div>
+                                {pm.note&&<div style={{fontSize:12,color:"#166534",marginTop:3}}>📝 {pm.note}</div>}
+                              </div>
+                              <button onClick={()=>deletePayment(pm.id)} style={{background:"none",border:"none",cursor:"pointer",flexShrink:0}}><Trash2 size={13} color="#ef4444"/></button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {month.works.length===0&&month.advances.length===0&&monthPays.length===0&&(
                       <EmptyState compact title="No entries" />
                     )}
                   </div>
@@ -302,11 +372,48 @@ export default function Labour() {
             );
           })}
         </div>
+
+        {/* Pay labour modal */}
+        {payModal&&(
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}} onClick={()=>setPayModal(null)}>
+            <div style={{background:"var(--bg-card)",borderRadius:16,padding:24,width:"100%",maxWidth:400,border:"1px solid var(--border-hard)",boxShadow:"0 20px 60px rgba(0,0,0,0.25)"}} onClick={e=>e.stopPropagation()}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                <div style={{fontWeight:800,fontSize:16,color:"var(--text-primary)"}}>Pay labour</div>
+                <button onClick={()=>setPayModal(null)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-muted)",display:"flex"}}><X size={18}/></button>
+              </div>
+              <div style={{fontSize:12.5,color:"var(--text-muted)",marginBottom:16}}>{payModal.labour_name} · {new Date(payModal.period+"-01").toLocaleString("en-IN",{month:"long",year:"numeric"})}</div>
+
+              <label style={lbl}>Amount (₹)</label>
+              <input type="number" min={0} value={payModal.amount} onChange={e=>setPayModal(m=>m&&{...m,amount:e.target.value})}
+                style={{...inp,fontWeight:700,fontSize:15,marginBottom:12}}/>
+
+              <label style={lbl}>Date</label>
+              <input type="date" value={payModal.date} onChange={e=>setPayModal(m=>m&&{...m,date:e.target.value})} style={{...inp,marginBottom:12}}/>
+
+              <label style={lbl}>Payment mode</label>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:12}}>
+                {["cash","upi","card"].map(m=>(
+                  <button key={m} onClick={()=>setPayModal(pm=>pm&&{...pm,method:m})}
+                    style={{padding:"9px 4px",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",textTransform:"capitalize",border:`1px solid ${payModal.method===m?"var(--accent-primary)":"var(--border-hard)"}`,background:payModal.method===m?"var(--accent-primary)":"var(--bg-input)",color:payModal.method===m?"#0b1830":"var(--text-secondary)"}}>{m}</button>
+                ))}
+              </div>
+
+              <label style={lbl}>Note (optional)</label>
+              <input value={payModal.note} onChange={e=>setPayModal(m=>m&&{...m,note:e.target.value})} placeholder="Remarks" style={{...inp,marginBottom:18}}/>
+
+              <button onClick={savePayment} disabled={paySaving||!(Number(payModal.amount)>0)}
+                style={{width:"100%",padding:"13px",borderRadius:10,border:"none",cursor:(paySaving||!(Number(payModal.amount)>0))?"not-allowed":"pointer",fontSize:15,fontWeight:800,background:Number(payModal.amount)>0?"#16a34a":"var(--bg-input)",color:Number(payModal.amount)>0?"#fff":"var(--text-secondary)",opacity:paySaving?0.7:1}}>
+                {paySaving?"Saving…":`Pay ₹${Number(payModal.amount)||0}`}
+              </button>
+            </div>
+          </div>
+        )}
       </ProtectedLayout>
     );
   }
 
   // ── Main View ──────────────────────────────────────────────────────────────
+  if (!allowed) return null;
   return (
     <ProtectedLayout>
       <style>{`.lab-btn:hover{opacity:0.85;}`}</style>

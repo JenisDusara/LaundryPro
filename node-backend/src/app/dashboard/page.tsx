@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Users, PlusCircle, ClipboardList, Truck,
-  AlertTriangle, Wallet, Hammer,
+  AlertTriangle, Wallet, Hammer, Wrench,
   TrendingUp, CheckCircle2, ChevronRight, Package, Eye, EyeOff
 } from "lucide-react";
 import api from "@/lib/api";
@@ -25,6 +25,18 @@ function fmtDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
+// Read the role straight from the JWT so the correct (staff vs admin) dashboard renders on the
+// first paint — no flash of revenue before /auth/me resolves.
+function getTokenRole(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) return null;
+    const payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(payload)).role || null;
+  } catch { return null; }
+}
+
 export default function Dashboard() {
   const router = useRouter();
   const [todayEntries,  setTodayEntries]  = useState<LaundryEntry[]>([]);
@@ -35,6 +47,8 @@ export default function Dashboard() {
   const [showCollections, setShowCollections] = useState(false);
   const [loading,       setLoading]       = useState(true);
   const [profile,       setProfile]       = useState<{ name: string; shop_name: string } | null>(null);
+  const [role,          setRole]          = useState<string | null>(() => getTokenRole());
+  const isStaff = role === "staff";
 
   const today = todayIST();
 
@@ -53,6 +67,7 @@ export default function Dashboard() {
       setMonthEntries(m.data);
       setCustomers(c.data);
       setProfile(me.data);
+      if (me.data?.role) setRole(me.data.role);
       setAllPending(all.data.filter((e: LaundryEntry) => isEntryPending(e) && e.delivery_date));
       setPayments(pay.data.payments);
     }).finally(() => setLoading(false));
@@ -119,7 +134,8 @@ export default function Dashboard() {
         {profile?.shop_name && <p style={{ margin: "4px 0 0", fontSize: 13.75, color: "var(--text-secondary)" }}>{profile.shop_name}</p>}
       </div>
 
-      {/* ── Revenue Cards ── */}
+      {/* ── Revenue Cards (owner/admin only — staff never see money) ── */}
+      {!isStaff && (
       <div className="dash-rev-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
         <div className="web-card dash-rev-card">
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
@@ -142,6 +158,7 @@ export default function Dashboard() {
           <p className="dash-rev-sub" style={{ margin: "8px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{monthEntries.length} entries this month</p>
         </div>
       </div>
+      )}
 
       {/* ── Overdue Alert ── */}
       {overdueEntries.length > 0 && (
@@ -163,7 +180,7 @@ export default function Dashboard() {
           { icon: <Users size={16} />,       label: "Customers",  value: customers.length,   bg: "var(--grade-b-bg)", border: "var(--grade-b-border)", color: "var(--grade-b-text)", path: "/customers" },
           { icon: <Package size={16} />,      label: "Pending",    value: pendingCount,        bg: "var(--grade-c-bg)", border: "var(--grade-c-border)", color: "var(--grade-c-text)", path: "/entries?filter=pending" },
           { icon: <CheckCircle2 size={16} />, label: "Delivered",  value: deliveredCount,      bg: "var(--grade-a-bg)", border: "var(--grade-a-border)", color: "var(--grade-a-text)", path: "/entries?filter=delivered" },
-          { icon: <TrendingUp size={16} />,   label: "Rate",       value: `${deliveryRate}%`,  bg: "var(--grade-b-bg)", border: "var(--grade-b-border)", color: "var(--grade-b-text)", path: "/reports" },
+          { icon: <TrendingUp size={16} />,   label: "Rate",       value: `${deliveryRate}%`,  bg: "var(--grade-b-bg)", border: "var(--grade-b-border)", color: "var(--grade-b-text)", path: isStaff ? "/entries" : "/reports" },
         ].map((s, i) => (
           <div key={i} className="web-card dash-stat-card act-btn" onClick={() => router.push(s.path)} style={{ textAlign: "center", padding: "22px 16px", cursor: "pointer" }}>
             <span style={{ width: 38, height: 38, borderRadius: 10, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: s.bg, border: `1px solid ${s.border}`, color: s.color }}>
@@ -178,14 +195,17 @@ export default function Dashboard() {
       {/* ── Quick Actions ── */}
       <div className="web-card" style={{ marginBottom: 16 }}>
         <p style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>Quick Actions</p>
-        <div className="dash-action-grid" style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 12 }}>
+        <div className="dash-action-grid" style={{ display: "grid", gridTemplateColumns: `repeat(${isStaff ? 5 : 6},1fr)`, gap: 12 }}>
           {[
             { icon: <PlusCircle size={18} />,   label: "New Entry",  path: "/new-entry" },
             { icon: <ClipboardList size={18} />, label: "Orders",     path: "/entries" },
             { icon: <Truck size={18} />,         label: "Pending",    path: "/entries?filter=pending" },
             { icon: <Users size={18} />,         label: "Customers",  path: "/customers" },
-            { icon: <Wallet size={18} />,        label: "Accounting", path: "/accounting" },
-            { icon: <Hammer size={18} />,        label: "Labour",     path: "/labour" },
+            // Money-related shortcuts (Accounting, Labour) are hidden from staff.
+            ...(isStaff ? [{ icon: <Wrench size={18} />, label: "Services", path: "/services" }] : [
+              { icon: <Wallet size={18} />,        label: "Accounting", path: "/accounting" },
+              { icon: <Hammer size={18} />,        label: "Labour",     path: "/labour" },
+            ]),
           ].map((a, i) => (
             <div key={i} className="act-btn lp-qa"
               onClick={() => router.push(a.path)}
@@ -199,7 +219,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Collections (cash / UPI / card) — hidden until revealed ── */}
+      {/* ── Collections (cash / UPI / card) — owner/admin only, staff never see money ── */}
+      {!isStaff && (
       <div className="web-card" style={{ padding: 18, marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: showCollections ? 14 : 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -232,20 +253,21 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+      )}
 
       {/* ── Due Today ── */}
       {dueTodayEntries.length > 0 && (
-        <DeliverySection title="Deliver Today" entries={dueTodayEntries} accentBg="var(--grade-c-bg)" accentBorder="var(--grade-c-border)" accentColor="var(--grade-c-text)" router={router} />
+        <DeliverySection title="Deliver Today" entries={dueTodayEntries} accentBg="var(--grade-c-bg)" accentBorder="var(--grade-c-border)" accentColor="var(--grade-c-text)" router={router} hideMoney={isStaff} />
       )}
 
       {/* ── Overdue ── */}
       {overdueEntries.length > 0 && (
-        <DeliverySection title="Overdue" entries={overdueEntries} accentBg="var(--grade-f-bg)" accentBorder="var(--grade-f-border)" accentColor="var(--grade-f-text)" router={router} showDaysOverdue today={today} />
+        <DeliverySection title="Overdue" entries={overdueEntries} accentBg="var(--grade-f-bg)" accentBorder="var(--grade-f-border)" accentColor="var(--grade-f-text)" router={router} showDaysOverdue today={today} hideMoney={isStaff} />
       )}
 
       {/* ── Upcoming ── */}
       {upcomingEntries.length > 0 && (
-        <DeliverySection title="Upcoming" entries={upcomingEntries.slice(0, 4)} accentBg="var(--grade-b-bg)" accentBorder="var(--grade-b-border)" accentColor="var(--grade-b-text)" router={router} />
+        <DeliverySection title="Upcoming" entries={upcomingEntries.slice(0, 4)} accentBg="var(--grade-b-bg)" accentBorder="var(--grade-b-border)" accentColor="var(--grade-b-text)" router={router} hideMoney={isStaff} />
       )}
 
       {/* ── Today's Pickups ── */}
@@ -293,7 +315,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0 }}>
-                  <p style={{ margin: 0, fontWeight: 700, fontSize: 18, color: "var(--text-primary)" }}>₹{Number(entry.total_amount).toLocaleString("en-IN")}</p>
+                  {!isStaff && <p style={{ margin: 0, fontWeight: 700, fontSize: 18, color: "var(--text-primary)" }}>₹{Number(entry.total_amount).toLocaleString("en-IN")}</p>}
                   <p style={{ margin: "3px 0 0", fontSize: 11, fontWeight: 600, color: statusColor[entry.delivery_status] }}>
                     {statusLabel[entry.delivery_status] ?? entry.delivery_status}
                   </p>
@@ -308,10 +330,10 @@ export default function Dashboard() {
   );
 }
 
-function DeliverySection({ title, entries, accentBg, accentBorder, accentColor, router, showDaysOverdue, today }: {
+function DeliverySection({ title, entries, accentBg, accentBorder, accentColor, router, showDaysOverdue, today, hideMoney }: {
   title: string; entries: LaundryEntry[];
   accentBg: string; accentBorder: string; accentColor: string;
-  router: ReturnType<typeof useRouter>; showDaysOverdue?: boolean; today?: string;
+  router: ReturnType<typeof useRouter>; showDaysOverdue?: boolean; today?: string; hideMoney?: boolean;
 }) {
   const daysOverdue = (date: string) => {
     const diff = new Date(today!).getTime() - new Date(date + "T00:00:00").getTime();
@@ -352,7 +374,7 @@ function DeliverySection({ title, entries, accentBg, accentBorder, accentColor, 
               <div style={{ fontWeight: 700, fontSize: 13, color: accentColor }}>
                 {showDaysOverdue ? `${daysOverdue(entry.delivery_date!)}d late` : fmtDate(entry.delivery_date!)}
               </div>
-              <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>₹{Number(entry.total_amount).toLocaleString("en-IN")}</div>
+              {!hideMoney && <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>₹{Number(entry.total_amount).toLocaleString("en-IN")}</div>}
             </div>
           </div>
         ))}

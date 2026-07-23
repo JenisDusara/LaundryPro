@@ -20,6 +20,12 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     where: { id: params.id },
     data: { deleted_at: new Date(), deleted_by: user.sub, deleted_by_username: user.username, delete_reason: reason } as any,
   }));
+  // Remove the linked expense so accounting stays reconciled.
+  const linkRows = await prisma.$queryRaw<{ expense_id: string }[]>`SELECT expense_id FROM labour_advances WHERE id::text = ${params.id} LIMIT 1`;
+  const expenseId = linkRows[0]?.expense_id;
+  if (expenseId) {
+    await withRetry(() => prisma.$executeRaw`UPDATE expenses SET deleted_at = now() WHERE id::text = ${expenseId} AND deleted_at IS NULL`);
+  }
   await logDataAction(req, user, {
     action: "labour_advance.soft_deleted",
     shop_id: existing.labour.shop_id,

@@ -31,11 +31,13 @@ export async function GET(req: NextRequest) {
     })));
   }
 
-  const month = parseInt(p.get("month") || "1");
-  const year = parseInt(p.get("year") || String(new Date().getFullYear()));
-  const { start, end } = monthRange(year, month);
+  // Date-range (from/to) takes precedence — used by the Reports labour report; else month/year.
+  const from = p.get("from"); const to = p.get("to");
+  const range = from && to
+    ? { start: from, end: to }
+    : monthRange(parseInt(p.get("year") || String(new Date().getFullYear())), parseInt(p.get("month") || "1"));
   const works: any[] = await withRetry(() => prisma.labourWork.findMany({
-    where: { work_date: { gte: start, lte: end }, deleted_at: null, ...labourFilter(user, req) },
+    where: { work_date: { gte: range.start, lte: range.end }, deleted_at: null, ...labourFilter(user, req) },
     include: { labour: true },
     orderBy: { work_date: "asc" },
   } as any));

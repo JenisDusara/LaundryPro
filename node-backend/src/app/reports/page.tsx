@@ -6,6 +6,7 @@ import { downloadAuthedFile } from "@/lib/download";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import EmptyState from "@/components/EmptyState";
 import { FilterPanel } from "@/components/Filters";
+import { useBlockStaff } from "@/lib/useRoleGuard";
 import { Donut, Bars } from "@/components/Charts";
 import { isEntryDelivered } from "@/lib/entry-status";
 import type { LaundryEntry, CustomerBalance, Customer } from "@/types";
@@ -31,18 +32,23 @@ function RepTable({ head, rows, empty }: { head: string[]; rows: React.ReactNode
 }
 
 export default function Reports() {
+  const allowed = useBlockStaff();
   const [entries, setEntries] = useState<LaundryEntry[]>([]);
   const mStart = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`; };
   const mEnd   = () => { const d=new Date(); const e=new Date(d.getFullYear(), d.getMonth()+1, 0); return `${e.getFullYear()}-${String(e.getMonth()+1).padStart(2,"0")}-${String(e.getDate()).padStart(2,"0")}`; };
   const [from, setFrom] = useState(mStart);
   const [to, setTo] = useState(mEnd);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"daily"|"services"|"society"|"customers"|"collection"|"orders"|"expense"|"balance">("daily");
+  const [activeTab, setActiveTab] = useState<"daily"|"services"|"society"|"customers"|"collection"|"orders"|"expense"|"balance"|"labour">("daily");
   const [expandedSociety, setExpandedSociety] = useState<string|null>(null);
   const [coll, setColl] = useState<{ total:number; cash:number; upi:number; card:number; other:number; count:number }>({ total:0, cash:0, upi:0, card:0, other:0, count:0 });
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [balances, setBalances] = useState<CustomerBalance[]>([]);
   const [custMap, setCustMap] = useState<Record<string,{name:string;phone:string}>>({});
+  // Labour report data (range-scoped).
+  const [labWorks, setLabWorks] = useState<{labour_id:string;labour_name:string;total:number;press_count:number}[]>([]);
+  const [labAdvs, setLabAdvs] = useState<{labour_id:string;labour_name:string;amount:number}[]>([]);
+  const [labPays, setLabPays] = useState<{labour_id:string;labour_name:string;amount:number}[]>([]);
 
   useEffect(()=>{ if(!from||!to) return; setLoading(true);
     Promise.all([
@@ -51,6 +57,9 @@ export default function Reports() {
       api.get("/expenses",{params:{from,to}}).then(r=>setExpenses(r.data)).catch(()=>setExpenses([])),
       api.get("/customers/balances").then(r=>setBalances(r.data)).catch(()=>setBalances([])),
       api.get("/customers").then(r=>{ const m:Record<string,{name:string;phone:string}>={}; (r.data as Customer[]).forEach(c=>m[c.id]={name:c.name,phone:c.phone}); setCustMap(m); }).catch(()=>{}),
+      api.get("/labour/work",{params:{from,to}}).then(r=>setLabWorks(r.data)).catch(()=>setLabWorks([])),
+      api.get("/labour/advance",{params:{from,to}}).then(r=>setLabAdvs(r.data)).catch(()=>setLabAdvs([])),
+      api.get("/labour/payment",{params:{from,to}}).then(r=>setLabPays(r.data)).catch(()=>setLabPays([])),
     ]).finally(()=>setLoading(false));
   },[from,to]);
 
@@ -91,6 +100,7 @@ export default function Reports() {
   const nowM=new Date();
   const atCurrentMonth = cur.getFullYear()===nowM.getFullYear() && cur.getMonth()===nowM.getMonth();
 
+  if (!allowed) return null;
   if(loading) return <ProtectedLayout><p style={{color:"var(--text-muted)",textAlign:"center",marginTop:40}}>Loading...</p></ProtectedLayout>;
 
   return (
@@ -141,7 +151,7 @@ export default function Reports() {
       </div>
       {/* Tabs — single scrollable row on mobile (no wrapping to 3 lines) */}
       <div style={{display:"flex",gap:8,marginBottom:16,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch",scrollbarWidth:"none"}}>
-        {([["daily","Daily"],["orders","Orders"],["collection","Collection"],["balance","Balance"],["expense","Expense"],["services","Services"],["society","Society"],["customers","Customers"]] as [typeof activeTab,string][]).map(([tab,lbl])=>(
+        {([["daily","Daily"],["orders","Orders"],["collection","Collection"],["balance","Balance"],["expense","Expense"],["labour","Labour"],["services","Services"],["society","Society"],["customers","Customers"]] as [typeof activeTab,string][]).map(([tab,lbl])=>(
           <button key={tab} onClick={()=>setActiveTab(tab)} style={{padding:"8px 18px",border:"none",borderRadius:20,cursor:"pointer",fontSize:13,fontWeight:700,flexShrink:0,whiteSpace:"nowrap",
             background:activeTab===tab?"#2563eb":"var(--bg-input)",
             color:activeTab===tab?"#fff":"var(--text-secondary)",
@@ -257,6 +267,31 @@ export default function Reports() {
             <TotalChip label="Total Balance Amount" value={`₹${total.toLocaleString("en-IN")}`}/>
             <RepTable head={["Customer","Phone","Billed (₹)","Paid (₹)","Balance (₹)"]} empty="No outstanding balances — sab clear! 🎉"
               rows={rows.map(b=>[custMap[b.customer_id]?.name||"—", custMap[b.customer_id]?.phone||"—", `₹${Number(b.billed).toLocaleString("en-IN")}`, `₹${Number(b.paid).toLocaleString("en-IN")}`, `₹${Number(b.outstanding).toLocaleString("en-IN")}`])}/>
+          </div>;
+        })()}
+
+        {activeTab==="labour"&&(()=>{
+          // Aggregate per-labour for the range: earned (work) − advance = net; paid = actual payouts.
+          const agg=new Map<string,{name:string;press:number;earned:number;advance:number;paid:number}>();
+          const ensure=(id:string,name:string)=>{ if(!agg.has(id)) agg.set(id,{name,press:0,earned:0,advance:0,paid:0}); return agg.get(id)!; };
+          labWorks.forEach(w=>{ const a=ensure(w.labour_id,w.labour_name); a.press+=Number(w.press_count); a.earned+=Number(w.total); });
+          labAdvs.forEach(x=>{ const a=ensure(x.labour_id,x.labour_name); a.advance+=Number(x.amount); });
+          labPays.forEach(p=>{ const a=ensure(p.labour_id,p.labour_name); a.paid+=Number(p.amount); });
+          const rows=[...agg.values()].sort((a,b)=>b.earned-a.earned);
+          const tEarned=rows.reduce((s,r)=>s+r.earned,0);
+          const tAdvance=rows.reduce((s,r)=>s+r.advance,0);
+          const tPaid=rows.reduce((s,r)=>s+r.paid,0);
+          const tNet=tEarned-tAdvance;
+          return <div>
+            <h3 style={{margin:"0 0 14px",fontSize:16,fontWeight:700,color:"var(--text-primary)"}}>Labour Report — {monthName}</h3>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+              <TotalChip label="Earned" value={`₹${tEarned.toLocaleString("en-IN")}`}/>
+              <TotalChip label="Advance" value={`₹${tAdvance.toLocaleString("en-IN")}`}/>
+              <TotalChip label="Net payable" value={`₹${tNet.toLocaleString("en-IN")}`}/>
+              <TotalChip label="Paid out" value={`₹${tPaid.toLocaleString("en-IN")}`}/>
+            </div>
+            <RepTable head={["Labour","Pieces","Earned (₹)","Advance (₹)","Net (₹)","Paid (₹)"]} empty={`No labour activity in ${monthName}.`}
+              rows={rows.map(r=>[r.name, r.press, `₹${r.earned.toLocaleString("en-IN")}`, `₹${r.advance.toLocaleString("en-IN")}`, `₹${(r.earned-r.advance).toLocaleString("en-IN")}`, `₹${r.paid.toLocaleString("en-IN")}`])}/>
           </div>;
         })()}
       </div>

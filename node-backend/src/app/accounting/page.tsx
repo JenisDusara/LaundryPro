@@ -10,6 +10,7 @@ import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import EmptyState from "@/components/EmptyState";
 import CollectionsChart from "@/components/CollectionsChart";
+import { useBlockStaff } from "@/lib/useRoleGuard";
 import type { Payment } from "@/types";
 
 interface Expense { id: string; date: string; category: string; description: string; amount: number; }
@@ -132,6 +133,7 @@ function fmtLong(d: string) {
 }
 
 export default function AccountingPage() {
+  const allowed = useBlockStaff();
   const now = new Date();
   const [tab,    setTab]    = useState<"expenses"|"daywise"|"collections">("expenses");
   const [month,  setMonth]  = useState(now.getMonth() + 1);
@@ -235,6 +237,8 @@ export default function AccountingPage() {
   const toggle=(d:string)=>setExpanded(prev=>{
     const next=new Set(prev); next.has(d)?next.delete(d):next.add(d); return next;
   });
+
+  if (!allowed) return null;
 
   return (
     <ProtectedLayout>
