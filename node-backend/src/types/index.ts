@@ -48,6 +48,7 @@ export interface LaundryEntry {
   amount_paid?: number;       // collected at billing
   payment_method?: string;    // cash | upi | online | later | ""
   delivery_status: string;
+  tag_status?: "collected" | "in_process" | "ready" | "delivered" | "issue" | string;
   notes: string;
   items: EntryItem[];
   customer: Customer | null;

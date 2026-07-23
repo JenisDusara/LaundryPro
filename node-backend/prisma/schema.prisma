@@ -45,6 +45,11 @@ model ShopProfile {
   weekly_report_enabled Boolean @default(true) // auto-email the Sunday weekly report to `email`
   wa_auto_enabled       Boolean @default(false) // auto-send a WhatsApp bill on new entry (via WA-Service)
   wa_show_prices        Boolean @default(true) // when false, WhatsApp bills show only items
+  qr_show_full_phone    Boolean @default(false)
+  qr_show_full_address  Boolean @default(false)
+  qr_show_order_notes   Boolean @default(true)
+  qr_pending_expiry_days Int    @default(90)
+  qr_delivery_expiry_hours Int  @default(2)
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
@@ -147,6 +152,23 @@ model LaundryEntry {
   extra_charge    Decimal     @default(0) @db.Decimal(10, 2)
   amount_paid     Decimal     @default(0) @db.Decimal(10, 2)
   payment_method  String      @default("")
+  // QR tag columns — a scannable garment tag points at /t/<qr_token>. qr_token is a random,
+  // globally-unique token (NOT the entry id) so the public scan URL can't be guessed from an
+  // adjacent order. tag_notes is the shop's free-text note printed on the tag and shown on the
+  // scan page (e.g. "red border saree, stain on sleeve"). Both are nullable/defaulted and read
+  // via raw SQL until `prisma generate` runs, matching the delivery_date / billing pattern.
+  qr_token        String?     @unique
+  tag_notes       String      @default("")
+  tag_mode        String      @default("order") // "order" | "stickers" | "item"
+  // Operational workflow state shown/updated on the scan page: "collected" | "in_process" |
+  // "ready" | "delivered" | "issue". This is a superset of the billing-facing delivery_status
+  // (which stays "pending"/"delivered" so reports/accounting are untouched). The two are kept
+  // in sync at exactly one point: tag_status = "delivered" ⟺ delivery_status = "delivered".
+  tag_status      String      @default("collected")
+  // Timestamp of the last transition to delivered. Drives the tag's auto-expiry: the scan API
+  // refuses to show details once 2 hours have passed since this, so a photographed/lost tag
+  // stops working shortly after the order is handed over. Cleared when delivery is reverted.
+  delivered_at    DateTime?
   shop_id         String      @default("shop1")
   deleted_at      DateTime?
   deleted_by      String      @default("")
@@ -155,6 +177,7 @@ model LaundryEntry {
   created_at      DateTime    @default(now())
   updated_at      DateTime    @updatedAt
   items           EntryItem[]
+  item_tags       EntryItemTag[]
 
   @@index([entry_date])
   @@index([shop_id])
@@ -174,8 +197,78 @@ model EntryItem {
   delivered_qty  Int          @default(0) // how many of `quantity` have been handed over (partial delivery)
   subtotal       Decimal      @db.Decimal(10, 2)
   item_status    String       @default("pending") // kept in sync: "delivered" once delivered_qty >= quantity
+  item_tags      EntryItemTag[]
 
   @@map("entry_items")
+}
+
+// True garment-level tags for "item" tag mode. An EntryItem of quantity N (e.g. "Saree ×5")
+// expands into N rows here — one physical sticker per garment, each with its own unguessable
+// token — so "Saree 3/5" can be scanned/tracked individually. Only populated when a tag is
+// generated in item mode; order/stickers modes use LaundryEntry.qr_token instead.
+model EntryItemTag {
+  id            String       @id @default(uuid())
+  entry_id      String
+  entry         LaundryEntry @relation(fields: [entry_id], references: [id], onDelete: Cascade)
+  entry_item_id String
+  item          EntryItem    @relation(fields: [entry_item_id], references: [id], onDelete: Cascade)
+  seq           Int          // 1..quantity, printed as "3/5"
+  qr_token      String       @unique
+  label         String       @default("") // optional per-garment note, e.g. "red border"
+  created_at    DateTime     @default(now())
+
+  @@index([entry_id])
+  @@index([entry_item_id])
+  @@unique([entry_item_id, seq])
+  @@map("entry_item_tags")
+}
+
+model QrTagEvent {
+  id         String   @id @default(uuid())
+  entry_id   String
+  shop_id    String
+  token      String   @default("")
+  action     String
+  status     String   @default("")
+  mode       String   @default("")
+  detail     String   @default("")
+  user_id    String   @default("")
+  username   String   @default("")
+  ip         String   @default("")
+  created_at DateTime @default(now())
+
+  @@index([entry_id, created_at])
+  @@index([shop_id, created_at])
+  @@map("qr_tag_events")
+}
+
+model QrRevokedToken {
+  token      String   @id
+  entry_id   String
+  shop_id    String
+  reason     String   @default("")
+  revoked_by String   @default("")
+  username   String   @default("")
+  revoked_at DateTime @default(now())
+
+  @@index([entry_id])
+  @@index([shop_id])
+  @@map("qr_revoked_tokens")
+}
+
+model QrScanAttempt {
+  id           String   @id @default(uuid())
+  token_prefix String   @default("")
+  shop_id      String   @default("")
+  user_id      String   @default("")
+  username     String   @default("")
+  ip           String   @default("")
+  reason       String
+  created_at   DateTime @default(now())
+
+  @@index([ip, created_at])
+  @@index([shop_id, created_at])
+  @@map("qr_scan_attempts")
 }
 
 model Labour {

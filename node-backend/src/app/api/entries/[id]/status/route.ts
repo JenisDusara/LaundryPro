@@ -27,9 +27,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     await withRetry(() => prisma.$executeRaw`
       UPDATE entry_items SET item_status = 'delivered', delivered_qty = quantity WHERE entry_id::text = ${params.id}
     `);
+    // Stamps when delivery happened so the QR tag's scan API can auto-expire it 2h later, and
+    // syncs the operational tag_status (kept in lockstep: delivered ⟺ delivery_status delivered).
+    await withRetry(() => prisma.$executeRaw`
+      UPDATE laundry_entries SET delivered_at = now(), tag_status = 'delivered' WHERE id::text = ${params.id}
+    `);
   } else {
     await withRetry(() => prisma.$executeRaw`
       UPDATE entry_items SET item_status = 'pending', delivered_qty = 0 WHERE entry_id::text = ${params.id}
+    `);
+    // Reverting delivery clears the expiry stamp; step tag_status down from 'delivered' to 'ready'
+    // (leave other operational states untouched).
+    await withRetry(() => prisma.$executeRaw`
+      UPDATE laundry_entries
+      SET delivered_at = NULL,
+          tag_status = CASE WHEN tag_status = 'delivered' THEN 'ready' ELSE tag_status END
+      WHERE id::text = ${params.id}
     `);
   }
   const entry: any = await withRetry(() => prisma.laundryEntry.findFirst({

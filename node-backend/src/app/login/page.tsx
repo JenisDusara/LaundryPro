@@ -47,7 +47,14 @@ export default function LoginPage() {
     try {
       const res = await api.post("/auth/login", { username: username.trim(), password });
       localStorage.setItem("token", res.data.access_token);
-      router.push("/dashboard");
+      // A QR-tag scan (or any other protected page) that bounced here for auth leaves the page
+      // it wants to return to in sessionStorage — send the staff member back there instead of
+      // always landing on the dashboard. Only allow internal same-origin paths ("/foo", never
+      // "//evil.com" or "https://…") so a crafted value can't turn login into an open redirect.
+      const redirect = sessionStorage.getItem("post_login_redirect");
+      sessionStorage.removeItem("post_login_redirect");
+      const safe = redirect && redirect.startsWith("/") && !redirect.startsWith("//");
+      router.push(safe ? redirect! : "/dashboard");
     } catch { setError("Invalid username or password"); }
     finally { submittingRef.current = false; setLoading(false); }
   };

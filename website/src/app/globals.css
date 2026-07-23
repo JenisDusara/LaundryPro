@@ -41,14 +41,49 @@
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 88px;
+  /* Solid base colour behind everything. */
+  background-color: var(--bg);
 }
 
 body {
-  background-color: var(--bg);
+  /* Transparent so the subtle ambient glow (body::before) shows through,
+     while all text/cards keep their own solid surfaces — 100% clean. */
+  background-color: transparent;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow-x: hidden;
+}
+
+/* Very subtle, slow-drifting brand glow fixed behind all content. Purely
+   decorative and low-opacity so the page stays clean and professional. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -20vmax;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(36% 30% at 16% 10%, rgba(37, 99, 235, 0.1), transparent 70%),
+    radial-gradient(32% 28% at 86% 18%, rgba(234, 88, 12, 0.07), transparent 70%),
+    radial-gradient(42% 34% at 62% 94%, rgba(37, 99, 235, 0.06), transparent 70%);
+  animation: ambient-drift 24s ease-in-out infinite alternate;
+}
+
+.dark body::before {
+  background:
+    radial-gradient(36% 30% at 16% 10%, rgba(56, 189, 248, 0.1), transparent 70%),
+    radial-gradient(32% 28% at 86% 18%, rgba(234, 88, 12, 0.08), transparent 70%),
+    radial-gradient(42% 34% at 62% 94%, rgba(37, 99, 235, 0.1), transparent 70%);
+}
+
+@keyframes ambient-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(2vmax, -2vmax, 0) scale(1.06);
+  }
 }
 
 body,

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Phone, MapPin, FileText, Wallet, X, Printer, ChevronDown, ChevronRight, ChevronLeft, Pencil, Trash2, Plus, CheckCircle2, Package, User } from "lucide-react";
+import { ArrowLeft, Phone, MapPin, FileText, Wallet, X, Printer, ChevronDown, ChevronRight, ChevronLeft, Pencil, Trash2, Plus, CheckCircle2, Package, User, QrCode } from "lucide-react";
 import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import EmptyState from "@/components/EmptyState";
@@ -14,6 +14,15 @@ const COLORS = [{ bg: "#eff6ff", border: "#bfdbfe", text: "#1e40af" }, { bg: "#f
 const invFmt = (n?: number | null) => (n ? "INV-" + String(n).padStart(4, "0") : "Order");
 const fmtDate = (d?: string | null) => { if (!d) return "—"; try { return new Date(d + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }); } catch { return d; } };
 const tel = (p?: string) => (p || "").replace(/\D/g, "").slice(-10);
+const TAG_LABELS: Record<string, string> = { collected: "Collected", in_process: "In process", ready: "Ready", delivered: "Delivered", issue: "Issue" };
+const TAG_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  collected: { bg: "rgba(59,130,246,0.12)", text: "#2563eb", border: "rgba(59,130,246,0.25)" },
+  in_process: { bg: "rgba(245,158,11,0.12)", text: "#f59e0b", border: "rgba(245,158,11,0.25)" },
+  ready: { bg: "rgba(14,165,233,0.12)", text: "#0284c7", border: "rgba(14,165,233,0.25)" },
+  delivered: { bg: "rgba(5,150,105,0.12)", text: "#10b981", border: "rgba(5,150,105,0.25)" },
+  issue: { bg: "rgba(239,68,68,0.12)", text: "#ef4444", border: "rgba(239,68,68,0.25)" },
+};
+const tagStyle = (status = "collected") => TAG_COLORS[status] || TAG_COLORS.collected;
 
 interface EditItem { localId: string; service_id: string; service_name: string; price_per_unit: number; quantity: number; item_status: string; }
 interface PayRow { amount: number; method: string; date: string; note?: string; }
@@ -216,6 +225,8 @@ export default function CustomerDetail({ params }: { params: { id: string } }) {
                 const pend = e.items.filter(i => i.item_status !== "delivered").length;
                 const open = expanded === e.id;
                 const summary = e.items.map(i => `${i.service_name}×${i.quantity}`).join(", ");
+                const tagStatus = e.tag_status || (delivered ? "delivered" : "collected");
+                const tag = tagStyle(tagStatus);
                 return (
                   <tbody key={e.id}>
                     <tr className="ord-tr" style={{ cursor: "pointer", transition: "background 0.15s" }} onClick={() => setExpanded(open ? null : e.id)}>
@@ -225,11 +236,15 @@ export default function CustomerDetail({ params }: { params: { id: string } }) {
                       <td style={{ padding: "12px 16px", fontSize: 12.5, color: "var(--text-muted)", borderBottom: open ? "none" : "1px solid var(--border-subtle)", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{summary}</td>
                       <td style={{ padding: "12px 16px", fontSize: 14, fontWeight: 800, color: "var(--accent-primary)", textAlign: "right", borderBottom: open ? "none" : "1px solid var(--border-subtle)", whiteSpace: "nowrap" }}>₹{Number(e.total_amount).toLocaleString("en-IN")}</td>
                       <td style={{ padding: "12px 16px", textAlign: "center", borderBottom: open ? "none" : "1px solid var(--border-subtle)" }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 20, background: delivered ? "var(--grade-a-bg)" : "var(--grade-c-bg)", color: delivered ? "var(--grade-a-text)" : "var(--grade-c-text)", border: `1px solid ${delivered ? "var(--grade-a-border)" : "var(--grade-c-border)"}`, whiteSpace: "nowrap" }}>{delivered ? "Delivered" : `${pend} pending`}</span>
+                        <div style={{ display: "flex", justifyContent: "center", gap: 5, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 20, background: delivered ? "var(--grade-a-bg)" : "var(--grade-c-bg)", color: delivered ? "var(--grade-a-text)" : "var(--grade-c-text)", border: `1px solid ${delivered ? "var(--grade-a-border)" : "var(--grade-c-border)"}`, whiteSpace: "nowrap" }}>{delivered ? "Delivered" : `${pend} pending`}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 20, background: tag.bg, color: tag.text, border: `1px solid ${tag.border}`, whiteSpace: "nowrap" }}>{TAG_LABELS[tagStatus] || tagStatus}</span>
+                        </div>
                       </td>
                       <td style={{ padding: "8px 16px", borderBottom: open ? "none" : "1px solid var(--border-subtle)" }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }} onClick={ev => ev.stopPropagation()}>
                           <button onClick={() => openInvoice({ entry_id: e.id })} title="View / print invoice for this order" style={iconBtn}><FileText size={13} color="var(--grade-b-text)" /></button>
+                          <button onClick={() => window.open(`/entries/${e.id}/tag?mode=stickers&count=${e.items.reduce((s, i) => s + Number(i.quantity), 0)}`, "_blank")} title="Print QR tag" style={iconBtn}><QrCode size={13} color="var(--text-secondary)" /></button>
                           {customer?.phone && <button onClick={() => waOrder(e)} title="Send bill on WhatsApp" style={iconBtn}><svg width="14" height="14" viewBox="0 0 24 24" fill="#22c55e"><path d={WA_PATH} /></svg></button>}
                           <button onClick={() => openEdit(e)} title="Edit" style={iconBtn}><Pencil size={13} color="var(--text-secondary)" /></button>
                           <button onClick={() => delEntry(e.id)} title="Delete" style={iconBtn}><Trash2 size={13} color="#ef4444" /></button>

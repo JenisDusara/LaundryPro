@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { Store, Save, Upload, Trash2, ImageIcon, Download, DatabaseBackup, Mail, Send, MessageCircle, IndianRupee } from "lucide-react";
+import { Store, Save, Upload, Trash2, ImageIcon, Download, DatabaseBackup, Mail, Send, MessageCircle, IndianRupee, QrCode } from "lucide-react";
 import api from "@/lib/api";
 import { downloadAuthedFile } from "@/lib/download";
 import { todayIST } from "@/lib/dates";
@@ -22,6 +22,11 @@ type Profile = {
   weekly_report_enabled: boolean;
   wa_auto_enabled: boolean;
   wa_show_prices: boolean;
+  qr_show_full_phone: boolean;
+  qr_show_full_address: boolean;
+  qr_show_order_notes: boolean;
+  qr_pending_expiry_days: number | string;
+  qr_delivery_expiry_hours: number | string;
 };
 
 const EMPTY: Profile = {
@@ -29,6 +34,8 @@ const EMPTY: Profile = {
   email: "", upi_id: "", gst_number: "", gst_rate: 0,
   invoice_terms: "", footer_note: "", default_labour_rate: 2, logo_data: null,
   weekly_report_enabled: true, wa_auto_enabled: false, wa_show_prices: true,
+  qr_show_full_phone: false, qr_show_full_address: false, qr_show_order_notes: true,
+  qr_pending_expiry_days: 90, qr_delivery_expiry_hours: 2,
 };
 
 const LOGO_MAX_BYTES = 150 * 1024; // ~150 KB, stored in the shop profile.
@@ -123,6 +130,8 @@ export default function Settings() {
       setForm(f => ({ ...f, wa_show_prices: !next })); // revert on failure
     }
   };
+  const toggleQrPrivacy = (key: "qr_show_full_phone" | "qr_show_full_address" | "qr_show_order_notes") =>
+    setForm(f => ({ ...f, [key]: !f[key] }));
 
   // Weekly-report toggle saves immediately (same as WhatsApp) — no separate "Save changes".
   const toggleWeekly = async () => {
@@ -362,6 +371,43 @@ export default function Settings() {
               style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 18px", border: "1px solid var(--border-hard)", borderRadius: 10, background: "var(--bg-input)", color: "var(--text-primary)", fontSize: 13.5, fontWeight: 700, cursor: backupBusy ? "not-allowed" : "pointer", opacity: backupBusy ? 0.6 : 1 }}>
               <Download size={15} /> {backupBusy ? "Preparing…" : "Download backup"}
             </button>
+          </div>
+
+          {/* QR tag privacy/security card */}
+          <div style={{ background: "var(--bg-card)", borderRadius: 14, border: "1px solid var(--border-hard)", padding: 20, marginTop: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, color: "var(--text-primary)" }}>
+              <QrCode size={16} color="var(--accent-primary)" />
+              <span style={{ fontWeight: 700, fontSize: 14 }}>QR tag privacy &amp; security</span>
+            </div>
+            <p style={{ fontSize: 12.5, color: "var(--text-muted)", margin: "0 0 14px" }}>
+              Scan page aur printed tag me customer data kitna dikhana hai. Default safe mode me phone/address masked rehta hai.
+            </p>
+            <div style={{ display: "grid", gap: 12 }}>
+              {[
+                ["qr_show_full_phone", "Show full phone on QR scan/print", form.qr_show_full_phone],
+                ["qr_show_full_address", "Show full address on QR scan/print", form.qr_show_full_address],
+                ["qr_show_order_notes", "Show order notes on QR scan", form.qr_show_order_notes],
+              ].map(([key, text, on]) => (
+                <div key={String(key)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{text}</span>
+                  <div onClick={() => toggleQrPrivacy(key as any)} style={{ cursor: "pointer", flexShrink: 0 }}>
+                    <div style={{ width: 44, height: 24, borderRadius: 12, position: "relative", transition: "background 0.2s", background: on ? "#16a34a" : "var(--bg-elevated)" }}>
+                      <div style={{ position: "absolute", top: 2, left: on ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.25)", transition: "left 0.2s" }} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
+                <div>
+                  <label style={label}>Pending QR active days</label>
+                  <input style={inp} type="number" min={1} max={365} value={form.qr_pending_expiry_days} onChange={set("qr_pending_expiry_days")} />
+                </div>
+                <div>
+                  <label style={label}>After delivery active hours</label>
+                  <input style={inp} type="number" min={0} max={168} value={form.qr_delivery_expiry_hours} onChange={set("qr_delivery_expiry_hours")} />
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Weekly report card — superadmin only (regular shop admins don't manage this) */}

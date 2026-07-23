@@ -1,12 +1,32 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, ArrowRight } from "lucide-react";
+import {
+  Zap,
+  Cloud,
+  MessageCircle,
+  TrendingUp,
+  Users,
+  MonitorSmartphone,
+  ArrowRight,
+  type LucideIcon,
+} from "lucide-react";
 import { Container, Eyebrow, SectionHeading } from "@/components/ui/primitives";
 import { AnimatedPhone } from "@/components/ui/AnimatedPhone";
 import { whyChoose } from "@/lib/site";
 
 const ease = [0.16, 1, 0.3, 1] as const;
+
+// One icon + accent per feature (matches the order of `whyChoose`).
+const featureIcons: LucideIcon[] = [
+  Zap,
+  Cloud,
+  MessageCircle,
+  TrendingUp,
+  Users,
+  MonitorSmartphone,
+];
+const featureAccents = ["#2563eb", "#06b6d4", "#25d366", "#ea580c", "#2563eb", "#06b6d4"];
 
 export function WhyChoose() {
   return (
@@ -25,7 +45,7 @@ export function WhyChoose() {
             <AnimatedPhone start={3} />
           </motion.div>
 
-          {/* copy */}
+          {/* copy + feature cards */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -36,18 +56,37 @@ export function WhyChoose() {
             <Eyebrow align="left">Smart, simple, for every laundry shop</Eyebrow>
             <SectionHeading align="left">Why choose LaundryMax?</SectionHeading>
 
-            <ul className="mt-6 space-y-4">
-              {whyChoose.map((w) => (
-                <li key={w.title} className="flex items-start gap-3">
-                  <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-cyan-500 text-white">
-                    <Check size={13} strokeWidth={3} />
-                  </span>
-                  <span className="text-[14.5px] leading-snug text-muted">
-                    <span className="font-bold text-text">{w.title}:</span> {w.body}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-7 grid gap-4 sm:grid-cols-2">
+              {whyChoose.map((w, i) => {
+                const Icon = featureIcons[i];
+                const c = featureAccents[i];
+                return (
+                  <motion.div
+                    key={w.title}
+                    initial={{ opacity: 0, y: 18 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: "0px 0px -40px 0px" }}
+                    transition={{ delay: 0.05 * i, duration: 0.5, ease }}
+                    className="group rounded-2xl border border-line bg-card p-5 shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-card-hover"
+                  >
+                    <span
+                      className="mb-3 grid h-10 w-10 place-items-center rounded-xl transition-transform duration-300 group-hover:scale-110"
+                      style={{
+                        background: `${c}1a`,
+                        color: c,
+                        boxShadow: `inset 0 0 0 1px ${c}33`,
+                      }}
+                    >
+                      <Icon size={19} />
+                    </span>
+                    <h3 className="font-display text-[15px] font-bold leading-snug text-text">
+                      {w.title}
+                    </h3>
+                    <p className="mt-1.5 text-[13px] leading-snug text-muted">{w.body}</p>
+                  </motion.div>
+                );
+              })}
+            </div>
 
             <a
               href="#demo"

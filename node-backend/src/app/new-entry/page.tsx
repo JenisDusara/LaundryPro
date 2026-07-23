@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Trash2, Check, ChevronDown, ChevronUp, Clock, CheckCircle2, Truck, Phone, X, Minus, Plus } from "lucide-react";
+import { Search, Trash2, Check, ChevronDown, ChevronUp, Clock, CheckCircle2, Truck, Phone, X, Minus, Plus, QrCode } from "lucide-react";
 import api from "@/lib/api";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import ItemDeliver from "@/components/ItemDeliver";
@@ -47,6 +47,7 @@ export default function NewEntry() {
   const [showDropdown,     setShowDropdown]     = useState(false);
   const [updatingId,       setUpdatingId]       = useState<string|null>(null);
   const [justDelivered,    setJustDelivered]    = useState<{service_name:string;quantity:number;pickup_date:string}[]>([]);
+  const [lastEntry,        setLastEntry]        = useState<{id:string; qty:number}|null>(null);
   // Entries marked delivered "silently" on this page but not yet folded into a combined
   // pickup message. Kept in a ref so an unmount flush can still notify the customer if the
   // user navigates away without saving a new entry (otherwise the delivery note is lost).
@@ -177,7 +178,9 @@ export default function NewEntry() {
     try {
       // Pass any just-delivered items so the backend sends ONE combined message
       // (delivery note with pickup dates + new pickup) instead of two separate ones.
-      await api.post("/entries",{customer_id:selectedCustomer.id,notes,delivery_date:deliveryDate||null,delivered:justDelivered,discount:discountN,extra_charge:extraN,amount_paid:paidN,payment_method:payMethod,items:items.map(i=>({service_id:i.service_id,service_name:i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name,quantity:Number(i.quantity),price_per_unit:Number(i.price)}))});
+      const created = await api.post("/entries",{customer_id:selectedCustomer.id,notes,delivery_date:deliveryDate||null,delivered:justDelivered,discount:discountN,extra_charge:extraN,amount_paid:paidN,payment_method:payMethod,items:items.map(i=>({service_id:i.service_id,service_name:i.item_name?`${i.service_name} - ${i.item_name}`:i.service_name,quantity:Number(i.quantity),price_per_unit:Number(i.price)}))});
+      const savedQty = items.reduce((s,i)=>s+Number(i.quantity),0);
+      setLastEntry({ id: created.data.id, qty: savedQty });
       setSuccess(true); setItems([]); setNotes(""); setDeliveryDate(""); setDiscount(""); setExtraCharge(""); setPayMethod("later"); setAmountPaid("");
       // These deliveries are now covered by the combined message — clear so the unmount
       // flush doesn't re-notify.
@@ -217,7 +220,8 @@ export default function NewEntry() {
   const isDisabled = !selectedCustomer || items.length === 0 || saving;
   const cardStyle: React.CSSProperties = { background:"var(--bg-card-solid)", borderRadius:14, boxShadow:"var(--shadow-web-lift)", border:"1px solid var(--border-hard)" };
   const label: React.CSSProperties = { fontSize:11, fontWeight:700, color:"var(--text-secondary)", textTransform:"uppercase", letterSpacing:"0.1em" };
-  const resetForm = () => { setItems([]); setSelectedCustomer(null); setSearch(""); setNotes(""); setDeliveryDate(""); setPastEntries([]); setJustDelivered([]); setDiscount(""); setExtraCharge(""); setPayMethod("later"); setAmountPaid(""); };
+  const resetForm = () => { setItems([]); setSelectedCustomer(null); setSearch(""); setNotes(""); setDeliveryDate(""); setPastEntries([]); setJustDelivered([]); setDiscount(""); setExtraCharge(""); setPayMethod("later"); setAmountPaid(""); setLastEntry(null); };
+  const printTagBtn: React.CSSProperties = {padding:"6px 12px",borderRadius:8,border:"1px solid var(--grade-a-border)",background:"var(--bg-card-solid)",color:"var(--grade-a-text)",cursor:"pointer",fontSize:12,fontWeight:700};
 
   return (
     <ProtectedLayout>
@@ -246,8 +250,17 @@ export default function NewEntry() {
       </div>
 
       {success && (
-        <div style={{background:"var(--grade-a-bg)",color:"var(--grade-a-text)",padding:"12px 16px",borderRadius:10,marginBottom:16,fontWeight:600,display:"flex",alignItems:"center",gap:8,border:"1px solid var(--grade-a-border)"}}>
+        <div style={{background:"var(--grade-a-bg)",color:"var(--grade-a-text)",padding:"12px 16px",borderRadius:10,marginBottom:lastEntry?8:16,fontWeight:600,display:"flex",alignItems:"center",gap:8,border:"1px solid var(--grade-a-border)"}}>
           <Check size={18}/> Entry saved successfully!
+        </div>
+      )}
+
+      {lastEntry && (
+        <div style={{background:"var(--bg-card-solid)",padding:"10px 16px",borderRadius:10,marginBottom:16,border:"1px solid var(--border-hard)",display:"flex",flexWrap:"wrap",gap:8,alignItems:"center"}}>
+          <span style={{fontSize:12,fontWeight:700,color:"var(--text-secondary)",display:"flex",alignItems:"center",gap:4}}><QrCode size={14}/> Print Tag:</span>
+          <button style={printTagBtn} onClick={()=>window.open(`/entries/${lastEntry.id}/tag?mode=order`,"_blank")}>Per order</button>
+          <button style={printTagBtn} onClick={()=>window.open(`/entries/${lastEntry.id}/tag?mode=stickers&count=${lastEntry.qty}`,"_blank")}>{lastEntry.qty} stickers</button>
+          <button style={printTagBtn} onClick={()=>window.open(`/entries/${lastEntry.id}/tag?mode=item`,"_blank")}>Per item</button>
         </div>
       )}
 

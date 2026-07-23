@@ -34,9 +34,9 @@ export async function GET(req: NextRequest) {
     } as any));
     // Fetch delivery_date + billing columns via raw SQL (Prisma client may not include them yet)
     const ids = entries.map(e => e.id);
-    const ddRows: { id: string; delivery_date: string | null; discount: any; extra_charge: any; amount_paid: any; payment_method: string | null; invoice_no: number | null }[] = ids.length > 0
+    const ddRows: { id: string; delivery_date: string | null; discount: any; extra_charge: any; amount_paid: any; payment_method: string | null; invoice_no: number | null; tag_status: string }[] = ids.length > 0
       ? await prisma.$queryRawUnsafe(
-          `SELECT id::text, delivery_date, discount, extra_charge, amount_paid, payment_method, invoice_no FROM laundry_entries WHERE deleted_at IS NULL AND id::text = ANY($1::text[])`,
+          `SELECT id::text, delivery_date, discount, extra_charge, amount_paid, payment_method, invoice_no, tag_status FROM laundry_entries WHERE deleted_at IS NULL AND id::text = ANY($1::text[])`,
           ids
         )
       : [];
@@ -60,6 +60,7 @@ export async function GET(req: NextRequest) {
         amount_paid: extra?.amount_paid != null ? Number(extra.amount_paid) : 0,
         payment_method: extra?.payment_method ?? "",
         invoice_no: extra?.invoice_no ?? null,
+        tag_status: extra?.tag_status ?? "collected",
         total_amount: Number(e.total_amount),
         items: e.items.map((i: any) => ({ ...i, price_per_unit: Number(i.price_per_unit), subtotal: Number(i.subtotal), delivered_qty: dqMap.get(i.id) ?? 0 })),
       };

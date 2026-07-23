@@ -343,12 +343,12 @@ export const managementCards = [
 
 // "Why Choose LaundryMax?" — 6 points.
 export const whyChoose = [
-  { title: "Bill in seconds, not minutes", body: "Your counter never slows down — a full, itemised bill in about 10 seconds." },
-  { title: "Nothing ever gets lost", body: "Every order, payment, due and advance is saved and always there — unlike a register." },
-  { title: "Bills on WhatsApp", body: "Customers get a clean bill the moment it's made, and a full monthly bill when it's due." },
-  { title: "Know your real earnings", body: "See exactly what you earned today and this month, plus your profit after expenses." },
-  { title: "Wages done for you", body: "Each worker's press count turns into wages automatically — no counting, no disputes." },
-  { title: "Works on any phone or computer", body: "Nothing to install, always backed up in the cloud, and live the same day." },
+  { title: "Fast counter billing", body: "Full itemised bills in about 10 seconds — your counter never slows down." },
+  { title: "Cloud data, never lost", body: "Every order, payment, due & advance saved in the cloud — safer than any register." },
+  { title: "Auto bills on WhatsApp", body: "Clean bills and monthly statements sent to customers the moment they're ready." },
+  { title: "Live earnings & profit", body: "Today's and monthly income, expenses and net profit — all on one dashboard." },
+  { title: "Automatic staff wages", body: "Each worker's press-count turns into wages automatically — no counting, no disputes." },
+  { title: "Works on any device", body: "Phone, tablet or computer — nothing to install, cloud-backed, live the same day." },
 ];
 
 // How It Works — 3 steps.

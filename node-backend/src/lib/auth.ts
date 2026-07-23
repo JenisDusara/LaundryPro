@@ -30,7 +30,8 @@ export interface TokenPayload {
 }
 
 export function signToken(payload: object): string {
-  return jwt.sign(payload, getSecret(), { expiresIn: "7d" });
+  const role = typeof (payload as any)?.role === "string" ? (payload as any).role : "";
+  return jwt.sign(payload, getSecret(), { expiresIn: role === "staff" ? "24h" : "7d" });
 }
 
 export function verifyToken(token: string): TokenPayload | null {

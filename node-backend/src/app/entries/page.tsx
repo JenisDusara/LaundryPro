@@ -10,6 +10,21 @@ import { FilterPanel } from "@/components/Filters";
 import type { LaundryEntry } from "@/types";
 
 const AVATAR_COLORS = ["#1e40af", "#059669", "#7c3aed", "#d97706", "#dc2626", "#0891b2", "#be185d", "#0f766e"];
+const TAG_LABELS: Record<string, string> = {
+  collected: "Collected",
+  in_process: "In process",
+  ready: "Ready",
+  delivered: "Delivered",
+  issue: "Issue",
+};
+const TAG_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  collected: { bg: "rgba(59,130,246,0.12)", text: "#2563eb", border: "rgba(59,130,246,0.25)" },
+  in_process: { bg: "rgba(245,158,11,0.12)", text: "#f59e0b", border: "rgba(245,158,11,0.25)" },
+  ready: { bg: "rgba(14,165,233,0.12)", text: "#0284c7", border: "rgba(14,165,233,0.25)" },
+  delivered: { bg: "rgba(5,150,105,0.12)", text: "#10b981", border: "rgba(5,150,105,0.25)" },
+  issue: { bg: "rgba(239,68,68,0.12)", text: "#ef4444", border: "rgba(239,68,68,0.25)" },
+};
+const tagStyle = (status = "collected") => TAG_COLORS[status] || TAG_COLORS.collected;
 
 export default function Orders() {
   const router = useRouter();
@@ -121,6 +136,16 @@ export default function Orders() {
           const custTotal = cust.entries.reduce((s, e) => s + Number(e.total_amount), 0);
           const custAllDel = cust.entries.length > 0 && cust.entries.every(isEntryDelivered);
           const pendingCnt = cust.entries.flatMap(e => e.items).filter(i => i.item_status !== "delivered").length;
+          const tagStatus = cust.entries.some(e => e.tag_status === "issue")
+            ? "issue"
+            : cust.entries.some(e => e.tag_status === "ready")
+              ? "ready"
+              : cust.entries.some(e => e.tag_status === "in_process")
+                ? "in_process"
+                : custAllDel
+                  ? "delivered"
+                  : "collected";
+          const tag = tagStyle(tagStatus);
           const latestDate = cust.entries.map(e => e.entry_date).sort().reverse()[0];
           const oldestPending = cust.entries.filter(e => e.items.some(i => i.item_status !== "delivered")).map(e => e.entry_date).sort()[0];
           const isOverdue = !custAllDel && !!oldestPending && (Date.now() - new Date(oldestPending + "T00:00:00").getTime()) > 30 * 24 * 60 * 60 * 1000;
@@ -146,6 +171,9 @@ export default function Orders() {
                     color: isOverdue ? "#ef4444" : custAllDel ? "#10b981" : "#f59e0b",
                     border: `1px solid ${isOverdue ? "rgba(239,68,68,0.25)" : custAllDel ? "rgba(5,150,105,0.25)" : "rgba(245,158,11,0.25)"}` }}>
                     {isOverdue ? "Overdue" : custAllDel ? "Delivered" : `${pendingCnt} pending`}
+                  </span>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, flexShrink: 0, background: tag.bg, color: tag.text, border: `1px solid ${tag.border}` }}>
+                    QR: {TAG_LABELS[tagStatus] || tagStatus}
                   </span>
                 </div>
               </div>

@@ -16,17 +16,23 @@ export interface ShopProfile {
   weekly_report_enabled: boolean;
   wa_auto_enabled: boolean;
   wa_show_prices: boolean; // when false, WhatsApp bills show only items (no price/total/balance)
+  qr_show_full_phone: boolean;
+  qr_show_full_address: boolean;
+  qr_show_order_notes: boolean;
+  qr_pending_expiry_days: number;
+  qr_delivery_expiry_hours: number;
 }
 
 // Fields a client is allowed to write. id / shop_id / timestamps are never accepted from the request.
 const EDITABLE: (keyof ShopProfile)[] = [
   "shop_name", "tagline", "phone", "address", "email", "upi_id", "gst_number", "gst_rate",
   "invoice_terms", "footer_note", "default_labour_rate", "logo_data", "weekly_report_enabled",
-  "wa_auto_enabled", "wa_show_prices",
+  "wa_auto_enabled", "wa_show_prices", "qr_show_full_phone", "qr_show_full_address",
+  "qr_show_order_notes", "qr_pending_expiry_days", "qr_delivery_expiry_hours",
 ];
 
-const NUMERIC: (keyof ShopProfile)[] = ["gst_rate", "default_labour_rate"];
-const BOOLEAN: (keyof ShopProfile)[] = ["weekly_report_enabled", "wa_auto_enabled", "wa_show_prices"];
+const NUMERIC: (keyof ShopProfile)[] = ["gst_rate", "default_labour_rate", "qr_pending_expiry_days", "qr_delivery_expiry_hours"];
+const BOOLEAN: (keyof ShopProfile)[] = ["weekly_report_enabled", "wa_auto_enabled", "wa_show_prices", "qr_show_full_phone", "qr_show_full_address", "qr_show_order_notes"];
 
 function defaults(shopName = ""): ShopProfile {
   return {
@@ -45,6 +51,11 @@ function defaults(shopName = ""): ShopProfile {
     weekly_report_enabled: true,
     wa_auto_enabled: false,
     wa_show_prices: true,
+    qr_show_full_phone: false,
+    qr_show_full_address: false,
+    qr_show_order_notes: true,
+    qr_pending_expiry_days: 90,
+    qr_delivery_expiry_hours: 2,
   };
 }
 
@@ -52,26 +63,37 @@ function defaults(shopName = ""): ShopProfile {
 // yet, so they're read/written via raw SQL (same pattern as delivery_date / labour). Defensive:
 // if a column doesn't exist, wa_auto_enabled defaults false and wa_show_prices defaults true
 // (preserving the current "show prices" behaviour).
-async function readWaFlags(shopId: string): Promise<{ wa_auto_enabled: boolean; wa_show_prices: boolean }> {
-  let wa_auto_enabled = false, wa_show_prices = true;
-  try {
-    const r = await prisma.$queryRawUnsafe<{ wa_auto_enabled: boolean }[]>(`SELECT wa_auto_enabled FROM shop_profiles WHERE shop_id = $1`, shopId);
-    wa_auto_enabled = !!r[0]?.wa_auto_enabled;
-  } catch { /* column not present → false */ }
-  try {
-    const r = await prisma.$queryRawUnsafe<{ wa_show_prices: boolean }[]>(`SELECT wa_show_prices FROM shop_profiles WHERE shop_id = $1`, shopId);
-    wa_show_prices = r[0]?.wa_show_prices !== false; // null/missing → true
-  } catch { /* column not present → true */ }
-  return { wa_auto_enabled, wa_show_prices };
+async function readFeatureFlags(shopId: string): Promise<Pick<ShopProfile,
+  "wa_auto_enabled" | "wa_show_prices" | "qr_show_full_phone" | "qr_show_full_address" |
+  "qr_show_order_notes" | "qr_pending_expiry_days" | "qr_delivery_expiry_hours"
+>> {
+  const d = defaults();
+  const flags = {
+    wa_auto_enabled: d.wa_auto_enabled,
+    wa_show_prices: d.wa_show_prices,
+    qr_show_full_phone: d.qr_show_full_phone,
+    qr_show_full_address: d.qr_show_full_address,
+    qr_show_order_notes: d.qr_show_order_notes,
+    qr_pending_expiry_days: d.qr_pending_expiry_days,
+    qr_delivery_expiry_hours: d.qr_delivery_expiry_hours,
+  };
+  for (const key of Object.keys(flags) as (keyof typeof flags)[]) {
+    try {
+      const r = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(`SELECT ${key} FROM shop_profiles WHERE shop_id = $1`, shopId);
+      const v = r[0]?.[key];
+      if (typeof flags[key] === "boolean") (flags as any)[key] = v === true;
+      else (flags as any)[key] = Math.max(0, Number(v) || (d as any)[key]);
+    } catch { /* column not present → default */ }
+  }
+  return flags;
 }
 
 export async function getShopProfile(shopId: string): Promise<ShopProfile> {
   const row = await withRetry(() => prisma.shopProfile.findUnique({ where: { shop_id: shopId } }));
-  const { wa_auto_enabled, wa_show_prices } = await readWaFlags(shopId);
-  if (!row) return { ...defaults(), wa_auto_enabled, wa_show_prices };
+  const flags = await readFeatureFlags(shopId);
+  if (!row) return { ...defaults(), ...flags };
   return {
-    wa_auto_enabled,
-    wa_show_prices,
+    ...flags,
     shop_name: row.shop_name,
     tagline: row.tagline,
     phone: row.phone,
@@ -118,6 +140,15 @@ export async function upsertShopProfile(shopId: string, data: Record<string, unk
         `UPDATE shop_profiles SET wa_show_prices = $1 WHERE shop_id = $2`, Boolean(data.wa_show_prices), shopId
       );
     } catch { /* column not present yet */ }
+  }
+  for (const key of ["wa_auto_enabled", "wa_show_prices", "qr_show_full_phone", "qr_show_full_address", "qr_show_order_notes", "qr_pending_expiry_days", "qr_delivery_expiry_hours"]) {
+    if (key in data) {
+      try {
+        await prisma.$executeRawUnsafe(
+          `UPDATE shop_profiles SET ${key} = $1 WHERE shop_id = $2`, key.startsWith("qr_") && key.endsWith("_days") || key.endsWith("_hours") ? Math.max(0, Number((data as any)[key]) || 0) : Boolean((data as any)[key]), shopId
+        );
+      } catch { /* column not present yet */ }
+    }
   }
   return getShopProfile(shopId);
 }
